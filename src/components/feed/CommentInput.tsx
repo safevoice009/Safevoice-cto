@@ -65,8 +65,7 @@ const CommentInput = forwardRef<HTMLTextAreaElement, CommentInputProps>(
       const lastAt = newValue.lastIndexOf('@', e.target.selectionStart - 1);
       if (lastAt !== -1) {
         const substring = newValue.slice(lastAt + 1, e.target.selectionStart);
-        const hasSpace = /
-|    | |/.test(substring);
+        const hasSpace = /\s/.test(substring);
         if (!hasSpace) {
           setMentionQuery(substring);
           setShowMentions(substring.length > 0);
