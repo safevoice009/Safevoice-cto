@@ -17,7 +17,7 @@ export default function ShareMenu({ isOpen, onClose, postId }: ShareMenuProps) {
       await copyToClipboard(postUrl);
       toast.success('Link copied to clipboard! 🔗');
       onClose();
-    } catch (error) {
+    } catch {
       toast.error('Failed to copy link');
     }
   };
@@ -31,7 +31,7 @@ export default function ShareMenu({ isOpen, onClose, postId }: ShareMenuProps) {
           url: postUrl,
         });
         onClose();
-      } catch (error) {
+      } catch {
         // User cancelled or share failed
       }
     } else {

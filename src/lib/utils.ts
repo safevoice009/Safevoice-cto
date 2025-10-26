@@ -108,8 +108,12 @@ export function copyToClipboard(text: string): Promise<void> {
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
-    return new Promise((resolve, reject) => {
-      document.execCommand('copy') ? resolve() : reject();
+    return new Promise<void>((resolve, reject) => {
+      if (document.execCommand('copy')) {
+        resolve();
+      } else {
+        reject();
+      }
       textArea.remove();
     });
   }
@@ -117,15 +121,12 @@ export function copyToClipboard(text: string): Promise<void> {
 
 export async function share(title: string, text: string, url: string): Promise<void> {
   if (navigator.share) {
-    try {
-      await navigator.share({ title, text, url });
-    } catch (err) {
-      throw err;
-    }
-  } else {
-    await copyToClipboard(url);
-    throw new Error('Share API not supported');
+    await navigator.share({ title, text, url });
+    return;
   }
+
+  await copyToClipboard(url);
+  throw new Error('Share API not supported');
 }
 
 export const copyPostLink = (postId: string) => {

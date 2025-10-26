@@ -51,7 +51,7 @@ export default function ReactionBar({ reactions, onReact, size = 'normal' }: Rea
 
   const totalReactions = Object.values(reactions).reduce((sum, count) => sum + count, 0);
   const topReactions = Object.entries(reactions)
-    .filter(([_, count]) => count > 0)
+    .filter(([, count]) => count > 0)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 3);
 
