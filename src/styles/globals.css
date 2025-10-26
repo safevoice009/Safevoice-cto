@@ -1,0 +1,31 @@
+body {
+  @apply bg-background text-white antialiased;
+}
+
+* {
+  @apply box-border;
+}
+
+.glass {
+  @apply backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl;
+}
+
+.btn-primary {
+  @apply px-6 py-3 bg-primary text-white rounded-lg font-medium transition-all duration-300 hover:shadow-glow;
+}
+
+.btn-secondary {
+  @apply px-6 py-3 bg-red-600 text-white rounded-lg font-medium transition-all duration-300 hover:bg-red-700;
+}
+
+.nav-link {
+  @apply text-gray-300 hover:text-white transition-colors duration-200;
+}
+
+.text-shadow {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.animate-pulse-slow {
+  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
