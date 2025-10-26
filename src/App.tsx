@@ -9,6 +9,7 @@ import BottomNav from './components/layout/BottomNav';
 import Landing from './pages/Landing';
 import Feed from './pages/Feed';
 import Profile from './pages/Profile';
+import PostDetail from './pages/PostDetail';
 import { useStore } from './lib/store';
 
 function AnimatedRoutes() {
@@ -31,6 +32,7 @@ function AnimatedRoutes() {
             <Route path="/" element={<Landing />} />
             <Route path="/feed" element={<Feed />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/post/:postId" element={<PostDetail />} />
           </Routes>
         </AnimatePresence>
       </main>
