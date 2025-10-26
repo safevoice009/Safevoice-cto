@@ -4,6 +4,7 @@ import { Lock, Menu, X, Wallet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../../lib/store';
 import toast from 'react-hot-toast';
+import NotificationDropdown from './NotificationDropdown';
 
 type NavLink = {
   name: string;
@@ -97,6 +98,7 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
+            <NotificationDropdown />
             <span className="text-primary font-medium">{studentId}</span>
             <motion.button
               onClick={handleWalletConnect}
@@ -138,6 +140,7 @@ export default function Navbar() {
                 </button>
               ))}
               <div className="pt-3 border-t border-white/10 space-y-3">
+                <NotificationDropdown />
                 <div className="text-primary font-medium">{studentId}</div>
                 <motion.button
                   onClick={() => {
