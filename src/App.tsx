@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
@@ -11,10 +11,12 @@ import Feed from './pages/Feed';
 import Profile from './pages/Profile';
 import PostDetail from './pages/PostDetail';
 import { useStore } from './lib/store';
+import PostLifecycleManager from './lib/postLifecycleManager';
 
 function AnimatedRoutes() {
   const location = useLocation();
   const initStudentId = useStore((state) => state.initStudentId);
+  const lifecycleManagerRef = useRef<PostLifecycleManager | null>(null);
 
   useEffect(() => {
     const storedId = typeof window !== 'undefined' ? localStorage.getItem('studentId') : null;
@@ -22,6 +24,17 @@ function AnimatedRoutes() {
       initStudentId();
     }
   }, [initStudentId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    lifecycleManagerRef.current = new PostLifecycleManager(useStore);
+    lifecycleManagerRef.current.start();
+
+    return () => {
+      lifecycleManagerRef.current?.stop();
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
