@@ -230,6 +230,17 @@ function AnimatedRoutes() {
     setPendingPost(null);
   };
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    lifecycleManagerRef.current = new PostLifecycleManager(useStore);
+    lifecycleManagerRef.current.start();
+
+    return () => {
+      lifecycleManagerRef.current?.stop();
+    };
+  }, []);
+
   return (
     <>
       <SkipLink targetId="main-content" />
