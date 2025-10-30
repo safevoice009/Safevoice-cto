@@ -682,6 +682,34 @@ export interface StoreState {
   verifyZKProof: (requestId: string, witness: string | Uint8Array) => Promise<ZKProofResult>;
   clearZKProof: (requestId: string) => void;
 
+  // Wallet & Token state
+  connectedAddress: string | null;
+  anonymousWalletAddress: string | null;
+  voiceBalance: number;
+  pendingRewards: number;
+  earningsBreakdown: EarningsBreakdown;
+  transactionHistory: VoiceTransaction[];
+  lastLoginDate: string | null;
+  loginStreak: number;
+
+  setConnectedAddress: (address: string | null) => void;
+  setAnonymousWallet: (address: string | null) => void;
+  generateAnonymousWallet: (password: string) => Promise<{ address: string; mnemonic: string }>;
+  importAnonymousWallet: (mnemonic: string, password: string) => Promise<{ address: string }>;
+  loadAnonymousWallet: (password: string) => Promise<Wallet | null>;
+  clearAnonymousWallet: () => void;
+
+  earnVoice: (
+    amount: number,
+    reason: string,
+    category?: keyof EarningsBreakdown,
+    metadata?: Record<string, unknown>
+  ) => void;
+  spendVoice: (amount: number, reason: string, metadata?: Record<string, unknown>) => void;
+  claimRewards: () => Promise<void>;
+  loadWalletData: () => void;
+  grantDailyLoginBonus: () => void;
+
   // Crisis support
   showCrisisModal: boolean;
   pendingPost: AddPostPayload | null;
@@ -3874,6 +3902,247 @@ export const useStore = create<StoreState>((set, get) => {
     set({ nftBadges: badges });
   },
 
+  setConnectedAddress: (address: string | null) => {
+    set({ connectedAddress: address });
+  },
+
+  setAnonymousWallet: (address: string | null) => {
+    if (typeof window !== 'undefined') {
+      if (address) {
+        localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, address);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.ANON_WALLET_ADDRESS);
+        clearSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY);
+      }
+    }
+    set({ anonymousWalletAddress: address });
+  },
+
+  generateAnonymousWallet: async (password: string) => {
+    const wallet = Wallet.createRandom();
+    if (!wallet.privateKey) {
+      throw new Error('Failed to generate wallet');
+    }
+
+    setSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, { privateKey: wallet.privateKey }, password);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, wallet.address);
+    }
+
+    set({ anonymousWalletAddress: wallet.address });
+    toast.success('Anonymous wallet created successfully!');
+
+    return {
+      address: wallet.address,
+      mnemonic: wallet.mnemonic?.phrase ?? '',
+    };
+  },
+
+  importAnonymousWallet: async (mnemonic: string, password: string) => {
+    const wallet = Wallet.fromMnemonic(mnemonic.trim());
+    setSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, { privateKey: wallet.privateKey }, password);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, wallet.address);
+    }
+    set({ anonymousWalletAddress: wallet.address });
+    toast.success('Anonymous wallet imported');
+    return { address: wallet.address };
+  },
+
+  loadAnonymousWallet: async (password: string) => {
+    const stored = getSecureItem<{ privateKey: string }>(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, password);
+    if (!stored?.privateKey) {
+      return null;
+    }
+    return new Wallet(stored.privateKey);
+  },
+
+  clearAnonymousWallet: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEYS.ANON_WALLET_ADDRESS);
+    }
+    clearSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY);
+    set({ anonymousWalletAddress: null });
+  },
+
+  earnVoice: (
+    amount: number,
+    reason: string,
+    category: keyof EarningsBreakdown = 'bonuses',
+    metadata: Record<string, unknown> = {}
+  ) => {
+    if (amount <= 0) {
+      return;
+    }
+
+    set((state) => {
+      const newBalance = state.voiceBalance + amount;
+      const newPending = state.pendingRewards + amount;
+      const updatedBreakdown = {
+        ...state.earningsBreakdown,
+        [category]: (state.earningsBreakdown[category] ?? 0) + amount,
+      } as EarningsBreakdown;
+
+      const transaction: VoiceTransaction = {
+        id: crypto.randomUUID(),
+        type: 'earn',
+        amount,
+        reason,
+        metadata,
+        timestamp: Date.now(),
+        balance: newBalance,
+      };
+
+      const history = [transaction, ...state.transactionHistory].slice(0, 100);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.VOICE_BALANCE, newBalance.toString());
+        localStorage.setItem(STORAGE_KEYS.VOICE_PENDING, newPending.toString());
+        localStorage.setItem(STORAGE_KEYS.VOICE_BREAKDOWN, JSON.stringify(updatedBreakdown));
+        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
+      }
+
+      return {
+        voiceBalance: newBalance,
+        pendingRewards: newPending,
+        earningsBreakdown: updatedBreakdown,
+        transactionHistory: history,
+      };
+    });
+
+    const formattedAmount = formatVoiceBalance(amount);
+    toast.success(`+${formattedAmount}${reason ? ` · ${reason}` : ''}`);
+  },
+
+  spendVoice: (amount: number, reason: string, metadata: Record<string, unknown> = {}) => {
+    if (amount <= 0) return;
+
+    set((state) => {
+      if (state.voiceBalance < amount) {
+        toast.error('Insufficient VOICE balance');
+        return state;
+      }
+
+      const newBalance = state.voiceBalance - amount;
+      const transaction: VoiceTransaction = {
+        id: crypto.randomUUID(),
+        type: 'spend',
+        amount: -amount,
+        reason,
+        metadata,
+        timestamp: Date.now(),
+        balance: newBalance,
+      };
+
+      const history = [transaction, ...state.transactionHistory].slice(0, 100);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.VOICE_BALANCE, newBalance.toString());
+        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
+      }
+
+      return {
+        voiceBalance: newBalance,
+        transactionHistory: history,
+      };
+    });
+
+    const formattedAmount = formatVoiceBalance(amount);
+    toast.success(`-${formattedAmount} spent on ${reason}`);
+  },
+
+  claimRewards: async () => {
+    const pending = get().pendingRewards;
+    if (pending <= 0) {
+      toast.error('No pending rewards to claim');
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    set((state) => {
+      const transaction: VoiceTransaction = {
+        id: crypto.randomUUID(),
+        type: 'earn',
+        amount: 0,
+        reason: 'Claimed to blockchain',
+        metadata: {
+          claimedAmount: pending,
+          address: state.connectedAddress,
+        },
+        timestamp: Date.now(),
+        balance: state.voiceBalance,
+      };
+
+      const history = [transaction, ...state.transactionHistory].slice(0, 100);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.VOICE_PENDING, '0');
+        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
+      }
+
+      return {
+        pendingRewards: 0,
+        transactionHistory: history,
+      };
+    });
+
+    const formattedPending = formatVoiceBalance(pending);
+    toast.success(`Claimed ${formattedPending}! 🎉`);
+  },
+
+  loadWalletData: () => {
+    if (typeof window === 'undefined') return;
+
+    set({
+      voiceBalance: getNumberFromStorage(STORAGE_KEYS.VOICE_BALANCE, 0),
+      pendingRewards: getNumberFromStorage(STORAGE_KEYS.VOICE_PENDING, 0),
+      earningsBreakdown: getJSONFromStorage<EarningsBreakdown>(
+        STORAGE_KEYS.VOICE_BREAKDOWN,
+        { ...DEFAULT_EARNINGS_BREAKDOWN }
+      ),
+      transactionHistory: getJSONFromStorage<VoiceTransaction[]>(STORAGE_KEYS.VOICE_HISTORY, []),
+      anonymousWalletAddress: localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS),
+      lastLoginDate: localStorage.getItem(STORAGE_KEYS.LAST_LOGIN_DATE),
+      loginStreak: getNumberFromStorage(STORAGE_KEYS.LOGIN_STREAK, 0),
+    });
+  },
+
+  grantDailyLoginBonus: () => {
+    if (typeof window === 'undefined') return;
+
+    const today = new Date().toDateString();
+    const { lastLoginDate, loginStreak } = get();
+
+    if (lastLoginDate === today) {
+      return;
+    }
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isConsecutive = lastLoginDate === yesterday.toDateString();
+    const newStreak = isConsecutive ? loginStreak + 1 : 1;
+
+    set({ lastLoginDate: today, loginStreak: newStreak });
+
+    localStorage.setItem(STORAGE_KEYS.LAST_LOGIN_DATE, today);
+    localStorage.setItem(STORAGE_KEYS.LOGIN_STREAK, newStreak.toString());
+
+    get().earnVoice(EARN_RULES.dailyLoginBonus, 'Daily login bonus', 'streaks', { date: today });
+
+    if (newStreak > 0 && newStreak % 7 === 0) {
+      get().earnVoice(EARN_RULES.weeklyStreak, 'Weekly streak bonus', 'streaks', {
+        streak: newStreak,
+      });
+    }
+
+    if (newStreak > 0 && newStreak % 30 === 0) {
+      get().earnVoice(EARN_RULES.monthlyStreak, 'Monthly streak bonus', 'streaks', {
+        streak: newStreak,
+      });
+    }
+  },
+
   dismissEmergencyBanner: () => {
     const dismissedUntil = Date.now() + 5 * 60 * 1000;
     if (typeof window !== 'undefined') {
@@ -4891,6 +5160,12 @@ export const useStore = create<StoreState>((set, get) => {
     }));
     get().saveToLocalStorage();
     toast.success('Comment posted! 💬');
+
+    get().earnVoice(EARN_RULES.comment, parentCommentId ? 'Reply posted' : 'Comment posted', 'comments', {
+      postId,
+      commentId: newComment.id,
+      parentCommentId: parentCommentId ?? null,
+    });
 
     if (navigator.vibrate) {
       navigator.vibrate(50);

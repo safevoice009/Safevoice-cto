@@ -231,6 +231,11 @@ function AnimatedRoutes() {
   };
 
   useEffect(() => {
+    loadWalletData();
+    grantDailyLoginBonus();
+  }, [loadWalletData, grantDailyLoginBonus]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
 
     lifecycleManagerRef.current = new PostLifecycleManager(useStore);
