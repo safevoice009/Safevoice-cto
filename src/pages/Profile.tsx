@@ -1,11 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../lib/store';
 import { User, Bookmark, MessageSquare, FileText } from 'lucide-react';
 import PostCard from '../components/feed/PostCard';
+import WalletSection from '../components/wallet/WalletSection';
+
+type ProfileTab = 'overview' | 'wallet';
 
 export default function Profile() {
   const { studentId, posts, bookmarkedPosts, initializeStore } = useStore();
+  const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
 
   useEffect(() => {
     initializeStore();
@@ -63,24 +67,53 @@ export default function Profile() {
           </div>
         </div>
 
-        <div className="glass p-6 space-y-4">
-          <h2 className="text-xl font-bold text-white">Bookmarked Posts</h2>
-          {savedPosts.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 space-y-2">
-              <Bookmark className="w-8 h-8 mx-auto" />
-              <p className="text-sm">No bookmarked posts yet</p>
-              <p className="text-xs">Save posts you find helpful or inspiring</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <AnimatePresence mode="popLayout">
-                {savedPosts.map((post) => (
-                  <PostCard key={post.id} post={post} />
-                ))}
-              </AnimatePresence>
-            </div>
-          )}
+        <div className="glass p-4 flex items-center justify-center gap-3">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              activeTab === 'overview'
+                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
+                : 'bg-surface/50 text-gray-300 hover:text-white'
+            }`}
+            type="button"
+          >
+            Profile Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('wallet')}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              activeTab === 'wallet'
+                ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
+                : 'bg-surface/50 text-gray-300 hover:text-white'
+            }`}
+            type="button"
+          >
+            💰 Wallet
+          </button>
         </div>
+
+        {activeTab === 'overview' ? (
+          <div className="glass p-6 space-y-4">
+            <h2 className="text-xl font-bold text-white">Bookmarked Posts</h2>
+            {savedPosts.length === 0 ? (
+              <div className="text-center py-10 text-gray-400 space-y-2">
+                <Bookmark className="w-8 h-8 mx-auto" />
+                <p className="text-sm">No bookmarked posts yet</p>
+                <p className="text-xs">Save posts you find helpful or inspiring</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <AnimatePresence mode="popLayout">
+                  {savedPosts.map((post) => (
+                    <PostCard key={post.id} post={post} />
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
+        ) : (
+          <WalletSection />
+        )}
       </div>
     </motion.section>
   );

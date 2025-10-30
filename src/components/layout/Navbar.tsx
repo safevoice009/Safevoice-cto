@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Lock, Menu, X, Wallet } from 'lucide-react';
+import { AlertTriangle, Lock, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../../lib/store';
-import toast from 'react-hot-toast';
 import NotificationDropdown from './NotificationDropdown';
+import ConnectWalletButton from '../wallet/ConnectWalletButton';
 
 type NavLink = {
   name: string;
@@ -41,10 +41,6 @@ export default function Navbar() {
     window.addEventListener('scroll', controlNavbar);
     return () => window.removeEventListener('scroll', controlNavbar);
   }, []);
-
-  const handleWalletConnect = () => {
-    toast.success('Wallet connection coming soon!');
-  };
 
   const closeMenu = () => setIsOpen(false);
 
@@ -110,15 +106,7 @@ export default function Navbar() {
               <span>Crisis Help</span>
             </motion.button>
             <span className="text-primary font-medium">{studentId}</span>
-            <motion.button
-              onClick={handleWalletConnect}
-              className="flex items-center space-x-2 btn-primary"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Wallet className="w-4 h-4" />
-              <span>Connect Wallet</span>
-            </motion.button>
+            <ConnectWalletButton />
           </div>
 
           <button
@@ -164,18 +152,9 @@ export default function Navbar() {
               <div className="pt-3 border-t border-white/10 space-y-3">
                 <NotificationDropdown />
                 <div className="text-primary font-medium">{studentId}</div>
-                <motion.button
-                  onClick={() => {
-                    handleWalletConnect();
-                    closeMenu();
-                  }}
-                  className="w-full flex items-center justify-center space-x-2 btn-primary"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Wallet className="w-4 h-4" />
-                  <span>Connect Wallet</span>
-                </motion.button>
+                <div className="flex justify-start">
+                  <ConnectWalletButton />
+                </div>
               </div>
             </div>
           </motion.div>
