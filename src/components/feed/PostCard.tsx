@@ -10,6 +10,8 @@ import {
   Edit,
   Trash2,
   Lock,
+  AlertTriangle,
+  EyeOff,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Post } from '../../lib/store';
@@ -61,12 +63,19 @@ export default function PostCard({ post }: PostCardProps) {
     deletePost,
     getEncryptionKey,
     addEncryptionKey,
+    setShowCrisisModal,
+    setPendingPost,
   } = useStore();
 
+  const [showBlurredContent, setShowBlurredContent] = useState(false);
+  const isHidden = post.moderationStatus === 'hidden';
+  const isUnderReview = post.moderationStatus === 'under_review';
+  const isReportBlur = post.reportCount >= 3;
+  const isModerationBlur = Boolean(post.contentBlurred);
+  const isBlurred = isHidden || isUnderReview || isReportBlur || isModerationBlur;
+  const shouldBlur = !showBlurredContent && isBlurred;
   const isBookmarked = bookmarkedPosts.includes(post.id);
   const isOwnPost = post.studentId === studentId;
-  const isBlurred = post.reportCount >= 3;
-  const [showBlurredContent, setShowBlurredContent] = useState(false);
 
   const canExtend = useMemo(() => {
     if (!isOwnPost || !post.expiresAt || !timeRemainingMs) return false;
@@ -226,6 +235,36 @@ export default function PostCard({ post }: PostCardProps) {
         className="glass p-6 space-y-4 relative overflow-hidden"
       >
         <div className="absolute top-4 right-4 flex flex-col items-end space-y-2">
+          {post.isCrisisFlagged && (
+            <button
+              onClick={() => {
+                setPendingPost(null);
+                setShowCrisisModal(true);
+              }}
+              className="flex items-center space-x-1 text-xs text-rose-200 bg-rose-500/20 px-2 py-1 rounded-full hover:bg-rose-500/30 transition-colors"
+              title="View crisis support resources"
+            >
+              <span role="img" aria-label="sos">
+                🆘
+              </span>
+              <span>Support Available</span>
+            </button>
+          )}
+
+          {isUnderReview && !isHidden && (
+            <div className="flex items-center space-x-1 text-xs text-yellow-300 bg-yellow-500/20 px-2 py-1 rounded-full">
+              <Flag className="w-3 h-3" />
+              <span>Under review</span>
+            </div>
+          )}
+
+          {isHidden && (
+            <div className="flex items-center space-x-1 text-xs text-red-300 bg-red-500/20 px-2 py-1 rounded-full">
+              <AlertTriangle className="w-3 h-3" />
+              <span>Hidden</span>
+            </div>
+          )}
+
           {timerDisplay && (
             <div className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium border ${timerClasses}`}>
               <span>{post.expiresAt ? '⏳' : '♾️'}</span>
@@ -241,11 +280,31 @@ export default function PostCard({ post }: PostCardProps) {
           )}
         </div>
 
-        {isBlurred && !showBlurredContent && (
+        {shouldBlur && (
           <div className="absolute inset-0 backdrop-blur-xl bg-black/50 rounded-2xl flex flex-col items-center justify-center z-10 space-y-3">
-            <Flag className="w-8 h-8 text-yellow-500" />
-            <p className="text-sm text-yellow-500 font-medium">⚠️ Content under review</p>
-            <p className="text-xs text-gray-400">This content has been reported multiple times</p>
+            {isHidden ? (
+              <>
+                <EyeOff className="w-8 h-8 text-red-500" />
+                <p className="text-sm text-red-500 font-medium">
+                  🚫 Content Hidden
+                </p>
+                <p className="text-xs text-gray-400 text-center max-w-xs">
+                  {post.hiddenReason || 'Multiple reports received'}
+                </p>
+              </>
+            ) : isReportBlur || isUnderReview ? (
+              <>
+                <Flag className="w-8 h-8 text-yellow-500" />
+                <p className="text-sm text-yellow-500 font-medium">⚠️ Content under review</p>
+                <p className="text-xs text-gray-400">This content has been reported multiple times</p>
+              </>
+            ) : isModerationBlur ? (
+              <>
+                <AlertTriangle className="w-8 h-8 text-orange-500" />
+                <p className="text-sm text-orange-500 font-medium">⚠️ May contain profanity</p>
+                <p className="text-xs text-gray-400">{post.blurReason || 'Content filtered for language'}</p>
+              </>
+            ) : null}
             <button
               onClick={() => setShowBlurredContent(true)}
               className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors"

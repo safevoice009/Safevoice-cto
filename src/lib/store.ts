@@ -32,6 +32,14 @@ export interface AddPostPayload {
     iv: string;
     keyId: string;
   };
+  moderationData?: {
+    issues?: PostModerationIssue[];
+    needsReview?: boolean;
+    contentBlurred?: boolean;
+    blurReason?: string | null;
+    isCrisisFlagged?: boolean;
+    crisisLevel?: 'high' | 'critical';
+  };
 }
 
 export interface UpdatePostOptions {
@@ -61,6 +69,13 @@ export interface Comment {
   editedAt: number | null;
 }
 
+export interface PostModerationIssue {
+  type: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  action: 'support' | 'blur' | 'flag';
+  message: string;
+}
+
 export interface Post {
   id: string;
   studentId: string;
@@ -81,6 +96,18 @@ export interface Post {
   isEncrypted: boolean;
   encryptionMeta: EncryptionMeta | null;
   warningShown?: boolean;
+  reports?: Report[];
+  contentBlurred?: boolean;
+  blurReason?: string | null;
+  moderationStatus?: 'under_review' | 'hidden';
+  hiddenReason?: string | null;
+  moderationIssues?: PostModerationIssue[];
+  needsReview?: boolean;
+  isCrisisFlagged?: boolean;
+  crisisLevel?: 'high' | 'critical';
+  supportOffered?: boolean;
+  flaggedAt?: number | null;
+  flaggedForSupport?: boolean;
 }
 
 export interface Report {
@@ -115,6 +142,20 @@ export interface StoreState {
   encryptionKeys: Record<string, JsonWebKey>;
   expiryTimeouts: Record<string, number>;
 
+  // Crisis support
+  showCrisisModal: boolean;
+  pendingPost: AddPostPayload | null;
+  setShowCrisisModal: (show: boolean) => void;
+  setPendingPost: (post: AddPostPayload | null) => void;
+
+  // Saved helplines
+  savedHelplines: string[];
+  toggleSaveHelpline: (helplineId: string) => void;
+
+  emergencyBannerDismissedUntil: number | null;
+  dismissEmergencyBanner: () => void;
+  checkEmergencyBannerStatus: () => void;
+
   // Initialization
   initStudentId: () => void;
   initializeStore: () => void;
@@ -126,7 +167,15 @@ export interface StoreState {
     lifetime?: PostLifetime,
     customHours?: number,
     isEncrypted?: boolean,
-    encryptedData?: { encrypted: string; iv: string; keyId: string }
+    encryptedData?: { encrypted: string; iv: string; keyId: string },
+    moderationData?: {
+      issues?: PostModerationIssue[];
+      needsReview?: boolean;
+      contentBlurred?: boolean;
+      blurReason?: string | null;
+      isCrisisFlagged?: boolean;
+      crisisLevel?: 'high' | 'critical';
+    }
   ) => void;
   updatePost: (
     postId: string,
@@ -182,10 +231,37 @@ const STORAGE_KEYS = {
   REPORTS: 'safevoice_reports',
   NOTIFICATIONS: 'safevoice_notifications',
   ENCRYPTION_KEYS: 'safevoice_encryption_keys',
+  SAVED_HELPLINES: 'safevoice_saved_helplines',
+  EMERGENCY_BANNER: 'emergencyBannerDismissed',
 };
 
 // Helper to generate random student ID
 const generateStudentId = () => `Student#${Math.floor(Math.random() * 9000 + 1000)}`;
+
+const getSavedHelplinesFromStorage = (): string[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SAVED_HELPLINES);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error('Failed to parse saved helplines', error);
+    return [];
+  }
+};
+
+const getEmergencyBannerDismissedUntil = (): number | null => {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(STORAGE_KEYS.EMERGENCY_BANNER);
+  if (!raw) return null;
+  const parsed = parseInt(raw, 10);
+  if (Number.isNaN(parsed) || parsed <= Date.now()) {
+    localStorage.removeItem(STORAGE_KEYS.EMERGENCY_BANNER);
+    return null;
+  }
+  return parsed;
+};
 
 // Helper to find and update a comment recursively
 const findAndUpdateComment = (
@@ -267,6 +343,38 @@ export const useStore = create<StoreState>((set, get) => ({
   unreadCount: 0,
   encryptionKeys: {},
   expiryTimeouts: {},
+  showCrisisModal: false,
+  pendingPost: null,
+  savedHelplines: getSavedHelplinesFromStorage(),
+  emergencyBannerDismissedUntil: getEmergencyBannerDismissedUntil(),
+
+  setShowCrisisModal: (show: boolean) => set({ showCrisisModal: show }),
+  setPendingPost: (post: AddPostPayload | null) => set({ pendingPost: post }),
+
+  toggleSaveHelpline: (helplineId: string) => {
+    const current = get().savedHelplines;
+    const updated = current.includes(helplineId)
+      ? current.filter((id) => id !== helplineId)
+      : [...current, helplineId];
+    set({ savedHelplines: updated });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.SAVED_HELPLINES, JSON.stringify(updated));
+    }
+    toast.success(current.includes(helplineId) ? 'Helpline removed' : 'Helpline saved! 🔖');
+  },
+
+  dismissEmergencyBanner: () => {
+    const dismissedUntil = Date.now() + 5 * 60 * 1000;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.EMERGENCY_BANNER, dismissedUntil.toString());
+    }
+    set({ emergencyBannerDismissedUntil: dismissedUntil });
+  },
+
+  checkEmergencyBannerStatus: () => {
+    const dismissedUntil = getEmergencyBannerDismissedUntil();
+    set({ emergencyBannerDismissedUntil: dismissedUntil });
+  },
 
   initStudentId: () => {
     const id = generateStudentId();
@@ -413,6 +521,7 @@ export const useStore = create<StoreState>((set, get) => ({
     localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(state.reports));
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(state.notifications));
     localStorage.setItem(STORAGE_KEYS.ENCRYPTION_KEYS, JSON.stringify(state.encryptionKeys));
+    localStorage.setItem(STORAGE_KEYS.SAVED_HELPLINES, JSON.stringify(state.savedHelplines));
   },
 
   addPost: (
@@ -421,7 +530,15 @@ export const useStore = create<StoreState>((set, get) => ({
     lifetime: PostLifetime = '24h',
     customHours?: number,
     isEncrypted?: boolean,
-    encryptedData?: { encrypted: string; iv: string; keyId: string }
+    encryptedData?: { encrypted: string; iv: string; keyId: string },
+    moderationData?: {
+      issues?: PostModerationIssue[];
+      needsReview?: boolean;
+      contentBlurred?: boolean;
+      blurReason?: string | null;
+      isCrisisFlagged?: boolean;
+      crisisLevel?: 'high' | 'critical';
+    }
   ) => {
     const lifetimeMap: Record<PostLifetime, number | null> = {
       '1h': 1 * 60 * 60 * 1000,
@@ -462,6 +579,16 @@ export const useStore = create<StoreState>((set, get) => ({
           }
         : null,
       warningShown: false,
+      reports: [],
+      moderationIssues: moderationData?.issues || [],
+      needsReview: moderationData?.needsReview ?? false,
+      contentBlurred: moderationData?.contentBlurred ?? false,
+      blurReason: moderationData?.blurReason || null,
+      isCrisisFlagged: moderationData?.isCrisisFlagged ?? false,
+      crisisLevel: moderationData?.crisisLevel,
+      supportOffered: moderationData?.isCrisisFlagged ?? false,
+      flaggedAt: moderationData?.isCrisisFlagged ? Date.now() : null,
+      flaggedForSupport: moderationData?.isCrisisFlagged ?? false,
     };
 
     set((state) => ({
@@ -833,19 +960,78 @@ export const useStore = create<StoreState>((set, get) => ({
       reports: [...state.reports, newReport],
     }));
 
-    // Increment report count on post
+    let updatedReportCount = 0;
+    let thresholdReached: 'blur' | 'hide' | 'delete' | null = null;
+
     if (report.postId) {
-      set((state) => ({
-        posts: state.posts.map((post) =>
-          post.id === report.postId
-            ? { ...post, reportCount: post.reportCount + 1 }
-            : post
-        ),
-      }));
+      set((state) => {
+        const posts = state.posts.map((post) => {
+          if (post.id !== report.postId) return post;
+
+          const reportsForPost = [...(post.reports || []), newReport];
+          updatedReportCount = reportsForPost.length;
+
+          let updated: Post = {
+            ...post,
+            reports: reportsForPost,
+            reportCount: updatedReportCount,
+          };
+
+          if (report.reportType === 'self_harm') {
+            updated = {
+              ...updated,
+              isCrisisFlagged: true,
+              flaggedForSupport: true,
+              supportOffered: true,
+              flaggedAt: Date.now(),
+            };
+          }
+
+          if (updatedReportCount === 3) {
+            updated = {
+              ...updated,
+              contentBlurred: true,
+              blurReason: '⚠️ This content has been reported multiple times',
+              moderationStatus: 'under_review',
+            };
+            thresholdReached = 'blur';
+          } else if (updatedReportCount === 5) {
+            updated = {
+              ...updated,
+              moderationStatus: 'hidden',
+              hiddenReason: 'Multiple reports received',
+            };
+            thresholdReached = 'hide';
+          } else if (updatedReportCount >= 10) {
+            thresholdReached = 'delete';
+          }
+
+          return updated;
+        });
+        return { posts };
+      });
     }
 
     get().saveToLocalStorage();
-    toast.success('Report submitted. Thank you for keeping SafeVoice safe.');
+
+    toast.success('Thank you for keeping SafeVoice safe! 💙');
+
+    if (thresholdReached === 'blur') {
+      toast('⚠️ This content has been reported multiple times and is now blurred.', {
+        icon: '⚠️',
+      });
+    } else if (thresholdReached === 'hide') {
+      toast('🚫 This post has been temporarily hidden due to multiple reports.', {
+        icon: '🚫',
+      });
+    } else if (thresholdReached === 'delete' && report.postId) {
+      get().deletePost(report.postId, { silent: true });
+      toast('A reported post was removed', { icon: 'ℹ️' });
+    }
+
+    if (report.reportType === 'self_harm') {
+      get().setShowCrisisModal(true);
+    }
   },
 
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read'>) => {

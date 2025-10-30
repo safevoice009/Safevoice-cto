@@ -43,3 +43,17 @@ body {
     opacity: 0.5;
   }
 }
+
+@keyframes emergency-pulse {
+  0%,
+  100% {
+    background-color: #dc2626; /* red-600 */
+  }
+  50% {
+    background-color: #991b1b; /* red-800 */
+  }
+}
+
+.emergency-banner {
+  animation: emergency-pulse 2s ease-in-out infinite;
+}
