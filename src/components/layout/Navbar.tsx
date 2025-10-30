@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Lock, Menu, X, Wallet } from 'lucide-react';
+import { AlertTriangle, Lock, Menu, X, Wallet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../../lib/store';
 import toast from 'react-hot-toast';
@@ -14,16 +14,16 @@ type NavLink = {
 
 const navLinks: NavLink[] = [
   { name: 'Feed', value: '/feed', type: 'route' },
+  { name: 'Helplines', value: '/helplines', type: 'route' },
+  { name: 'Guidelines', value: '/guidelines', type: 'route' },
   { name: 'Communities', value: 'features', type: 'scroll' },
-  { name: 'Helplines', value: 'helplines', type: 'scroll' },
-  { name: 'Memorial', value: 'memorial', type: 'scroll' },
 ];
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [visible, setVisible] = useState(true);
   const lastScrollYRef = useRef(0);
-  const { studentId } = useStore();
+  const { studentId, setShowCrisisModal } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -99,6 +99,16 @@ export default function Navbar() {
 
           <div className="hidden md:flex items-center space-x-4">
             <NotificationDropdown />
+            <motion.button
+              onClick={() => setShowCrisisModal(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg font-medium transition-all hover:bg-red-700"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Get Crisis Help"
+            >
+              <AlertTriangle className="w-4 h-4" />
+              <span>Crisis Help</span>
+            </motion.button>
             <span className="text-primary font-medium">{studentId}</span>
             <motion.button
               onClick={handleWalletConnect}
@@ -139,6 +149,18 @@ export default function Navbar() {
                   {link.name}
                 </button>
               ))}
+              <motion.button
+                onClick={() => {
+                  setShowCrisisModal(true);
+                  closeMenu();
+                }}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span>Get Crisis Help</span>
+              </motion.button>
               <div className="pt-3 border-t border-white/10 space-y-3">
                 <NotificationDropdown />
                 <div className="text-primary font-medium">{studentId}</div>

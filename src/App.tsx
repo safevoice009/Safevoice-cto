@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
@@ -10,12 +11,20 @@ import Landing from './pages/Landing';
 import Feed from './pages/Feed';
 import Profile from './pages/Profile';
 import PostDetail from './pages/PostDetail';
+import HelplinesPage from './pages/Helplines';
+import GuidelinesPage from './pages/Guidelines';
+import CrisisAlertModal from './components/crisis/CrisisAlertModal';
 import { useStore } from './lib/store';
 import PostLifecycleManager from './lib/postLifecycleManager';
 
 function AnimatedRoutes() {
   const location = useLocation();
   const initStudentId = useStore((state) => state.initStudentId);
+  const showCrisisModal = useStore((state) => state.showCrisisModal);
+  const setShowCrisisModal = useStore((state) => state.setShowCrisisModal);
+  const pendingPost = useStore((state) => state.pendingPost);
+  const setPendingPost = useStore((state) => state.setPendingPost);
+  const addPost = useStore((state) => state.addPost);
   const lifecycleManagerRef = useRef<PostLifecycleManager | null>(null);
 
   useEffect(() => {
@@ -36,6 +45,27 @@ function AnimatedRoutes() {
     };
   }, []);
 
+  const handleCrisisAcknowledge = (action: 'call_helpline' | 'continue') => {
+    if (action === 'call_helpline') {
+      toast.success('Thank you for reaching out 💙');
+    }
+
+    if (pendingPost && pendingPost.moderationData) {
+      addPost(
+        pendingPost.content,
+        pendingPost.category,
+        pendingPost.lifetime,
+        pendingPost.customLifetimeHours || undefined,
+        pendingPost.isEncrypted,
+        pendingPost.encryptionData,
+        pendingPost.moderationData
+      );
+    }
+
+    setShowCrisisModal(false);
+    setPendingPost(null);
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
@@ -46,11 +76,17 @@ function AnimatedRoutes() {
             <Route path="/feed" element={<Feed />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/post/:postId" element={<PostDetail />} />
+            <Route path="/helplines" element={<HelplinesPage />} />
+            <Route path="/guidelines" element={<GuidelinesPage />} />
           </Routes>
         </AnimatePresence>
       </main>
       <Footer />
       <BottomNav />
+      <CrisisAlertModal
+        isOpen={showCrisisModal}
+        onAcknowledge={handleCrisisAcknowledge}
+      />
     </div>
   );
 }

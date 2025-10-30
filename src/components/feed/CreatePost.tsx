@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Send, X, Lock, Clock } from 'lucide-react';
 import { useStore, type PostLifetime } from '../../lib/store';
 import { encryptContent } from '../../lib/encryption';
+import { moderateContent } from '../../lib/contentModeration';
+import { detectCrisis, getCrisisSeverity } from '../../lib/crisisDetection';
 import toast from 'react-hot-toast';
 
 const categories = [
@@ -34,7 +36,13 @@ export default function CreatePost() {
   const [customHours, setCustomHours] = useState<number>(24);
   const [isEncrypted, setIsEncrypted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { addPost, addEncryptionKey } = useStore();
+
+  const addPost = useStore((state) => state.addPost);
+  const addEncryptionKey = useStore((state) => state.addEncryptionKey);
+  const posts = useStore((state) => state.posts);
+  const studentId = useStore((state) => state.studentId);
+  const setPendingPost = useStore((state) => state.setPendingPost);
+  const setShowCrisisModal = useStore((state) => state.setShowCrisisModal);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,37 +58,70 @@ export default function CreatePost() {
     setIsSubmitting(true);
 
     try {
-      if (isEncrypted) {
-        // Encrypt the content
-        const encrypted = await encryptContent(trimmedContent);
+      const userPosts = posts
+        .filter((p) => p.studentId === studentId)
+        .map((p) => ({ content: p.content, createdAt: p.createdAt }));
 
-        // Store encryption key
-        addEncryptionKey(encrypted.keyId, encrypted.key);
+      const moderation = await moderateContent(trimmedContent, { userPosts });
 
-        // Add encrypted post
-        addPost(
-          trimmedContent, // Original content for fallback
-          category || undefined,
-          lifetime,
-          lifetime === 'custom' ? customHours : undefined,
-          true,
-          {
-            encrypted: encrypted.encrypted,
-            iv: encrypted.iv,
-            keyId: encrypted.keyId,
-          }
-        );
-      } else {
-        // Add normal post
-        addPost(
-          trimmedContent,
-          category || undefined,
-          lifetime,
-          lifetime === 'custom' ? customHours : undefined
-        );
+      if (moderation.blocked) {
+        toast.error(moderation.reason ?? 'This post cannot be shared.');
+        setIsSubmitting(false);
+        return;
       }
 
-      // Reset form
+      const isCrisis = detectCrisis(trimmedContent);
+      const crisisLevel = isCrisis ? getCrisisSeverity(trimmedContent) : undefined;
+
+      let encryptedData: { encrypted: string; iv: string; keyId: string } | undefined;
+      if (isEncrypted) {
+        const encrypted = await encryptContent(trimmedContent);
+        addEncryptionKey(encrypted.keyId, encrypted.key);
+        encryptedData = {
+          encrypted: encrypted.encrypted,
+          iv: encrypted.iv,
+          keyId: encrypted.keyId,
+        };
+      }
+
+      const moderationData = {
+        issues: moderation.issues,
+        needsReview: moderation.needsReview,
+        contentBlurred:
+          moderation.issues?.some((issue) => issue.type === 'profanity') ?? false,
+        blurReason:
+          moderation.issues?.find((issue) => issue.type === 'profanity')?.message || null,
+        isCrisisFlagged: isCrisis,
+        crisisLevel,
+      };
+
+      if (isCrisis) {
+        setPendingPost({
+          content: trimmedContent,
+          category: category || undefined,
+          expiresAt: null,
+          lifetime,
+          customLifetimeHours: lifetime === 'custom' ? customHours : null,
+          isEncrypted,
+          encryptionData: encryptedData,
+          moderationData,
+        });
+        setShowCrisisModal(true);
+        setIsSubmitting(false);
+        return;
+      }
+
+      addPost(
+        trimmedContent,
+        category || undefined,
+        lifetime,
+        lifetime === 'custom' ? customHours : undefined,
+        isEncrypted,
+        encryptedData,
+        moderationData
+      );
+      setPendingPost(null);
+
       setContent('');
       setCategory('');
       setLifetime('24h');
