@@ -3,6 +3,10 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
+import '@rainbow-me/rainbowkit/styles.css';
+import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { WagmiConfig } from 'wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
@@ -16,6 +20,9 @@ import GuidelinesPage from './pages/Guidelines';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
 import { useStore } from './lib/store';
 import PostLifecycleManager from './lib/postLifecycleManager';
+import { wagmiConfig, chains } from './lib/wagmiConfig';
+
+const queryClient = new QueryClient();
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -25,6 +32,8 @@ function AnimatedRoutes() {
   const pendingPost = useStore((state) => state.pendingPost);
   const setPendingPost = useStore((state) => state.setPendingPost);
   const addPost = useStore((state) => state.addPost);
+  const loadWalletData = useStore((state) => state.loadWalletData);
+  const grantDailyLoginBonus = useStore((state) => state.grantDailyLoginBonus);
   const lifecycleManagerRef = useRef<PostLifecycleManager | null>(null);
 
   useEffect(() => {
@@ -33,6 +42,11 @@ function AnimatedRoutes() {
       initStudentId();
     }
   }, [initStudentId]);
+
+  useEffect(() => {
+    loadWalletData();
+    grantDailyLoginBonus();
+  }, [loadWalletData, grantDailyLoginBonus]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -93,9 +107,15 @@ function AnimatedRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter basename={import.meta.env.DEV ? '/' : '/Safevoice-cto'}>
-      <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
-      <AnimatedRoutes />
-    </BrowserRouter>
+    <WagmiConfig config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider chains={chains} coolMode>
+          <BrowserRouter basename={import.meta.env.DEV ? '/' : '/Safevoice-cto'}>
+            <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
+            <AnimatedRoutes />
+          </BrowserRouter>
+        </RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiConfig>
   );
 }

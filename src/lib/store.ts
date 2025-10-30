@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
 import { createElement } from 'react';
+import { Wallet } from 'ethers';
+import {
+  EARN_RULES,
+  formatVoiceBalance,
+  type EarningsBreakdown,
+} from './tokenEconomics';
+import { setSecureItem, getSecureItem, clearSecureItem } from './secureStorage';
 
 // Types
 export interface Reaction {
@@ -132,6 +139,16 @@ export interface Notification {
   createdAt: number;
 }
 
+export interface VoiceTransaction {
+  id: string;
+  type: 'earn' | 'spend';
+  amount: number;
+  reason: string;
+  metadata: Record<string, unknown>;
+  timestamp: number;
+  balance: number;
+}
+
 export interface StoreState {
   studentId: string;
   posts: Post[];
@@ -141,6 +158,34 @@ export interface StoreState {
   unreadCount: number;
   encryptionKeys: Record<string, JsonWebKey>;
   expiryTimeouts: Record<string, number>;
+
+  // Wallet & Token state
+  connectedAddress: string | null;
+  anonymousWalletAddress: string | null;
+  voiceBalance: number;
+  pendingRewards: number;
+  earningsBreakdown: EarningsBreakdown;
+  transactionHistory: VoiceTransaction[];
+  lastLoginDate: string | null;
+  loginStreak: number;
+
+  setConnectedAddress: (address: string | null) => void;
+  setAnonymousWallet: (address: string | null) => void;
+  generateAnonymousWallet: (password: string) => Promise<{ address: string; mnemonic: string }>;
+  importAnonymousWallet: (mnemonic: string, password: string) => Promise<{ address: string }>;
+  loadAnonymousWallet: (password: string) => Promise<Wallet | null>;
+  clearAnonymousWallet: () => void;
+
+  earnVoice: (
+    amount: number,
+    reason: string,
+    category?: keyof EarningsBreakdown,
+    metadata?: Record<string, unknown>
+  ) => void;
+  spendVoice: (amount: number, reason: string, metadata?: Record<string, unknown>) => void;
+  claimRewards: () => Promise<void>;
+  loadWalletData: () => void;
+  grantDailyLoginBonus: () => void;
 
   // Crisis support
   showCrisisModal: boolean;
@@ -233,6 +278,14 @@ const STORAGE_KEYS = {
   ENCRYPTION_KEYS: 'safevoice_encryption_keys',
   SAVED_HELPLINES: 'safevoice_saved_helplines',
   EMERGENCY_BANNER: 'emergencyBannerDismissed',
+  VOICE_BALANCE: 'voiceBalance',
+  VOICE_PENDING: 'voicePending',
+  VOICE_HISTORY: 'voiceTransactions',
+  VOICE_BREAKDOWN: 'voiceEarningsBreakdown',
+  ANON_WALLET_ADDRESS: 'anonWallet_address',
+  ANON_WALLET_ENCRYPTED_KEY: 'anonWallet_encrypted',
+  LAST_LOGIN_DATE: 'voice_lastLogin',
+  LOGIN_STREAK: 'voice_loginStreak',
 };
 
 // Helper to generate random student ID
@@ -261,6 +314,38 @@ const getEmergencyBannerDismissedUntil = (): number | null => {
     return null;
   }
   return parsed;
+};
+
+const getNumberFromStorage = (key: string, fallback = 0): number => {
+  if (typeof window === 'undefined') return fallback;
+  const raw = localStorage.getItem(key);
+  if (!raw) return fallback;
+  const parsed = parseFloat(raw);
+  if (Number.isNaN(parsed)) return fallback;
+  return parsed;
+};
+
+const getJSONFromStorage = <T>(key: string, fallback: T): T => {
+  if (typeof window === 'undefined') return fallback;
+  const raw = localStorage.getItem(key);
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch (error) {
+    console.error(`Failed to parse storage key ${key}`, error);
+    return fallback;
+  }
+};
+
+const DEFAULT_EARNINGS_BREAKDOWN: EarningsBreakdown = {
+  posts: 0,
+  reactions: 0,
+  comments: 0,
+  helpful: 0,
+  streaks: 0,
+  bonuses: 0,
+  crisis: 0,
+  reporting: 0,
 };
 
 // Helper to find and update a comment recursively
@@ -348,6 +433,21 @@ export const useStore = create<StoreState>((set, get) => ({
   savedHelplines: getSavedHelplinesFromStorage(),
   emergencyBannerDismissedUntil: getEmergencyBannerDismissedUntil(),
 
+  // Wallet & Token state initialization
+  connectedAddress: null,
+  anonymousWalletAddress:
+    typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS) : null,
+  voiceBalance: getNumberFromStorage(STORAGE_KEYS.VOICE_BALANCE, 0),
+  pendingRewards: getNumberFromStorage(STORAGE_KEYS.VOICE_PENDING, 0),
+  earningsBreakdown: getJSONFromStorage<EarningsBreakdown>(
+    STORAGE_KEYS.VOICE_BREAKDOWN,
+    { ...DEFAULT_EARNINGS_BREAKDOWN }
+  ),
+  transactionHistory: getJSONFromStorage<VoiceTransaction[]>(STORAGE_KEYS.VOICE_HISTORY, []),
+  lastLoginDate:
+    typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.LAST_LOGIN_DATE) : null,
+  loginStreak: getNumberFromStorage(STORAGE_KEYS.LOGIN_STREAK, 0),
+
   setShowCrisisModal: (show: boolean) => set({ showCrisisModal: show }),
   setPendingPost: (post: AddPostPayload | null) => set({ pendingPost: post }),
 
@@ -361,6 +461,247 @@ export const useStore = create<StoreState>((set, get) => ({
       localStorage.setItem(STORAGE_KEYS.SAVED_HELPLINES, JSON.stringify(updated));
     }
     toast.success(current.includes(helplineId) ? 'Helpline removed' : 'Helpline saved! 🔖');
+  },
+
+  setConnectedAddress: (address: string | null) => {
+    set({ connectedAddress: address });
+  },
+
+  setAnonymousWallet: (address: string | null) => {
+    if (typeof window !== 'undefined') {
+      if (address) {
+        localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, address);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.ANON_WALLET_ADDRESS);
+        clearSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY);
+      }
+    }
+    set({ anonymousWalletAddress: address });
+  },
+
+  generateAnonymousWallet: async (password: string) => {
+    const wallet = Wallet.createRandom();
+    if (!wallet.privateKey) {
+      throw new Error('Failed to generate wallet');
+    }
+
+    setSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, { privateKey: wallet.privateKey }, password);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, wallet.address);
+    }
+
+    set({ anonymousWalletAddress: wallet.address });
+    toast.success('Anonymous wallet created successfully!');
+
+    return {
+      address: wallet.address,
+      mnemonic: wallet.mnemonic?.phrase ?? '',
+    };
+  },
+
+  importAnonymousWallet: async (mnemonic: string, password: string) => {
+    const wallet = Wallet.fromMnemonic(mnemonic.trim());
+    setSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, { privateKey: wallet.privateKey }, password);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, wallet.address);
+    }
+    set({ anonymousWalletAddress: wallet.address });
+    toast.success('Anonymous wallet imported');
+    return { address: wallet.address };
+  },
+
+  loadAnonymousWallet: async (password: string) => {
+    const stored = getSecureItem<{ privateKey: string }>(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, password);
+    if (!stored?.privateKey) {
+      return null;
+    }
+    return new Wallet(stored.privateKey);
+  },
+
+  clearAnonymousWallet: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEYS.ANON_WALLET_ADDRESS);
+    }
+    clearSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY);
+    set({ anonymousWalletAddress: null });
+  },
+
+  earnVoice: (
+    amount: number,
+    reason: string,
+    category: keyof EarningsBreakdown = 'bonuses',
+    metadata: Record<string, unknown> = {}
+  ) => {
+    if (amount <= 0) {
+      return;
+    }
+
+    set((state) => {
+      const newBalance = state.voiceBalance + amount;
+      const newPending = state.pendingRewards + amount;
+      const updatedBreakdown = {
+        ...state.earningsBreakdown,
+        [category]: (state.earningsBreakdown[category] ?? 0) + amount,
+      } as EarningsBreakdown;
+
+      const transaction: VoiceTransaction = {
+        id: crypto.randomUUID(),
+        type: 'earn',
+        amount,
+        reason,
+        metadata,
+        timestamp: Date.now(),
+        balance: newBalance,
+      };
+
+      const history = [transaction, ...state.transactionHistory].slice(0, 100);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.VOICE_BALANCE, newBalance.toString());
+        localStorage.setItem(STORAGE_KEYS.VOICE_PENDING, newPending.toString());
+        localStorage.setItem(STORAGE_KEYS.VOICE_BREAKDOWN, JSON.stringify(updatedBreakdown));
+        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
+      }
+
+      return {
+        voiceBalance: newBalance,
+        pendingRewards: newPending,
+        earningsBreakdown: updatedBreakdown,
+        transactionHistory: history,
+      };
+    });
+
+    const formattedAmount = formatVoiceBalance(amount);
+    toast.success(`+${formattedAmount}${reason ? ` · ${reason}` : ''}`);
+  },
+
+  spendVoice: (amount: number, reason: string, metadata: Record<string, unknown> = {}) => {
+    if (amount <= 0) return;
+
+    set((state) => {
+      if (state.voiceBalance < amount) {
+        toast.error('Insufficient VOICE balance');
+        return state;
+      }
+
+      const newBalance = state.voiceBalance - amount;
+      const transaction: VoiceTransaction = {
+        id: crypto.randomUUID(),
+        type: 'spend',
+        amount: -amount,
+        reason,
+        metadata,
+        timestamp: Date.now(),
+        balance: newBalance,
+      };
+
+      const history = [transaction, ...state.transactionHistory].slice(0, 100);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.VOICE_BALANCE, newBalance.toString());
+        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
+      }
+
+      return {
+        voiceBalance: newBalance,
+        transactionHistory: history,
+      };
+    });
+
+    const formattedAmount = formatVoiceBalance(amount);
+    toast.success(`-${formattedAmount} spent on ${reason}`);
+  },
+
+  claimRewards: async () => {
+    const pending = get().pendingRewards;
+    if (pending <= 0) {
+      toast.error('No pending rewards to claim');
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    set((state) => {
+      const transaction: VoiceTransaction = {
+        id: crypto.randomUUID(),
+        type: 'earn',
+        amount: 0,
+        reason: 'Claimed to blockchain',
+        metadata: {
+          claimedAmount: pending,
+          address: state.connectedAddress,
+        },
+        timestamp: Date.now(),
+        balance: state.voiceBalance,
+      };
+
+      const history = [transaction, ...state.transactionHistory].slice(0, 100);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.VOICE_PENDING, '0');
+        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
+      }
+
+      return {
+        pendingRewards: 0,
+        transactionHistory: history,
+      };
+    });
+
+    const formattedPending = formatVoiceBalance(pending);
+    toast.success(`Claimed ${formattedPending}! 🎉`);
+  },
+
+  loadWalletData: () => {
+    if (typeof window === 'undefined') return;
+
+    set({
+      voiceBalance: getNumberFromStorage(STORAGE_KEYS.VOICE_BALANCE, 0),
+      pendingRewards: getNumberFromStorage(STORAGE_KEYS.VOICE_PENDING, 0),
+      earningsBreakdown: getJSONFromStorage<EarningsBreakdown>(
+        STORAGE_KEYS.VOICE_BREAKDOWN,
+        { ...DEFAULT_EARNINGS_BREAKDOWN }
+      ),
+      transactionHistory: getJSONFromStorage<VoiceTransaction[]>(STORAGE_KEYS.VOICE_HISTORY, []),
+      anonymousWalletAddress: localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS),
+      lastLoginDate: localStorage.getItem(STORAGE_KEYS.LAST_LOGIN_DATE),
+      loginStreak: getNumberFromStorage(STORAGE_KEYS.LOGIN_STREAK, 0),
+    });
+  },
+
+  grantDailyLoginBonus: () => {
+    if (typeof window === 'undefined') return;
+
+    const today = new Date().toDateString();
+    const { lastLoginDate, loginStreak } = get();
+
+    if (lastLoginDate === today) {
+      return;
+    }
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isConsecutive = lastLoginDate === yesterday.toDateString();
+    const newStreak = isConsecutive ? loginStreak + 1 : 1;
+
+    set({ lastLoginDate: today, loginStreak: newStreak });
+
+    localStorage.setItem(STORAGE_KEYS.LAST_LOGIN_DATE, today);
+    localStorage.setItem(STORAGE_KEYS.LOGIN_STREAK, newStreak.toString());
+
+    get().earnVoice(EARN_RULES.dailyLoginBonus, 'Daily login bonus', 'streaks', { date: today });
+
+    if (newStreak > 0 && newStreak % 7 === 0) {
+      get().earnVoice(EARN_RULES.weeklyStreak, 'Weekly streak bonus', 'streaks', {
+        streak: newStreak,
+      });
+    }
+
+    if (newStreak > 0 && newStreak % 30 === 0) {
+      get().earnVoice(EARN_RULES.monthlyStreak, 'Monthly streak bonus', 'streaks', {
+        streak: newStreak,
+      });
+    }
   },
 
   dismissEmergencyBanner: () => {
@@ -540,6 +881,10 @@ export const useStore = create<StoreState>((set, get) => ({
       crisisLevel?: 'high' | 'critical';
     }
   ) => {
+    const storeState = get();
+    const myPostsCount = storeState.posts.filter((post) => post.studentId === storeState.studentId).length;
+    const isFirstPost = myPostsCount === 0;
+    const postReward = isFirstPost ? EARN_RULES.firstPost : EARN_RULES.regularPost;
     const lifetimeMap: Record<PostLifetime, number | null> = {
       '1h': 1 * 60 * 60 * 1000,
       '6h': 6 * 60 * 60 * 1000,
@@ -555,7 +900,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
     const newPost: Post = {
       id: crypto.randomUUID(),
-      studentId: get().studentId,
+      studentId: storeState.studentId,
       content: isEncrypted && encryptedData ? encryptedData.encrypted : content,
       category,
       reactions: { heart: 0, fire: 0, clap: 0, sad: 0, angry: 0, laugh: 0 },
@@ -599,6 +944,18 @@ export const useStore = create<StoreState>((set, get) => ({
     // Schedule expiry if applicable
     if (expiresAt) {
       get().scheduleExpiry(newPost);
+    }
+
+    // Award VOICE tokens for posting
+    get().earnVoice(postReward, isFirstPost ? 'First post!' : 'Post created', 'posts', {
+      postId: newPost.id,
+    });
+
+    // Crisis response bonus
+    if (moderationData?.isCrisisFlagged) {
+      get().earnVoice(EARN_RULES.crisisResponse, 'Crisis response support', 'crisis', {
+        postId: newPost.id,
+      });
     }
 
     toast.success('Post created! 🎉');
@@ -754,6 +1111,11 @@ export const useStore = create<StoreState>((set, get) => ({
       navigator.vibrate(50);
     }
 
+    get().earnVoice(EARN_RULES.reactionGiven, 'Reaction given', 'reactions', {
+      postId,
+      reactionType,
+    });
+
     // Add notification if reacting to someone else's post
     if (post.studentId !== state.studentId) {
       get().addNotification({
@@ -777,6 +1139,10 @@ export const useStore = create<StoreState>((set, get) => ({
     }));
     get().saveToLocalStorage();
     toast.success('You awarded this post! 🌟');
+
+    get().earnVoice(EARN_RULES.helpfulPost, 'Post marked as helpful', 'helpful', {
+      postId,
+    });
 
     // Add notification
     if (post.studentId !== get().studentId) {
@@ -836,6 +1202,12 @@ export const useStore = create<StoreState>((set, get) => ({
     }));
     get().saveToLocalStorage();
     toast.success('Comment posted! 💬');
+
+    get().earnVoice(EARN_RULES.comment, parentCommentId ? 'Reply posted' : 'Comment posted', 'comments', {
+      postId,
+      commentId: newComment.id,
+      parentCommentId: parentCommentId ?? null,
+    });
 
     if (navigator.vibrate) {
       navigator.vibrate(50);
