@@ -181,6 +181,13 @@ export interface PostModerationIssue {
   message: string;
 }
 
+export interface PostModerationIssue {
+  type: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  action: 'support' | 'blur' | 'flag';
+  message: string;
+}
+
 export interface Post {
   id: string;
   studentId: string;
@@ -674,6 +681,20 @@ export interface StoreState {
   submitZKProof: (requestId: string, witness: string | Uint8Array, additionalData?: string | Uint8Array) => Promise<void>;
   verifyZKProof: (requestId: string, witness: string | Uint8Array) => Promise<ZKProofResult>;
   clearZKProof: (requestId: string) => void;
+
+  // Crisis support
+  showCrisisModal: boolean;
+  pendingPost: AddPostPayload | null;
+  setShowCrisisModal: (show: boolean) => void;
+  setPendingPost: (post: AddPostPayload | null) => void;
+
+  // Saved helplines
+  savedHelplines: string[];
+  toggleSaveHelpline: (helplineId: string) => void;
+
+  emergencyBannerDismissedUntil: number | null;
+  dismissEmergencyBanner: () => void;
+  checkEmergencyBannerStatus: () => void;
 
   // Initialization
   initStudentId: () => void;

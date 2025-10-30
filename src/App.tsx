@@ -241,6 +241,27 @@ function AnimatedRoutes() {
     };
   }, []);
 
+  const handleCrisisAcknowledge = (action: 'call_helpline' | 'continue') => {
+    if (action === 'call_helpline') {
+      toast.success('Thank you for reaching out 💙');
+    }
+
+    if (pendingPost && pendingPost.moderationData) {
+      addPost(
+        pendingPost.content,
+        pendingPost.category,
+        pendingPost.lifetime,
+        pendingPost.customLifetimeHours || undefined,
+        pendingPost.isEncrypted,
+        pendingPost.encryptionData,
+        pendingPost.moderationData
+      );
+    }
+
+    setShowCrisisModal(false);
+    setPendingPost(null);
+  };
+
   return (
     <>
       <SkipLink targetId="main-content" />
