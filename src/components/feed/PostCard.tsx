@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageCircle,
@@ -9,10 +9,21 @@ import {
   Star,
   Edit,
   Trash2,
+  Lock,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import type { Post } from '../../lib/store';
 import { useStore } from '../../lib/store';
-import { formatTimeAgo, getStudentIdColor, parseMarkdown } from '../../lib/utils';
+import {
+  formatTimeAgo,
+  formatTimeRemaining,
+  getStudentIdColor,
+  getTimerBgColor,
+  getTimerColor,
+  getTimerTextColor,
+  parseMarkdown,
+} from '../../lib/utils';
+import { decryptContent, encryptContent } from '../../lib/encryption';
 import ReactionBar from './ReactionBar';
 import CommentSection from './CommentSection';
 import ReportModal from './ReportModal';
@@ -30,23 +41,134 @@ export default function PostCard({ post }: PostCardProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDecrypting, setIsDecrypting] = useState(post.isEncrypted ?? false);
+  const [decryptedContent, setDecryptedContent] = useState(post.isEncrypted ? '' : post.content);
+  const [decryptError, setDecryptError] = useState(false);
+  const [timeLabel, setTimeLabel] = useState<string | null>(formatTimeRemaining(post.expiresAt ?? null));
+  const [timerColor, setTimerColor] = useState<string>(getTimerColor(post.expiresAt ?? null));
+  const [timeRemainingMs, setTimeRemainingMs] = useState<number | null>(
+    post.expiresAt ? post.expiresAt - Date.now() : null
+  );
 
-  const { studentId, toggleBookmark, bookmarkedPosts, togglePin, incrementHelpful, updatePost, deletePost } =
-    useStore();
+  const {
+    studentId,
+    toggleBookmark,
+    bookmarkedPosts,
+    togglePin,
+    incrementHelpful,
+    updatePost,
+    deletePost,
+    getEncryptionKey,
+    addEncryptionKey,
+  } = useStore();
 
   const isBookmarked = bookmarkedPosts.includes(post.id);
   const isOwnPost = post.studentId === studentId;
   const isBlurred = post.reportCount >= 3;
   const [showBlurredContent, setShowBlurredContent] = useState(false);
 
+  const canExtend = useMemo(() => {
+    if (!isOwnPost || !post.expiresAt || !timeRemainingMs) return false;
+    if (timeRemainingMs <= 0) return false;
+    return timeRemainingMs <= 6 * 60 * 60 * 1000;
+  }, [isOwnPost, post.expiresAt, timeRemainingMs]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (post.isEncrypted && post.encryptionMeta) {
+      const key = getEncryptionKey(post.encryptionMeta.keyId);
+      if (!key) {
+        setIsDecrypting(false);
+        setDecryptError(true);
+        return;
+      }
+
+      setIsDecrypting(true);
+      decryptContent(post.content, post.encryptionMeta.iv, key)
+        .then((decoded) => {
+          if (!isMounted) return;
+          setDecryptedContent(decoded);
+          setEditContent(decoded);
+          setDecryptError(false);
+        })
+        .catch(() => {
+          if (!isMounted) return;
+          setDecryptError(true);
+          setDecryptedContent('');
+        })
+        .finally(() => {
+          if (!isMounted) return;
+          setIsDecrypting(false);
+        });
+    } else {
+      setDecryptedContent(post.content);
+      setEditContent(post.content);
+      setIsDecrypting(false);
+      setDecryptError(false);
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [post.content, post.encryptionMeta, post.id, post.isEncrypted, getEncryptionKey]);
+
+  useEffect(() => {
+    const updateTimer = () => {
+      if (!post.expiresAt) {
+        setTimeLabel(null);
+        setTimerColor(getTimerColor(null));
+        setTimeRemainingMs(null);
+        return;
+      }
+
+      const remaining = post.expiresAt - Date.now();
+      setTimeRemainingMs(remaining);
+      setTimeLabel(formatTimeRemaining(post.expiresAt));
+      setTimerColor(getTimerColor(post.expiresAt));
+    };
+
+    updateTimer();
+
+    if (!post.expiresAt) return;
+
+    const interval = window.setInterval(updateTimer, 60000);
+    return () => window.clearInterval(interval);
+  }, [post.expiresAt]);
+
   const handleShare = () => {
     setShowShareMenu(!showShareMenu);
   };
 
-  const handleSaveEdit = () => {
-    if (editContent.trim().length >= 10 && editContent.trim().length <= 1000) {
-      updatePost(post.id, editContent.trim());
+  const handleSaveEdit = async () => {
+    const trimmedContent = editContent.trim();
+    if (trimmedContent.length < 10 || trimmedContent.length > 1000) return;
+
+    setIsSaving(true);
+
+    try {
+      if (post.isEncrypted) {
+        const encrypted = await encryptContent(trimmedContent);
+        addEncryptionKey(encrypted.keyId, encrypted.key);
+
+        updatePost(post.id, trimmedContent, {
+          isEncrypted: true,
+          encryptedData: {
+            encrypted: encrypted.encrypted,
+            iv: encrypted.iv,
+            keyId: encrypted.keyId,
+          },
+        });
+      } else {
+        updatePost(post.id, trimmedContent);
+      }
       setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to update post:', error);
+      toast.error('Failed to update post. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -55,24 +177,69 @@ export default function PostCard({ post }: PostCardProps) {
     setShowDeleteModal(false);
   };
 
+  const handleExtend = () => {
+    toast('Extend feature coming soon! Costs 10 VOICE.', {
+      icon: '⏱️',
+    });
+  };
+
   const totalReactions = Object.values(post.reactions).reduce((sum, count) => sum + count, 0);
+  const timerDisplay = useMemo(() => {
+    if (!post.expiresAt) return '♾️ Permanent';
+    if (timeLabel === 'Expired') return 'Expired';
+    if (!timeLabel) return null;
+    return `Expires in ${timeLabel}`;
+  }, [post.expiresAt, timeLabel]);
+
+  const timerClasses = useMemo(() => {
+    if (!post.expiresAt) return 'bg-gray-500/10 border border-gray-500/20 text-gray-400';
+    const color = timerColor;
+    return `${getTimerBgColor(color)} ${getTimerTextColor(color)}`;
+  }, [post.expiresAt, timerColor]);
+
+  const renderContent = () => {
+    if (isDecrypting) {
+      return <div className="text-sm text-gray-400 italic">Decrypting encrypted post...</div>;
+    }
+
+    if (decryptError) {
+      return <div className="text-sm text-gray-500">[Encrypted content - decryption failed]</div>;
+    }
+
+    const safeContent = post.isEncrypted ? decryptedContent : post.content;
+
+    return (
+      <div
+        className="text-gray-200 leading-relaxed"
+        dangerouslySetInnerHTML={{ __html: parseMarkdown(safeContent || '') }}
+      />
+    );
+  };
 
   return (
     <>
       <motion.article
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="glass p-6 space-y-4 relative"
+        exit={{ opacity: 0, scale: 0.95, filter: 'blur(5px)' }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+        className="glass p-6 space-y-4 relative overflow-hidden"
       >
-        {post.isPinned && (
-          <div className="absolute top-4 right-4">
+        <div className="absolute top-4 right-4 flex flex-col items-end space-y-2">
+          {timerDisplay && (
+            <div className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium border ${timerClasses}`}>
+              <span>{post.expiresAt ? '⏳' : '♾️'}</span>
+              <span>{timerDisplay}</span>
+            </div>
+          )}
+
+          {post.isPinned && (
             <div className="flex items-center space-x-1 text-xs text-purple-400 bg-purple-500/20 px-2 py-1 rounded-full">
               <Pin className="w-3 h-3" />
               <span>Pinned</span>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {isBlurred && !showBlurredContent && (
           <div className="absolute inset-0 backdrop-blur-xl bg-black/50 rounded-2xl flex flex-col items-center justify-center z-10 space-y-3">
@@ -98,7 +265,15 @@ export default function PostCard({ post }: PostCardProps) {
               {post.studentId.slice(-4)}
             </div>
             <div>
-              <p className="font-medium text-white">{post.studentId}</p>
+              <p className="font-medium text-white flex items-center space-x-2">
+                <span>{post.studentId}</span>
+                {post.isEncrypted && (
+                  <span className="flex items-center space-x-1 text-xs text-primary bg-primary/10 px-2 py-1 rounded-full">
+                    <Lock className="w-3 h-3" />
+                    <span>Encrypted</span>
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-gray-400">
                 {formatTimeAgo(post.createdAt)}
                 {post.isEdited && <span className="ml-1 text-gray-500">(edited)</span>}
@@ -164,7 +339,7 @@ export default function PostCard({ post }: PostCardProps) {
                 <button
                   onClick={() => {
                     setIsEditing(false);
-                    setEditContent(post.content);
+                    setEditContent(decryptedContent || post.content);
                   }}
                   className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
                 >
@@ -172,19 +347,23 @@ export default function PostCard({ post }: PostCardProps) {
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  disabled={editContent.trim().length < 10 || editContent.trim().length > 1000}
-                  className="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-glow transition-all"
+                  disabled={
+                    editContent.trim().length < 10 ||
+                    editContent.trim().length > 1000 ||
+                    isSaving
+                  }
+                  className="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-glow transition-all flex items-center space-x-2"
                 >
-                  Save
+                  {isSaving && (
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  )}
+                  <span>Save</span>
                 </button>
               </div>
             </div>
           </div>
         ) : (
-          <div
-            className="text-gray-200 leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: parseMarkdown(post.content) }}
-          />
+          renderContent()
         )}
 
         <ReactionBar
@@ -194,10 +373,14 @@ export default function PostCard({ post }: PostCardProps) {
 
         <div className="flex items-center justify-between pt-3 border-t border-white/10">
           <div className="flex items-center space-x-1 text-sm text-gray-400">
-            <span>{totalReactions > 0 ? totalReactions : 'No'} reaction{totalReactions !== 1 ? 's' : ''}</span>
+            <span>
+              {totalReactions > 0 ? totalReactions : 'No'} reaction{totalReactions !== 1 ? 's' : ''}
+            </span>
           </div>
           <div className="flex items-center space-x-1 text-sm text-gray-400">
-            <span>{post.commentCount} comment{post.commentCount !== 1 ? 's' : ''}</span>
+            <span>
+              {post.commentCount} comment{post.commentCount !== 1 ? 's' : ''}
+            </span>
           </div>
         </div>
 
@@ -219,6 +402,18 @@ export default function PostCard({ post }: PostCardProps) {
           </motion.button>
 
           <div className="flex items-center space-x-2">
+            {canExtend && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleExtend}
+                className="flex items-center space-x-1 px-3 py-2 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all text-xs font-medium"
+              >
+                <span>⏱️</span>
+                <span>Extend (10 VOICE)</span>
+              </motion.button>
+            )}
+
             {post.helpfulCount > 0 && (
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -252,9 +447,7 @@ export default function PostCard({ post }: PostCardProps) {
               title={isBookmarked ? 'Remove bookmark' : 'Bookmark post'}
             >
               <Bookmark
-                className={`w-4 h-4 ${
-                  isBookmarked ? 'fill-primary text-primary' : 'text-gray-400'
-                }`}
+                className={`w-4 h-4 ${isBookmarked ? 'fill-primary text-primary' : 'text-gray-400'}`}
               />
             </motion.button>
 

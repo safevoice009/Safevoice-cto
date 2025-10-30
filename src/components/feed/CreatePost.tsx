@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Send, X } from 'lucide-react';
-import { useStore } from '../../lib/store';
+import { Send, X, Lock, Clock } from 'lucide-react';
+import { useStore, type PostLifetime } from '../../lib/store';
+import { encryptContent } from '../../lib/encryption';
+import toast from 'react-hot-toast';
 
 const categories = [
   'Mental Health',
@@ -14,22 +16,83 @@ const categories = [
   'Other',
 ];
 
+const lifetimeOptions: { value: PostLifetime; label: string; icon: string }[] = [
+  { value: '1h', label: '1 hour', icon: '⏱️' },
+  { value: '6h', label: '6 hours', icon: '⏱️' },
+  { value: '24h', label: '24 hours (1 day)', icon: '⏱️' },
+  { value: '7d', label: '7 days (1 week)', icon: '⏱️' },
+  { value: '30d', label: '30 days (1 month)', icon: '⏱️' },
+  { value: 'custom', label: 'Custom', icon: '⚙️' },
+  { value: 'never', label: 'Never (permanent)', icon: '♾️' },
+];
+
 export default function CreatePost() {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
-  const { addPost } = useStore();
+  const [lifetime, setLifetime] = useState<PostLifetime>('24h');
+  const [customHours, setCustomHours] = useState<number>(24);
+  const [isEncrypted, setIsEncrypted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { addPost, addEncryptionKey } = useStore();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const trimmedContent = content.trim();
     if (trimmedContent.length < 10 || trimmedContent.length > 1000) return;
 
-    addPost(trimmedContent, category || undefined);
-    setContent('');
-    setCategory('');
-    setIsExpanded(false);
+    if (lifetime === 'custom' && (customHours < 1 || customHours > 8760)) {
+      toast.error('Custom duration must be between 1 and 8760 hours');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      if (isEncrypted) {
+        // Encrypt the content
+        const encrypted = await encryptContent(trimmedContent);
+
+        // Store encryption key
+        addEncryptionKey(encrypted.keyId, encrypted.key);
+
+        // Add encrypted post
+        addPost(
+          trimmedContent, // Original content for fallback
+          category || undefined,
+          lifetime,
+          lifetime === 'custom' ? customHours : undefined,
+          true,
+          {
+            encrypted: encrypted.encrypted,
+            iv: encrypted.iv,
+            keyId: encrypted.keyId,
+          }
+        );
+      } else {
+        // Add normal post
+        addPost(
+          trimmedContent,
+          category || undefined,
+          lifetime,
+          lifetime === 'custom' ? customHours : undefined
+        );
+      }
+
+      // Reset form
+      setContent('');
+      setCategory('');
+      setLifetime('24h');
+      setCustomHours(24);
+      setIsEncrypted(false);
+      setIsExpanded(false);
+    } catch (error) {
+      console.error('Failed to create post:', error);
+      toast.error('Failed to create post. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -46,6 +109,9 @@ export default function CreatePost() {
               setIsExpanded(false);
               setContent('');
               setCategory('');
+              setLifetime('24h');
+              setCustomHours(24);
+              setIsEncrypted(false);
             }}
             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
@@ -93,6 +159,69 @@ export default function CreatePost() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm text-gray-400 mb-2 flex items-center space-x-2">
+                <Clock className="w-4 h-4" />
+                <span>Post Lifetime (Delete After)</span>
+              </label>
+              <select
+                value={lifetime}
+                onChange={(e) => setLifetime(e.target.value as PostLifetime)}
+                className="w-full bg-surface border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-primary transition-colors"
+              >
+                {lifetimeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.icon} {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Your post will automatically delete after this time
+              </p>
+            </div>
+
+            {lifetime === 'custom' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+              >
+                <label className="block text-sm text-gray-400 mb-2">
+                  Hours until deletion
+                </label>
+                <input
+                  type="number"
+                  value={customHours}
+                  onChange={(e) => setCustomHours(parseInt(e.target.value) || 1)}
+                  min={1}
+                  max={8760}
+                  placeholder="Enter hours (1-8760)"
+                  className="w-full bg-surface border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-primary transition-colors"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Max: 8760 hours (1 year)
+                </p>
+              </motion.div>
+            )}
+
+            <div className="flex items-center space-x-3 p-3 bg-surface/50 rounded-lg border border-white/10">
+              <input
+                type="checkbox"
+                id="encrypt"
+                checked={isEncrypted}
+                onChange={(e) => setIsEncrypted(e.target.checked)}
+                className="w-4 h-4 rounded accent-primary"
+              />
+              <label htmlFor="encrypt" className="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer">
+                <Lock className="w-4 h-4" />
+                <span>🔐 Encrypt this post (End-to-end encryption)</span>
+              </label>
+            </div>
+            {isEncrypted && (
+              <div className="text-xs text-gray-500 pl-7">
+                Only you can decrypt this content. Uses AES-GCM-256 encryption.
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400">
                 {content.length}/1000{' '}
@@ -102,11 +231,20 @@ export default function CreatePost() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 type="submit"
-                disabled={content.trim().length < 10 || content.trim().length > 1000}
+                disabled={content.trim().length < 10 || content.trim().length > 1000 || isSubmitting}
                 className="flex items-center space-x-2 px-6 py-2 bg-primary text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-glow transition-all"
               >
-                <Send className="w-4 h-4" />
-                <span>Post</span>
+                {isSubmitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Posting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Post</span>
+                  </>
+                )}
               </motion.button>
             </div>
 

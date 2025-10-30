@@ -156,3 +156,58 @@ export const getLifetimeDuration = (value: string): number | null => {
   };
   return durations[value] || null;
 };
+
+export function formatTimeRemaining(expiresAt: number | null): string | null {
+  if (!expiresAt) return null;
+
+  const now = Date.now();
+  const remaining = expiresAt - now;
+
+  if (remaining <= 0) return 'Expired';
+
+  const minutes = Math.floor(remaining / 60000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  return `${minutes}m`;
+}
+
+export function getTimerColor(expiresAt: number | null): string {
+  if (!expiresAt) return 'gray';
+
+  const remaining = expiresAt - Date.now();
+  const hours = remaining / (60 * 60 * 1000);
+  const minutes = remaining / (60 * 1000);
+
+  if (hours > 24) return 'green';
+  if (hours > 6) return 'yellow';
+  if (hours > 1) return 'orange';
+  if (minutes > 5) return 'red';
+  return 'red-pulse';
+}
+
+export function getTimerTextColor(color: string): string {
+  const colorMap: Record<string, string> = {
+    green: 'text-green-500',
+    yellow: 'text-yellow-500',
+    orange: 'text-orange-500',
+    red: 'text-red-500',
+    'red-pulse': 'text-red-500 timer-pulse',
+    gray: 'text-gray-500',
+  };
+  return colorMap[color] || 'text-gray-500';
+}
+
+export function getTimerBgColor(color: string): string {
+  const colorMap: Record<string, string> = {
+    green: 'bg-green-500/10 border-green-500/20',
+    yellow: 'bg-yellow-500/10 border-yellow-500/20',
+    orange: 'bg-orange-500/10 border-orange-500/20',
+    red: 'bg-red-500/10 border-red-500/20',
+    'red-pulse': 'bg-red-500/10 border-red-500/20',
+    gray: 'bg-gray-500/10 border-gray-500/20',
+  };
+  return colorMap[color] || 'bg-gray-500/10 border-gray-500/20';
+}
