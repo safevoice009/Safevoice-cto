@@ -42,6 +42,71 @@ npm run build
 
 This will create an optimized production build in the `dist` folder.
 
+## 🧪 Testing
+
+### Run All Tests
+
+```bash
+npm test
+```
+
+This will run the test suite in watch mode. Press `q` to quit.
+
+### Run Tests Once
+
+```bash
+npm test -- --run
+```
+
+Useful for CI/CD environments.
+
+### Run Tests with UI
+
+```bash
+npm run test:ui
+```
+
+Opens Vitest UI for interactive test debugging and visualization.
+
+### Generate Coverage Report
+
+```bash
+npm run test:coverage
+```
+
+Generates a detailed code coverage report in the `coverage/` directory.
+
+### Test Organization
+
+- **Unit Tests**: `src/lib/*.test.ts` - Testing individual functions and utilities
+- **Integration Tests**: `src/lib/*.integration.test.ts` - Testing multi-step user journeys
+- **Component Tests**: `src/components/**/*.test.tsx` - Testing React components
+
+### Interpreting Test Results
+
+- ✓ **Passed** - Test executed successfully
+- ✗ **Failed** - Test assertion failed, review error message
+- **Coverage Report** - Shows percentage of code covered by tests
+  - Statements: Individual lines of code
+  - Branches: Conditional paths (if/else)
+  - Functions: Individual functions
+  - Lines: Total lines covered
+
+### Coverage Goals
+
+The test suite aims for:
+- **Statements**: >80%
+- **Branches**: >75%
+- **Functions**: >80%
+- **Lines**: >80%
+
+Focus areas:
+- Token economy (earn/spend flows)
+- Reward engine edge cases
+- Store integration tests
+- UI component interactions
+- Utility functions
+
 ## 🚢 Deployment
 
 Deploy to GitHub Pages:
