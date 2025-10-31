@@ -691,6 +691,8 @@ export interface StoreState {
   transactionHistory: VoiceTransaction[];
   lastLoginDate: string | null;
   loginStreak: number;
+  lastPostDate: string | null;
+  postingStreak: number;
 
   firstPostAwarded: boolean;
 
@@ -3999,6 +4001,8 @@ export const useStore = create<StoreState>((set, get) => {
         typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS) : null,
       lastLoginDate: snapshot.lastLogin,
       loginStreak: snapshot.streakData.currentStreak,
+      lastPostDate: snapshot.streakData.lastPostDate,
+      postingStreak: snapshot.streakData.currentPostStreak,
     });
   },
 

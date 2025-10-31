@@ -384,6 +384,33 @@ export class RewardEngine {
     };
   }
 
+  /**
+   * Normalize snapshot to ensure all fields exist (backwards compatibility)
+   */
+  private normalizeSnapshot(snapshot: WalletSnapshot): WalletSnapshot {
+    const streakData = snapshot.streakData ?? this.createEmptySnapshot().streakData;
+
+    const normalizedStreakData: StreakData = {
+      ...streakData,
+      currentStreak: streakData.currentStreak ?? 0,
+      longestStreak: streakData.longestStreak ?? streakData.currentStreak ?? 0,
+      lastLoginDate: streakData.lastLoginDate ?? null,
+      streakBroken: streakData.streakBroken ?? false,
+      lastStreakResetDate: streakData.lastStreakResetDate ?? null,
+      currentPostStreak: streakData.currentPostStreak ?? 0,
+      longestPostStreak: streakData.longestPostStreak ?? streakData.currentPostStreak ?? 0,
+      lastPostDate: streakData.lastPostDate ?? null,
+      postStreakBroken: streakData.postStreakBroken ?? false,
+      lastPostStreakResetDate: streakData.lastPostStreakResetDate ?? null,
+    };
+
+    return {
+      ...snapshot,
+      streakData: normalizedStreakData,
+      lastLogin: snapshot.lastLogin ?? normalizedStreakData.lastLoginDate,
+    };
+  }
+
   private getNumberFromStorage(key: string, fallback: number = 0): number {
     if (typeof window === 'undefined') return fallback;
     const raw = localStorage.getItem(key);
