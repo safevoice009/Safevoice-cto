@@ -15,6 +15,7 @@ import {
   Sparkles,
   Clock,
   Zap,
+  DollarSign,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Post } from '../../lib/store';
@@ -34,6 +35,7 @@ import CommentSection from './CommentSection';
 import ReportModal from './ReportModal';
 import ShareMenu from './ShareMenu';
 import ConfirmModal from './ConfirmModal';
+import TipModal from './TipModal';
 
 interface PostCardProps {
   post: Post;
@@ -44,6 +46,7 @@ export default function PostCard({ post }: PostCardProps) {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showTipModal, setShowTipModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
   const [isSaving, setIsSaving] = useState(false);
@@ -642,15 +645,28 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
 
             {!isOwnPost && (
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setShowReportModal(true)}
-                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-                title="Report post"
-              >
-                <Flag className="w-4 h-4 text-gray-400" />
-              </motion.button>
+              <>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowTipModal(true)}
+                  className="flex items-center space-x-1 px-3 py-2 rounded-lg bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-primary hover:from-purple-500/30 hover:to-blue-500/30 transition-all text-xs font-medium"
+                  title="Send a tip"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>Tip</span>
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowReportModal(true)}
+                  className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                  title="Report post"
+                >
+                  <Flag className="w-4 h-4 text-gray-400" />
+                </motion.button>
+              </>
             )}
           </div>
         </div>
@@ -673,6 +689,13 @@ export default function PostCard({ post }: PostCardProps) {
       <ReportModal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
+        postId={post.id}
+      />
+
+      <TipModal
+        isOpen={showTipModal}
+        onClose={() => setShowTipModal(false)}
+        userId={post.studentId}
         postId={post.id}
       />
 
