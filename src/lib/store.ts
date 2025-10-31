@@ -692,6 +692,8 @@ export interface StoreState {
   lastLoginDate: string | null;
   loginStreak: number;
 
+  firstPostAwarded: boolean;
+
   setConnectedAddress: (address: string | null) => void;
   setAnonymousWallet: (address: string | null) => void;
   generateAnonymousWallet: (password: string) => Promise<{ address: string; mnemonic: string }>;
