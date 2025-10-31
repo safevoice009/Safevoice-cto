@@ -75,6 +75,8 @@ export interface Comment {
   createdAt: number;
   isEdited: boolean;
   editedAt: number | null;
+  helpfulVotes: number;
+  helpfulRewardAwarded: boolean;
 }
 
 export interface PostModerationIssue {
@@ -266,6 +268,7 @@ export interface StoreState {
   updateComment: (commentId: string, content: string) => void;
   deleteComment: (commentId: string, postId: string) => void;
   addCommentReaction: (postId: string, commentId: string, reactionType: keyof Reaction) => void;
+  markCommentHelpful: (postId: string, commentId: string) => void;
 
   // Bookmark actions
   toggleBookmark: (postId: string) => void;
@@ -300,6 +303,8 @@ const rewardEngine = new RewardEngine();
 
 const VIRAL_REACTION_THRESHOLD = 100;
 const VIRAL_REWARD_AMOUNT = EARN_RULES.viralPost;
+const HELPFUL_COMMENT_THRESHOLD = 5;
+const HELPFUL_COMMENT_REWARD_PREFIX = 'helpful_comment';
 
 // Helper to generate random student ID
 const generateStudentId = () => `Student#${Math.floor(Math.random() * 9000 + 1000)}`;
@@ -397,6 +402,43 @@ const findAndDeleteComment = (comments: Comment[], commentId: string): Comment[]
       return comment;
     })
     .filter((comment): comment is Comment => comment !== null);
+};
+
+// Helper for normalizing stored comments (for migration)
+type StoredComment = Partial<Comment> & {
+  id: string;
+  postId: string;
+  studentId: string;
+  content: string;
+};
+
+const normalizeStoredComments = (storedComments: StoredComment[]): Comment[] => {
+  return storedComments.map((comment) => ({
+    ...comment,
+    parentCommentId: comment.parentCommentId ?? null,
+    reactions: comment.reactions ?? { heart: 0, fire: 0, clap: 0, sad: 0, angry: 0, laugh: 0 },
+    replies: normalizeStoredComments((comment.replies as StoredComment[] | undefined) ?? []),
+    createdAt: comment.createdAt ?? Date.now(),
+    isEdited: comment.isEdited ?? false,
+    editedAt: comment.editedAt ?? null,
+    helpfulVotes: comment.helpfulVotes ?? 0,
+    helpfulRewardAwarded: comment.helpfulRewardAwarded ?? false,
+  }));
+};
+
+const findCommentById = (comments: Comment[], commentId: string): Comment | null => {
+  for (const comment of comments) {
+    if (comment.id === commentId) {
+      return comment;
+    }
+    if (comment.replies.length > 0) {
+      const found = findCommentById(comment.replies, commentId);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return null;
 };
 
 export const useStore = create<StoreState>((set, get) => {
@@ -629,8 +671,13 @@ export const useStore = create<StoreState>((set, get) => {
             }
           : null;
 
+      const normalizedComments = normalizeStoredComments((post.comments as StoredComment[] | undefined) ?? []);
+      const normalizedCommentCount = countAllComments(normalizedComments);
+
       return {
         ...post,
+        comments: normalizedComments,
+        commentCount: normalizedCommentCount,
         expiresAt: normalizedExpiresAt,
         lifetime: normalizedLifetime,
         customLifetimeHours: normalizedLifetime === 'custom' ? normalizedCustomHours : null,
@@ -1203,6 +1250,8 @@ export const useStore = create<StoreState>((set, get) => {
       createdAt: Date.now(),
       isEdited: false,
       editedAt: null,
+      helpfulVotes: 0,
+      helpfulRewardAwarded: false,
     };
 
     set((state) => ({
@@ -1427,6 +1476,81 @@ export const useStore = create<StoreState>((set, get) => {
     get().saveToLocalStorage();
 
     // Trigger haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+  },
+
+  markCommentHelpful: (postId: string, commentId: string) => {
+    const { posts, studentId } = get();
+    const post = posts.find((p) => p.id === postId);
+    if (!post) return;
+
+    const targetComment = findCommentById(post.comments, commentId);
+    if (!targetComment) return;
+
+    let updatedHelpfulVotes = targetComment.helpfulVotes;
+
+    set((state) => ({
+      posts: state.posts.map((p) => {
+        if (p.id !== postId) return p;
+
+        return {
+          ...p,
+          comments: findAndUpdateComment(p.comments, commentId, (comment) => {
+            const nextHelpfulVotes = comment.helpfulVotes + 1;
+            updatedHelpfulVotes = nextHelpfulVotes;
+
+            return {
+              ...comment,
+              helpfulVotes: nextHelpfulVotes,
+              helpfulRewardAwarded:
+                comment.helpfulRewardAwarded || nextHelpfulVotes >= HELPFUL_COMMENT_THRESHOLD,
+            };
+          }),
+        };
+      }),
+    }));
+    get().saveToLocalStorage();
+
+    toast.success('Marked comment as helpful! 🌟');
+
+    const rewardId = `${HELPFUL_COMMENT_REWARD_PREFIX}:${commentId}`;
+    const transactionHistory = rewardEngine.getTransactionHistory();
+    const hasExistingReward = transactionHistory.some((tx) => {
+      if (tx.type !== 'earn' || !tx.metadata) return false;
+      const metadata = tx.metadata as { rewardId?: string };
+      return metadata.rewardId === rewardId;
+    });
+
+    if (updatedHelpfulVotes >= HELPFUL_COMMENT_THRESHOLD && !hasExistingReward) {
+      rewardEngine.awardTokens(
+        targetComment.studentId,
+        EARN_RULES.helpfulComment,
+        'Helpful comment milestone',
+        'helpful',
+        {
+          rewardId,
+          postId,
+          commentId,
+          helpfulVotes: updatedHelpfulVotes,
+          threshold: HELPFUL_COMMENT_THRESHOLD,
+          userId: targetComment.studentId,
+        }
+      );
+
+      if (targetComment.studentId !== studentId) {
+        get().addNotification({
+          recipientId: targetComment.studentId,
+          type: 'award',
+          postId,
+          commentId,
+          actorId: studentId,
+          message: `your comment reached ${HELPFUL_COMMENT_THRESHOLD} helpful votes! +${EARN_RULES.helpfulComment} VOICE`,
+        });
+      }
+    }
+
     if (navigator.vibrate) {
       navigator.vibrate(50);
     }

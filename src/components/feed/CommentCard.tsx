@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Reply, Pencil, Trash2, Flag } from 'lucide-react';
+import { Reply, Pencil, Trash2, Flag, ThumbsUp } from 'lucide-react';
 import type { Comment } from '../../lib/store';
 import { useStore } from '../../lib/store';
 import { formatTimeAgo, getStudentIdColor, parseMarkdown } from '../../lib/utils';
@@ -15,7 +15,7 @@ interface CommentCardProps {
 }
 
 export default function CommentCard({ comment, postId, depth = 0 }: CommentCardProps) {
-  const { studentId, addCommentReaction, deleteComment, addComment, updateComment, addNotification } =
+  const { studentId, addCommentReaction, deleteComment, addComment, updateComment, addNotification, markCommentHelpful } =
     useStore();
 
   const [showReplyInput, setShowReplyInput] = useState(false);
@@ -23,9 +23,22 @@ export default function CommentCard({ comment, postId, depth = 0 }: CommentCardP
   const [editContent, setEditContent] = useState(comment.content);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showReplies, setShowReplies] = useState(true);
+  const [hasMarkedHelpful, setHasMarkedHelpful] = useState(false);
+
+  const helpfulThreshold = 5;
+  const helpfulVotes = comment.helpfulVotes ?? 0;
+  const hasHelpfulMilestone = comment.helpfulRewardAwarded || helpfulVotes >= helpfulThreshold;
+  const helpfulVotesLabel =
+    helpfulVotes === 0 ? 'No helpful votes yet' : `${helpfulVotes} helpful ${helpfulVotes === 1 ? 'vote' : 'votes'}`;
 
   const isOwnComment = comment.studentId === studentId;
   const hasReplies = comment.replies && comment.replies.length > 0;
+
+  const handleMarkHelpful = () => {
+    if (hasMarkedHelpful) return;
+    markCommentHelpful(postId, comment.id);
+    setHasMarkedHelpful(true);
+  };
 
   const handleReply = (content: string) => {
     addComment(postId, content, comment.id);
@@ -150,11 +163,39 @@ export default function CommentCard({ comment, postId, depth = 0 }: CommentCardP
         />
       )}
 
-      <ReactionBar
-        reactions={comment.reactions}
-        onReact={(reactionType) => addCommentReaction(postId, comment.id, reactionType)}
-        size="small"
-      />
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <ReactionBar
+          reactions={comment.reactions}
+          onReact={(reactionType) => addCommentReaction(postId, comment.id, reactionType)}
+          size="small"
+        />
+        <motion.button
+          type="button"
+          whileHover={hasMarkedHelpful ? undefined : { scale: 1.05 }}
+          whileTap={hasMarkedHelpful ? undefined : { scale: 0.95 }}
+          onClick={handleMarkHelpful}
+          disabled={hasMarkedHelpful}
+          className={`flex items-center gap-2 rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
+            hasMarkedHelpful
+              ? 'bg-white/10 text-gray-400 cursor-not-allowed'
+              : 'bg-primary/20 text-primary hover:bg-primary/30'
+          }`}
+        >
+          <ThumbsUp className="w-4 h-4" />
+          <span>{hasMarkedHelpful ? 'Marked helpful' : 'Mark Helpful'}</span>
+          <span className="text-[0.65rem] text-current">({helpfulVotes})</span>
+        </motion.button>
+      </div>
+
+      <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+        <span>{helpfulVotesLabel}</span>
+        {hasHelpfulMilestone && (
+          <span className="inline-flex items-center gap-1 text-primary">
+            <ThumbsUp className="w-3 h-3" />
+            <span>Reward unlocked</span>
+          </span>
+        )}
+      </div>
 
       {depth < 1 && (
         <AnimatePresence>
