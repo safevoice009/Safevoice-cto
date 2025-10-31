@@ -512,6 +512,16 @@ export interface NetworkSecurityState {
   showInstitutionBadge: boolean;
 }
 
+export interface ModeratorAction {
+  id: string;
+  moderatorId: string;
+  actionType: 'blur_post' | 'hide_post' | 'verify_advice' | 'review_report' | 'restore_post';
+  targetId: string; // postId, commentId, or reportId
+  timestamp: number;
+  rewardAwarded: boolean;
+  metadata?: Record<string, unknown>;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -1904,6 +1914,22 @@ const VIRAL_REACTION_THRESHOLD = 100;
 const VIRAL_REWARD_AMOUNT = EARN_RULES.viralPost;
 const HELPFUL_COMMENT_THRESHOLD = 5;
 const HELPFUL_COMMENT_REWARD_PREFIX = 'helpful_comment';
+const MODERATOR_ACTION_TYPES: ModeratorAction['actionType'][] = [
+  'blur_post',
+  'hide_post',
+  'verify_advice',
+  'review_report',
+  'restore_post',
+];
+const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = {
+  blur_post: 'Sensitive content blurred',
+  hide_post: 'Harmful content removed',
+  verify_advice: 'Verified community advice',
+  review_report: 'Community report reviewed',
+  restore_post: 'Content restored after review',
+};
+const VOLUNTEER_MOD_ACTION_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_MODERATOR_ACTIONS = 200;
 
 type BoostType = 'highlight' | 'crossCampus';
 const MODERATOR_ACTION_TYPES: ModeratorAction['actionType'][] = [
