@@ -406,6 +406,10 @@ export interface StoreState {
   hasNFTBadge: (tier: NFTBadgeTier) => boolean;
   loadNFTBadges: () => void;
 
+  // Special Utilities
+  changeStudentId: (newId: string) => boolean;
+  downloadDataBackup: () => void;
+
   // Utility
   saveToLocalStorage: () => void;
 }
@@ -3524,6 +3528,97 @@ export const useStore = create<StoreState>((set, get) => {
         duration: 5000,
       });
     }
+  },
+
+  changeStudentId: (newId: string) => {
+    const state = get();
+    const trimmedId = newId.trim();
+
+    if (!trimmedId || trimmedId.length < 3) {
+      toast.error('Please enter a valid Student ID (at least 3 characters)');
+      return false;
+    }
+
+    if (trimmedId === state.studentId) {
+      toast.error('New ID must be different from current ID');
+      return false;
+    }
+
+    const changeCost = 50;
+    if (state.voiceBalance < changeCost) {
+      toast.error(`Insufficient balance. Need ${changeCost} VOICE to change Student ID`);
+      return false;
+    }
+
+    get().spendVoice(changeCost, `Changed Student ID`, {
+      oldId: state.studentId,
+      newId: trimmedId,
+      action: 'change_student_id',
+    });
+
+    const oldId = state.studentId;
+    set({ studentId: trimmedId });
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.STUDENT_ID, trimmedId);
+    }
+
+    get().saveToLocalStorage();
+
+    toast.success(`Student ID changed successfully! 🎉\nOld: ${oldId}\nNew: ${trimmedId}`, {
+      duration: 5000,
+    });
+
+    return true;
+  },
+
+  downloadDataBackup: () => {
+    const state = get();
+
+    const backupData = {
+      studentId: state.studentId,
+      posts: state.posts,
+      bookmarkedPosts: state.bookmarkedPosts,
+      reports: state.reports,
+      notifications: state.notifications,
+      transactionHistory: state.transactionHistory,
+      voiceBalance: state.voiceBalance,
+      pendingRewards: state.pendingRewards,
+      earningsBreakdown: state.earningsBreakdown,
+      memorialTributes: state.memorialTributes,
+      nftBadges: state.nftBadges,
+      referralCode: state.referralCode,
+      referredFriends: state.referredFriends,
+      premiumSubscriptions: state.premiumSubscriptions,
+      exportedAt: Date.now(),
+      exportVersion: '1.0.0',
+    };
+
+    get().spendVoice(0, 'Downloaded data backup', {
+      action: 'download_data_backup',
+      recordCount: {
+        posts: state.posts.length,
+        bookmarks: state.bookmarkedPosts.length,
+        transactions: state.transactionHistory.length,
+        tributes: state.memorialTributes.length,
+        badges: state.nftBadges.length,
+      },
+    });
+
+    const dataStr = JSON.stringify(backupData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `safevoice-backup-${state.studentId}-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success('Data backup downloaded successfully! 💾', {
+      duration: 4000,
+    });
   },
 };
 });

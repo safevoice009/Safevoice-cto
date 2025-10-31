@@ -18,6 +18,7 @@ import toast from 'react-hot-toast';
 import ReferralSection from './ReferralSection';
 import PremiumSettings from './PremiumSettings';
 import NFTBadgeStore from './NFTBadgeStore';
+import UtilitiesSection from './UtilitiesSection';
 
 export default function WalletSection() {
   const [copied, setCopied] = useState(false);
@@ -225,6 +226,8 @@ export default function WalletSection() {
       <NFTBadgeStore />
 
       <ReferralSection />
+
+      <UtilitiesSection />
 
       {/* Transaction History */}
       <motion.div
