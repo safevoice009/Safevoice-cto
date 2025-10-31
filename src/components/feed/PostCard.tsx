@@ -12,6 +12,9 @@ import {
   Lock,
   AlertTriangle,
   EyeOff,
+  Sparkles,
+  Clock,
+  Zap,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Post } from '../../lib/store';
@@ -52,12 +55,17 @@ export default function PostCard({ post }: PostCardProps) {
   const [timeRemainingMs, setTimeRemainingMs] = useState<number | null>(
     post.expiresAt ? post.expiresAt - Date.now() : null
   );
+  const [highlightLabel, setHighlightLabel] = useState<string | null>(
+    formatTimeRemaining(post.highlightedUntil ?? null)
+  );
+  const [crossCampusLabel, setCrossCampusLabel] = useState<string | null>(
+    formatTimeRemaining(post.crossCampusUntil ?? null)
+  );
 
   const {
     studentId,
     toggleBookmark,
     bookmarkedPosts,
-    togglePin,
     incrementHelpful,
     updatePost,
     deletePost,
@@ -65,6 +73,10 @@ export default function PostCard({ post }: PostCardProps) {
     addEncryptionKey,
     setShowCrisisModal,
     setPendingPost,
+    pinPost,
+    highlightPost,
+    extendPostLifetime,
+    boostToCampuses,
   } = useStore();
 
   const [showBlurredContent, setShowBlurredContent] = useState(false);
@@ -146,6 +158,27 @@ export default function PostCard({ post }: PostCardProps) {
     return () => window.clearInterval(interval);
   }, [post.expiresAt]);
 
+  useEffect(() => {
+    const updateBoostTimers = () => {
+      if (post.highlightedUntil) {
+        setHighlightLabel(formatTimeRemaining(post.highlightedUntil));
+      } else {
+        setHighlightLabel(null);
+      }
+
+      if (post.crossCampusUntil) {
+        setCrossCampusLabel(formatTimeRemaining(post.crossCampusUntil));
+      } else {
+        setCrossCampusLabel(null);
+      }
+    };
+
+    updateBoostTimers();
+
+    const interval = window.setInterval(updateBoostTimers, 60000);
+    return () => window.clearInterval(interval);
+  }, [post.highlightedUntil, post.crossCampusUntil]);
+
   const handleShare = () => {
     setShowShareMenu(!showShareMenu);
   };
@@ -187,9 +220,20 @@ export default function PostCard({ post }: PostCardProps) {
   };
 
   const handleExtend = () => {
-    toast('Extend feature coming soon! Costs 10 VOICE.', {
-      icon: '⏱️',
-    });
+    extendPostLifetime(post.id, 24);
+  };
+
+  const handlePin = () => {
+    pinPost(post.id);
+  };
+
+  const handleHighlight = () => {
+    highlightPost(post.id);
+  };
+
+  const handleCrossCampusBoost = () => {
+    const defaultCampuses = post.crossCampusBoosts?.length ? post.crossCampusBoosts : ['global'];
+    boostToCampuses(post.id, defaultCampuses);
   };
 
   const totalReactions = Object.values(post.reactions).reduce((sum, count) => sum + count, 0);
@@ -225,6 +269,15 @@ export default function PostCard({ post }: PostCardProps) {
     );
   };
 
+  const isHighlighted = Boolean(post.isHighlighted && post.highlightedUntil && post.highlightedUntil > Date.now());
+  const crossCampusActive = Boolean(
+    Array.isArray(post.crossCampusBoosts) &&
+      post.crossCampusBoosts.length > 0 &&
+      post.crossCampusUntil &&
+      post.crossCampusUntil > Date.now()
+  );
+  const extendedHours = post.extendedLifetimeHours ?? 0;
+
   return (
     <>
       <motion.article
@@ -232,7 +285,9 @@ export default function PostCard({ post }: PostCardProps) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, filter: 'blur(5px)' }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="glass p-6 space-y-4 relative overflow-hidden"
+        className={`glass p-6 space-y-4 relative overflow-hidden ${
+          isHighlighted ? 'ring-2 ring-yellow-400/50 shadow-glow' : ''
+        }`}
       >
         <div className="absolute top-4 right-4 flex flex-col items-end space-y-2">
           {post.isCrisisFlagged && (
@@ -276,6 +331,33 @@ export default function PostCard({ post }: PostCardProps) {
             <div className="flex items-center space-x-1 text-xs text-purple-400 bg-purple-500/20 px-2 py-1 rounded-full">
               <Pin className="w-3 h-3" />
               <span>Pinned</span>
+            </div>
+          )}
+
+          {isHighlighted && (
+            <div className="flex items-center space-x-1 text-xs text-yellow-300 bg-yellow-500/20 px-2 py-1 rounded-full">
+              <Sparkles className="w-3 h-3" />
+              <span>Highlighted</span>
+              {highlightLabel && highlightLabel !== 'Expired' && (
+                <span className="text-xs opacity-75">({highlightLabel} left)</span>
+              )}
+            </div>
+          )}
+
+          {crossCampusActive && (
+            <div className="flex items-center space-x-1 text-xs text-blue-300 bg-blue-500/20 px-2 py-1 rounded-full">
+              <Zap className="w-3 h-3" />
+              <span>Cross-Campus</span>
+              {crossCampusLabel && crossCampusLabel !== 'Expired' && (
+                <span className="text-xs opacity-75">({crossCampusLabel} left)</span>
+              )}
+            </div>
+          )}
+
+          {extendedHours > 0 && (
+            <div className="flex items-center space-x-1 text-xs text-green-300 bg-green-500/20 px-2 py-1 rounded-full">
+              <Clock className="w-3 h-3" />
+              <span>+{extendedHours}h</span>
             </div>
           )}
         </div>
@@ -363,9 +445,9 @@ export default function PostCard({ post }: PostCardProps) {
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => togglePin(post.id)}
+                onClick={handlePin}
                 className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                title={post.isPinned ? 'Unpin post' : 'Pin post'}
+                title={post.isPinned ? 'Unpin post' : 'Pin post (25 VOICE)'}
               >
                 <Pin
                   className={`w-4 h-4 ${
@@ -461,6 +543,38 @@ export default function PostCard({ post }: PostCardProps) {
           </motion.button>
 
           <div className="flex items-center space-x-2">
+            {isOwnPost && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleHighlight}
+                className={`flex items-center space-x-1 px-3 py-2 rounded-lg transition-all text-xs font-medium ${
+                  isHighlighted
+                    ? 'bg-yellow-500/25 text-yellow-200'
+                    : 'bg-yellow-500/15 text-yellow-300 hover:bg-yellow-500/25'
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>{isHighlighted ? 'Highlighted' : 'Highlight (15 VOICE)'}</span>
+              </motion.button>
+            )}
+
+            {isOwnPost && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleCrossCampusBoost}
+                className={`flex items-center space-x-1 px-3 py-2 rounded-lg transition-all text-xs font-medium ${
+                  crossCampusActive
+                    ? 'bg-blue-500/25 text-blue-200'
+                    : 'bg-blue-500/15 text-blue-300 hover:bg-blue-500/25'
+                }`}
+              >
+                <Zap className="w-4 h-4" />
+                <span>{crossCampusActive ? 'Reboost (50 VOICE)' : 'Cross-Campus (50 VOICE)'}</span>
+              </motion.button>
+            )}
+
             {canExtend && (
               <motion.button
                 whileHover={{ scale: 1.05 }}
