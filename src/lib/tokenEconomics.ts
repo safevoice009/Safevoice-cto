@@ -4,6 +4,7 @@ export const EARN_RULES = {
   // Posts
   firstPost: 20, // First post bonus
   regularPost: 10, // Each post
+  mediaPostBonus: 15, // Posts with image/media attachments
   viralPost: 50, // >100 reactions
 
   // Reactions

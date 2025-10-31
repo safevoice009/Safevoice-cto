@@ -52,6 +52,7 @@ export interface Achievement {
 export interface PostRewardBreakdown {
   base: number;
   firstPost: number;
+  image: number;
   reactions: number;
   helpful: number;
   crisis: number;
@@ -294,6 +295,7 @@ export class RewardEngine {
    */
   calculatePostReward(post: {
     isFirstPost?: boolean;
+    hasImage?: boolean;
     reactions?: { heart: number; fire: number; clap: number; sad: number; angry: number; laugh: number };
     helpfulCount?: number;
     isCrisisFlagged?: boolean;
@@ -301,6 +303,7 @@ export class RewardEngine {
     const breakdown: PostRewardBreakdown = {
       base: EARN_RULES.regularPost,
       firstPost: 0,
+      image: 0,
       reactions: 0,
       helpful: 0,
       crisis: 0,
@@ -315,6 +318,12 @@ export class RewardEngine {
     if (post.isFirstPost) {
       breakdown.firstPost = EARN_RULES.firstPost - EARN_RULES.regularPost;
       breakdown.details.push(`First post bonus: +${breakdown.firstPost} VOICE`);
+    }
+
+    // Image/media bonus
+    if (post.hasImage) {
+      breakdown.image = EARN_RULES.mediaPostBonus;
+      breakdown.details.push(`Image/media bonus: +${breakdown.image} VOICE`);
     }
 
     // Reaction thresholds
@@ -348,7 +357,7 @@ export class RewardEngine {
       breakdown.details.push(`Crisis response: +${breakdown.crisis} VOICE`);
     }
 
-    breakdown.total = breakdown.base + breakdown.firstPost + breakdown.reactions + breakdown.helpful + breakdown.crisis;
+    breakdown.total = breakdown.base + breakdown.firstPost + breakdown.image + breakdown.reactions + breakdown.helpful + breakdown.crisis;
 
     return breakdown;
   }

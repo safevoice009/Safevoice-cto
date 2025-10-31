@@ -34,6 +34,7 @@ export interface AddPostPayload {
   lifetime: PostLifetime;
   customLifetimeHours?: number | null;
   isEncrypted?: boolean;
+  imageUrl?: string;
   encryptionData?: {
     encrypted: string;
     iv: string;
@@ -102,6 +103,7 @@ export interface Post {
   customLifetimeHours?: number | null;
   isEncrypted: boolean;
   encryptionMeta: EncryptionMeta | null;
+  imageUrl?: string | null;
   warningShown?: boolean;
   reports?: Report[];
   contentBlurred?: boolean;
@@ -173,6 +175,8 @@ export interface StoreState {
   lastLoginDate: string | null;
   loginStreak: number;
 
+  firstPostAwarded: boolean;
+
   setConnectedAddress: (address: string | null) => void;
   setAnonymousWallet: (address: string | null) => void;
   generateAnonymousWallet: (password: string) => Promise<{ address: string; mnemonic: string }>;
@@ -224,7 +228,8 @@ export interface StoreState {
       blurReason?: string | null;
       isCrisisFlagged?: boolean;
       crisisLevel?: 'high' | 'critical';
-    }
+    },
+    imageUrl?: string
   ) => void;
   updatePost: (
     postId: string,
@@ -284,6 +289,7 @@ const STORAGE_KEYS = {
   EMERGENCY_BANNER: 'emergencyBannerDismissed',
   ANON_WALLET_ADDRESS: 'anonWallet_address',
   ANON_WALLET_ENCRYPTED_KEY: 'anonWallet_encrypted',
+  FIRST_POST_AWARDED: 'safevoice_first_post_awarded',
 };
 
 const rewardEngine = new RewardEngine();
@@ -438,6 +444,7 @@ export const useStore = create<StoreState>((set, get) => {
     transactionHistory: rewardEngine.getTransactionHistory(),
     lastLoginDate: rewardEngine.getStreakData().lastLoginDate,
     loginStreak: rewardEngine.getStreakData().currentStreak,
+    firstPostAwarded: typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.FIRST_POST_AWARDED) === 'true' : false,
 
     setShowCrisisModal: (show: boolean) => set({ showCrisisModal: show }),
     setPendingPost: (post: AddPostPayload | null) => set({ pendingPost: post }),
@@ -593,6 +600,7 @@ export const useStore = create<StoreState>((set, get) => {
     const reports = storedReports ? JSON.parse(storedReports) : [];
     const notifications = storedNotifications ? JSON.parse(storedNotifications) : [];
     const encryptionKeys = storedEncryptionKeys ? JSON.parse(storedEncryptionKeys) : {};
+    const studentId = get().studentId;
 
     let posts: Post[] = rawPosts.map((post) => {
       const normalizedExpiresAt = typeof post.expiresAt === 'number' ? post.expiresAt : null;
@@ -615,9 +623,18 @@ export const useStore = create<StoreState>((set, get) => {
         customLifetimeHours: normalizedLifetime === 'custom' ? normalizedCustomHours : null,
         isEncrypted: normalizedMeta ? true : Boolean(post.isEncrypted),
         encryptionMeta: normalizedMeta,
+        imageUrl: typeof post.imageUrl === 'string' ? post.imageUrl : null,
         warningShown: post.warningShown ?? false,
       };
     });
+
+    const storedFirstPostFlag = localStorage.getItem(STORAGE_KEYS.FIRST_POST_AWARDED) === 'true';
+    const hasExistingPosts = rawPosts.some((post) => post.studentId === studentId);
+    const firstPostAwarded = storedFirstPostFlag || hasExistingPosts;
+
+    if (firstPostAwarded && !storedFirstPostFlag) {
+      localStorage.setItem(STORAGE_KEYS.FIRST_POST_AWARDED, 'true');
+    }
 
     if (posts.length === 0) {
       const nowStamp = Date.now();
@@ -697,7 +714,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     const unreadCount = notifications.filter((n: Notification) => !n.read).length;
 
-    set({ posts: validPosts, bookmarkedPosts, reports, notifications, unreadCount, encryptionKeys });
+    set({ posts: validPosts, bookmarkedPosts, reports, notifications, unreadCount, encryptionKeys, firstPostAwarded });
 
     // Schedule expiry for posts
     validPosts.forEach((post: Post) => {
@@ -717,6 +734,7 @@ export const useStore = create<StoreState>((set, get) => {
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(state.notifications));
     localStorage.setItem(STORAGE_KEYS.ENCRYPTION_KEYS, JSON.stringify(state.encryptionKeys));
     localStorage.setItem(STORAGE_KEYS.SAVED_HELPLINES, JSON.stringify(state.savedHelplines));
+    localStorage.setItem(STORAGE_KEYS.FIRST_POST_AWARDED, state.firstPostAwarded ? 'true' : 'false');
   },
 
   addPost: (
@@ -733,12 +751,13 @@ export const useStore = create<StoreState>((set, get) => {
       blurReason?: string | null;
       isCrisisFlagged?: boolean;
       crisisLevel?: 'high' | 'critical';
-    }
+    },
+    imageUrl?: string
   ) => {
     const storeState = get();
-    const myPostsCount = storeState.posts.filter((post) => post.studentId === storeState.studentId).length;
-    const isFirstPost = myPostsCount === 0;
-    const postReward = isFirstPost ? EARN_RULES.firstPost : EARN_RULES.regularPost;
+    const isFirstPost = !storeState.firstPostAwarded;
+    const hasImage = Boolean(imageUrl);
+    
     const lifetimeMap: Record<PostLifetime, number | null> = {
       '1h': 1 * 60 * 60 * 1000,
       '6h': 6 * 60 * 60 * 1000,
@@ -777,6 +796,7 @@ export const useStore = create<StoreState>((set, get) => {
             keyId: encryptedData.keyId,
           }
         : null,
+      imageUrl: imageUrl || null,
       warningShown: false,
       reports: [],
       moderationIssues: moderationData?.issues || [],
@@ -793,6 +813,11 @@ export const useStore = create<StoreState>((set, get) => {
     set((state) => ({
       posts: [newPost, ...state.posts],
     }));
+
+    if (isFirstPost && !storeState.firstPostAwarded) {
+      set({ firstPostAwarded: true });
+    }
+
     get().saveToLocalStorage();
 
     // Schedule expiry if applicable
@@ -800,16 +825,57 @@ export const useStore = create<StoreState>((set, get) => {
       get().scheduleExpiry(newPost);
     }
 
-    // Award VOICE tokens for posting
-    get().earnVoice(postReward, isFirstPost ? 'First post!' : 'Post created', 'posts', {
-      postId: newPost.id,
+    // Calculate post reward using RewardEngine
+    const rewardBreakdown = rewardEngine.calculatePostReward({
+      isFirstPost,
+      hasImage,
+      reactions: newPost.reactions,
+      helpfulCount: newPost.helpfulCount,
+      isCrisisFlagged: moderationData?.isCrisisFlagged,
     });
 
-    // Crisis response bonus
-    if (moderationData?.isCrisisFlagged) {
-      get().earnVoice(EARN_RULES.crisisResponse, 'Crisis response support', 'crisis', {
+    const postRewardTotal = rewardBreakdown.base + rewardBreakdown.firstPost + rewardBreakdown.image;
+
+    const postRewardMetadata = {
+      postId: newPost.id,
+      breakdown: rewardBreakdown,
+      hasImage,
+      imageUrl: imageUrl ?? null,
+      isFirstPost,
+      components: {
+        base: rewardBreakdown.base,
+        firstPost: rewardBreakdown.firstPost,
+        image: rewardBreakdown.image,
+      },
+      isCrisis: moderationData?.isCrisisFlagged ?? false,
+    };
+
+    if (postRewardTotal > 0) {
+      const reason = isFirstPost ? 'First post reward' : 'Post reward';
+      rewardEngine.awardTokens(storeState.studentId, postRewardTotal, reason, 'posts', postRewardMetadata);
+    }
+
+    if (rewardBreakdown.crisis > 0) {
+      const crisisMetadata = {
         postId: newPost.id,
-      });
+        breakdown: rewardBreakdown,
+        isCrisis: true,
+        components: {
+          crisis: rewardBreakdown.crisis,
+        },
+        imageUrl: imageUrl ?? null,
+      };
+
+      const delay = postRewardTotal > 0 ? 150 : 0;
+      setTimeout(() => {
+        rewardEngine.awardTokens(
+          storeState.studentId,
+          rewardBreakdown.crisis,
+          'Crisis response support',
+          'crisis',
+          crisisMetadata
+        );
+      }, delay);
     }
 
     toast.success('Post created! 🎉');

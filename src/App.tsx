@@ -72,7 +72,8 @@ function AnimatedRoutes() {
         pendingPost.customLifetimeHours || undefined,
         pendingPost.isEncrypted,
         pendingPost.encryptionData,
-        pendingPost.moderationData
+        pendingPost.moderationData,
+        pendingPost.imageUrl
       );
     }
 
