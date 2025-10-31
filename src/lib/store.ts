@@ -5026,12 +5026,6 @@ export const useStore = create<StoreState>((set, get) => {
     get().saveToLocalStorage();
     toast.success('Comment posted! 💬');
 
-    get().earnVoice(EARN_RULES.comment, parentCommentId ? 'Reply posted' : 'Comment posted', 'comments', {
-      postId,
-      commentId: newComment.id,
-      parentCommentId: parentCommentId ?? null,
-    });
-
     if (navigator.vibrate) {
       navigator.vibrate(50);
     }
