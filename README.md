@@ -57,8 +57,13 @@ npm run deploy
   /components
     /layout       - Navbar, Footer, BottomNav
     /landing      - Hero, Features, Helplines, Memorial, CTASection
+    /wallet       - WalletSection component
   /pages          - Landing, Feed (placeholder), Profile (placeholder)
-  /lib            - store.ts (Zustand), constants.ts
+  /lib
+    /tokens       - RewardEngine.ts (Token management)
+    - store.ts    - Zustand store
+    - tokenEconomics.ts - $VOICE reward/spend rules
+    - constants.ts
   /styles         - tailwind.css, globals.css
 ```
 
@@ -81,6 +86,16 @@ Every visitor gets a unique `Student#XXXX` ID stored in localStorage, ensuring a
 
 ### Smooth Animations
 All animations powered by Framer Motion with proper TypeScript typing.
+
+## 🪙 Reward Engine
+
+The `RewardEngine` centralizes all $VOICE token state and lives in [`src/lib/tokens/RewardEngine.ts`](src/lib/tokens/RewardEngine.ts).
+
+- Wallet state (balances, pending rewards, streak data, transactions) is persisted under the `voice_wallet_snapshot` key in `localStorage`.
+- On first run, the engine migrates historical data from legacy `voice*` storage keys without data loss. A `voice_migration_v1` flag guarantees the migration only runs once.
+- Token earnings and spending should always happen through the `RewardEngine` instance exposed via the Zustand store (`earnVoice`, `spendVoice`, `claimRewards`).
+- The engine emits callbacks for reward/spend/balance changes to keep UI consumers in sync and fires toast notifications automatically.
+- Post rewards, daily bonuses, and streak milestones are calculated by the engine ensuring consistent logic across the app.
 
 ## 📝 License
 

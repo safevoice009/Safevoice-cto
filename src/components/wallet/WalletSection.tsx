@@ -237,25 +237,47 @@ export default function WalletSection() {
           </div>
         ) : (
           <div className="space-y-2">
-            {transactionHistory.slice(0, 10).map((tx) => (
-              <div key={tx.id} className="flex items-center justify-between p-3 bg-surface/30 rounded-lg hover:bg-surface/50 transition-colors">
-                <div className="flex-1">
-                  <p className="text-white font-medium">{tx.reason}</p>
-                  <p className="text-xs text-gray-400 mt-1">{formatDate(tx.timestamp)}</p>
-                </div>
-                <span
-                  className={`font-semibold ${
-                    tx.type === 'earn' ? 'text-green-400' : 'text-red-400'
-                  }`}
+            {transactionHistory.slice(0, 10).map((tx) => {
+              const claimedAmount = typeof tx.metadata.claimedAmount === 'number' ? tx.metadata.claimedAmount : 0;
+              const rawAmount = tx.type === 'claim' ? claimedAmount : tx.amount;
+              const signedAmount = tx.type === 'spend' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+              const amountLabel = `${signedAmount > 0 ? '+' : ''}${Math.abs(signedAmount)} VOICE`;
+              const amountColor =
+                tx.type === 'spend'
+                  ? 'text-red-400'
+                  : tx.type === 'claim'
+                  ? 'text-blue-400'
+                  : 'text-green-400';
+
+              return (
+                <div
+                  key={tx.id}
+                  className="flex items-center justify-between p-3 bg-surface/30 rounded-lg hover:bg-surface/50 transition-colors"
                 >
-                  {tx.amount > 0 ? '+' : ''}
-                  {tx.amount} VOICE
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </motion.div>
+                  <div className="flex-1">
+                    <p className="text-white font-medium flex items-center gap-2">
+                      {tx.reason}
+                      {tx.reasonCode && (
+                        <span className="text-[10px] uppercase tracking-wide text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
+                          {tx.reasonCode}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">{formatDate(tx.timestamp)}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Balance after: <span className="text-gray-300">{formatVoiceBalance(tx.balance)}</span>
+                      {typeof tx.pending === 'number' && (
+                        <span className="ml-2">Pending: {formatVoiceBalance(tx.pending)}</span>
+                      )}
+                    </p>
+                  </div>
+                  <span className={`font-semibold ${amountColor}`}>{amountLabel}</span>
+                </div>
+              );
+            })}
+            </div>
+            )}
+            </motion.div>
 
       {/* Action Buttons */}
       <motion.div
