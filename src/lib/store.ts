@@ -707,6 +707,11 @@ export interface StoreState {
   anonymousWalletAddress: string | null;
   voiceBalance: number;
   pendingRewards: number;
+  totalRewardsEarned: number;
+  claimedRewards: number;
+  spentRewards: number;
+  availableBalance: number;
+  pendingRewardBreakdown: PendingRewardEntry[];
   earningsBreakdown: EarningsBreakdown;
   transactionHistory: VoiceTransaction[];
   lastLoginDate: string | null;
@@ -714,6 +719,8 @@ export interface StoreState {
   lastPostDate: string | null;
   postingStreak: number;
   premiumSubscriptions: SubscriptionState;
+  walletLoading: boolean;
+  walletError: string | null;
 
   firstPostAwarded: boolean;
 
@@ -4078,16 +4085,30 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   claimRewards: async () => {
+    set({ walletLoading: true, walletError: null });
     await new Promise((resolve) => setTimeout(resolve, 1200));
     const state = get();
-    await rewardEngine.claimRewards(state.studentId, state.connectedAddress ?? undefined);
+    const success = await rewardEngine.claimRewards(state.studentId, state.connectedAddress ?? undefined);
+    if (!success) {
+      set({ walletLoading: false, walletError: 'Failed to claim rewards. Please try again.' });
+      throw new Error('Failed to claim rewards. Please try again.');
+    }
+
+    syncRewardState();
+    set({ walletLoading: false, walletError: null });
   },
 
   loadWalletData: () => {
+    set({ walletLoading: true, walletError: null });
     const snapshot = rewardEngine.getWalletSnapshot();
     set({
       voiceBalance: snapshot.balance,
       pendingRewards: snapshot.pending,
+      totalRewardsEarned: snapshot.totalEarned,
+      claimedRewards: snapshot.claimed,
+      spentRewards: snapshot.spent,
+      availableBalance: rewardEngine.getAvailableBalance(),
+      pendingRewardBreakdown: rewardEngine.getPendingBreakdown(),
       earningsBreakdown: snapshot.earningsBreakdown,
       transactionHistory: snapshot.transactions,
       anonymousWalletAddress:
@@ -4097,11 +4118,12 @@ export const useStore = create<StoreState>((set, get) => {
       lastPostDate: snapshot.streakData.lastPostDate,
       postingStreak: snapshot.streakData.currentPostStreak,
       premiumSubscriptions: snapshot.subscriptions,
+      walletLoading: false,
     });
 
     if (typeof window !== 'undefined') {
       const state = get();
-      rewardEngine.checkSubscriptionRenewals(state.studentId);
+      void rewardEngine.checkSubscriptionRenewals(state.studentId);
     }
   },
 
