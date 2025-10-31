@@ -3971,176 +3971,39 @@ export const useStore = create<StoreState>((set, get) => {
     category: keyof EarningsBreakdown = 'bonuses',
     metadata: Record<string, unknown> = {}
   ) => {
-    if (amount <= 0) {
-      return;
-    }
-
-    set((state) => {
-      const newBalance = state.voiceBalance + amount;
-      const newPending = state.pendingRewards + amount;
-      const updatedBreakdown = {
-        ...state.earningsBreakdown,
-        [category]: (state.earningsBreakdown[category] ?? 0) + amount,
-      } as EarningsBreakdown;
-
-      const transaction: VoiceTransaction = {
-        id: crypto.randomUUID(),
-        type: 'earn',
-        amount,
-        reason,
-        metadata,
-        timestamp: Date.now(),
-        balance: newBalance,
-      };
-
-      const history = [transaction, ...state.transactionHistory].slice(0, 100);
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEYS.VOICE_BALANCE, newBalance.toString());
-        localStorage.setItem(STORAGE_KEYS.VOICE_PENDING, newPending.toString());
-        localStorage.setItem(STORAGE_KEYS.VOICE_BREAKDOWN, JSON.stringify(updatedBreakdown));
-        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
-      }
-
-      return {
-        voiceBalance: newBalance,
-        pendingRewards: newPending,
-        earningsBreakdown: updatedBreakdown,
-        transactionHistory: history,
-      };
-    });
-
-    const formattedAmount = formatVoiceBalance(amount);
-    toast.success(`+${formattedAmount}${reason ? ` · ${reason}` : ''}`);
+    const state = get();
+    rewardEngine.awardTokens(state.studentId, amount, reason, category, metadata);
   },
 
   spendVoice: (amount: number, reason: string, metadata: Record<string, unknown> = {}) => {
-    if (amount <= 0) return;
-
-    set((state) => {
-      if (state.voiceBalance < amount) {
-        toast.error('Insufficient VOICE balance');
-        return state;
-      }
-
-      const newBalance = state.voiceBalance - amount;
-      const transaction: VoiceTransaction = {
-        id: crypto.randomUUID(),
-        type: 'spend',
-        amount: -amount,
-        reason,
-        metadata,
-        timestamp: Date.now(),
-        balance: newBalance,
-      };
-
-      const history = [transaction, ...state.transactionHistory].slice(0, 100);
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEYS.VOICE_BALANCE, newBalance.toString());
-        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
-      }
-
-      return {
-        voiceBalance: newBalance,
-        transactionHistory: history,
-      };
-    });
-
-    const formattedAmount = formatVoiceBalance(amount);
-    toast.success(`-${formattedAmount} spent on ${reason}`);
+    const state = get();
+    rewardEngine.spendTokens(state.studentId, amount, reason, metadata);
   },
 
   claimRewards: async () => {
-    const pending = get().pendingRewards;
-    if (pending <= 0) {
-      toast.error('No pending rewards to claim');
-      return;
-    }
-
     await new Promise((resolve) => setTimeout(resolve, 1200));
-
-    set((state) => {
-      const transaction: VoiceTransaction = {
-        id: crypto.randomUUID(),
-        type: 'earn',
-        amount: 0,
-        reason: 'Claimed to blockchain',
-        metadata: {
-          claimedAmount: pending,
-          address: state.connectedAddress,
-        },
-        timestamp: Date.now(),
-        balance: state.voiceBalance,
-      };
-
-      const history = [transaction, ...state.transactionHistory].slice(0, 100);
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEYS.VOICE_PENDING, '0');
-        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
-      }
-
-      return {
-        pendingRewards: 0,
-        transactionHistory: history,
-      };
-    });
-
-    const formattedPending = formatVoiceBalance(pending);
-    toast.success(`Claimed ${formattedPending}! 🎉`);
+    const state = get();
+    await rewardEngine.claimRewards(state.studentId, state.connectedAddress ?? undefined);
   },
 
   loadWalletData: () => {
-    if (typeof window === 'undefined') return;
-
+    const snapshot = rewardEngine.getWalletSnapshot();
     set({
-      voiceBalance: getNumberFromStorage(STORAGE_KEYS.VOICE_BALANCE, 0),
-      pendingRewards: getNumberFromStorage(STORAGE_KEYS.VOICE_PENDING, 0),
-      earningsBreakdown: getJSONFromStorage<EarningsBreakdown>(
-        STORAGE_KEYS.VOICE_BREAKDOWN,
-        { ...DEFAULT_EARNINGS_BREAKDOWN }
-      ),
-      transactionHistory: getJSONFromStorage<VoiceTransaction[]>(STORAGE_KEYS.VOICE_HISTORY, []),
-      anonymousWalletAddress: localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS),
-      lastLoginDate: localStorage.getItem(STORAGE_KEYS.LAST_LOGIN_DATE),
-      loginStreak: getNumberFromStorage(STORAGE_KEYS.LOGIN_STREAK, 0),
+      voiceBalance: snapshot.balance,
+      pendingRewards: snapshot.pending,
+      earningsBreakdown: snapshot.earningsBreakdown,
+      transactionHistory: snapshot.transactions,
+      anonymousWalletAddress:
+        typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS) : null,
+      lastLoginDate: snapshot.lastLogin,
+      loginStreak: snapshot.streakData.currentStreak,
     });
   },
 
   grantDailyLoginBonus: () => {
     if (typeof window === 'undefined') return;
-
-    const today = new Date().toDateString();
-    const { lastLoginDate, loginStreak } = get();
-
-    if (lastLoginDate === today) {
-      return;
-    }
-
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const isConsecutive = lastLoginDate === yesterday.toDateString();
-    const newStreak = isConsecutive ? loginStreak + 1 : 1;
-
-    set({ lastLoginDate: today, loginStreak: newStreak });
-
-    localStorage.setItem(STORAGE_KEYS.LAST_LOGIN_DATE, today);
-    localStorage.setItem(STORAGE_KEYS.LOGIN_STREAK, newStreak.toString());
-
-    get().earnVoice(EARN_RULES.dailyLoginBonus, 'Daily login bonus', 'streaks', { date: today });
-
-    if (newStreak > 0 && newStreak % 7 === 0) {
-      get().earnVoice(EARN_RULES.weeklyStreak, 'Weekly streak bonus', 'streaks', {
-        streak: newStreak,
-      });
-    }
-
-    if (newStreak > 0 && newStreak % 30 === 0) {
-      get().earnVoice(EARN_RULES.monthlyStreak, 'Monthly streak bonus', 'streaks', {
-        streak: newStreak,
-      });
-    }
+    const state = get();
+    rewardEngine.processDailyBonus(state.studentId);
   },
 
   dismissEmergencyBanner: () => {
