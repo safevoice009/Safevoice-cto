@@ -77,6 +77,9 @@ export interface Comment {
   editedAt: number | null;
   helpfulVotes: number;
   helpfulRewardAwarded: boolean;
+  crisisSupportRewardAwarded: boolean;
+  isVerifiedAdvice: boolean;
+  verifiedAdviceRewardAwarded: boolean;
 }
 
 export interface PostModerationIssue {
@@ -161,6 +164,7 @@ export interface VoiceTransaction {
 
 export interface StoreState {
   studentId: string;
+  isModerator: boolean;
   posts: Post[];
   bookmarkedPosts: string[];
   reports: Report[];
@@ -269,6 +273,7 @@ export interface StoreState {
   deleteComment: (commentId: string, postId: string) => void;
   addCommentReaction: (postId: string, commentId: string, reactionType: keyof Reaction) => void;
   markCommentHelpful: (postId: string, commentId: string) => void;
+  markCommentAsVerifiedAdvice: (postId: string, commentId: string) => void;
 
   // Bookmark actions
   toggleBookmark: (postId: string) => void;
@@ -280,6 +285,9 @@ export interface StoreState {
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read'>) => void;
   markAsRead: (notificationId: string) => void;
   markAllAsRead: () => void;
+
+  // Moderator
+  toggleModeratorMode: () => void;
 
   // Utility
   saveToLocalStorage: () => void;
@@ -297,6 +305,7 @@ const STORAGE_KEYS = {
   ANON_WALLET_ADDRESS: 'anonWallet_address',
   ANON_WALLET_ENCRYPTED_KEY: 'anonWallet_encrypted',
   FIRST_POST_AWARDED: 'safevoice_first_post_awarded',
+  IS_MODERATOR: 'safevoice_is_moderator',
 };
 
 const rewardEngine = new RewardEngine();
@@ -423,6 +432,9 @@ const normalizeStoredComments = (storedComments: StoredComment[]): Comment[] => 
     editedAt: comment.editedAt ?? null,
     helpfulVotes: comment.helpfulVotes ?? 0,
     helpfulRewardAwarded: comment.helpfulRewardAwarded ?? false,
+    crisisSupportRewardAwarded: comment.crisisSupportRewardAwarded ?? false,
+    isVerifiedAdvice: comment.isVerifiedAdvice ?? false,
+    verifiedAdviceRewardAwarded: comment.verifiedAdviceRewardAwarded ?? false,
   }));
 };
 
@@ -468,11 +480,17 @@ export const useStore = create<StoreState>((set, get) => {
     syncRewardState();
   });
 
+  const initialStudentId = typeof window !== 'undefined'
+    ? localStorage.getItem(STORAGE_KEYS.STUDENT_ID) || generateStudentId()
+    : generateStudentId();
+  
+  const initialIsModerator = typeof window !== 'undefined'
+    ? localStorage.getItem(STORAGE_KEYS.IS_MODERATOR) === 'true'
+    : false;
+
   return {
-    studentId:
-      typeof window !== 'undefined'
-        ? localStorage.getItem(STORAGE_KEYS.STUDENT_ID) || generateStudentId()
-        : generateStudentId(),
+    studentId: initialStudentId,
+    isModerator: initialIsModerator,
     posts: [],
     bookmarkedPosts: [],
     reports: [],
@@ -484,6 +502,21 @@ export const useStore = create<StoreState>((set, get) => {
     pendingPost: null,
     savedHelplines: getSavedHelplinesFromStorage(),
     emergencyBannerDismissedUntil: getEmergencyBannerDismissedUntil(),
+
+    toggleModeratorMode: () => {
+      set((state) => {
+        const next = !state.isModerator;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEYS.IS_MODERATOR, next ? 'true' : 'false');
+        }
+        if (next) {
+          toast.success('Moderator mode enabled');
+        } else {
+          toast('Moderator mode disabled', { icon: 'ℹ️' });
+        }
+        return { isModerator: next };
+      });
+    },
 
     // Wallet & Token state initialization - now using RewardEngine
     connectedAddress: null,
@@ -1252,6 +1285,9 @@ export const useStore = create<StoreState>((set, get) => {
       editedAt: null,
       helpfulVotes: 0,
       helpfulRewardAwarded: false,
+      crisisSupportRewardAwarded: false,
+      isVerifiedAdvice: false,
+      verifiedAdviceRewardAwarded: false,
     };
 
     set((state) => ({
@@ -1420,6 +1456,50 @@ export const useStore = create<StoreState>((set, get) => {
         });
       }
     }
+
+    // Crisis support reward - Award +100 VOICE for commenting on crisis-flagged posts
+    if (post && post.isCrisisFlagged) {
+      const crisisSupportRewardId = `crisis_support:${newComment.id}`;
+      const hasCrisisSupportReward = transactionHistory.some((tx) => {
+        if (tx.type !== 'earn' || !tx.metadata) return false;
+        const metadata = tx.metadata as { rewardId?: string };
+        return metadata.rewardId === crisisSupportRewardId;
+      });
+
+      if (!hasCrisisSupportReward) {
+        void rewardEngine
+          .awardTokens(
+            currentStudentId,
+            EARN_RULES.crisisResponse,
+            'Crisis support comment',
+            'crisis',
+            {
+              rewardId: crisisSupportRewardId,
+              postId,
+              commentId: newComment.id,
+              parentCommentId: parentCommentId ?? null,
+              userId: currentStudentId,
+              crisisLevel: post.crisisLevel ?? 'unknown',
+            }
+          )
+          .then((awarded) => {
+            if (!awarded) return;
+            set((state) => ({
+              posts: state.posts.map((p) => {
+                if (p.id !== postId) return p;
+                return {
+                  ...p,
+                  comments: findAndUpdateComment(p.comments, newComment.id, (comment) => ({
+                    ...comment,
+                    crisisSupportRewardAwarded: true,
+                  })),
+                };
+              }),
+            }));
+            get().saveToLocalStorage();
+          });
+      }
+    }
   },
 
   updateComment: (commentId: string, content: string) => {
@@ -1554,6 +1634,84 @@ export const useStore = create<StoreState>((set, get) => {
     if (navigator.vibrate) {
       navigator.vibrate(50);
     }
+  },
+
+  markCommentAsVerifiedAdvice: (postId: string, commentId: string) => {
+    const { posts, isModerator, studentId } = get();
+    if (!isModerator) {
+      toast.error('Moderator access required to verify advice.');
+      return;
+    }
+
+    const post = posts.find((p) => p.id === postId);
+    if (!post) return;
+
+    const targetComment = findCommentById(post.comments, commentId);
+    if (!targetComment) return;
+
+    const shouldVerify = !targetComment.isVerifiedAdvice;
+
+    set((state) => ({
+      posts: state.posts.map((p) => {
+        if (p.id !== postId) return p;
+        return {
+          ...p,
+          comments: findAndUpdateComment(p.comments, commentId, (comment) => ({
+            ...comment,
+            isVerifiedAdvice: shouldVerify,
+          })),
+        };
+      }),
+    }));
+    get().saveToLocalStorage();
+
+    if (!shouldVerify) {
+      toast('Verified advice removed.', { icon: 'ℹ️' });
+      return;
+    }
+
+    const rewardId = `verified_advice:${commentId}`;
+    const transactionHistory = rewardEngine.getTransactionHistory();
+    const hasVerifiedReward = transactionHistory.some((tx) => {
+      if (tx.type !== 'earn' || !tx.metadata) return false;
+      const metadata = tx.metadata as { rewardId?: string };
+      return metadata.rewardId === rewardId;
+    });
+
+    if (!targetComment.verifiedAdviceRewardAwarded && !hasVerifiedReward) {
+      void rewardEngine
+        .awardTokens(
+          targetComment.studentId,
+          EARN_RULES.verifiedAdvice,
+          'Verified mentorship advice',
+          'crisis',
+          {
+            rewardId,
+            postId,
+            commentId,
+            moderatorId: studentId,
+            userId: targetComment.studentId,
+          }
+        )
+        .then((awarded) => {
+          if (!awarded) return;
+          set((state) => ({
+            posts: state.posts.map((p) => {
+              if (p.id !== postId) return p;
+              return {
+                ...p,
+                comments: findAndUpdateComment(p.comments, commentId, (comment) => ({
+                  ...comment,
+                  verifiedAdviceRewardAwarded: true,
+                })),
+              };
+            }),
+          }));
+          get().saveToLocalStorage();
+        });
+    }
+
+    toast.success('Comment marked as verified advice.');
   },
 
   toggleBookmark: (postId: string) => {
