@@ -166,13 +166,10 @@ export const calculateUserStats = (
     
     // Count posts
     userStats.postCount++;
-    
+
     // Count reactions received on this post
     const postReactions = countReactions(post.reactions);
     userStats.engagementScore += postReactions;
-    
-    // Count comments received on this post (engagement)
-    userStats.engagementScore += post.commentCount;
   }
 
   // Process all comments across all posts

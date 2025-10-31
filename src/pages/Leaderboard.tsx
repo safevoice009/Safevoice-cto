@@ -125,15 +125,21 @@ interface YourRankCardProps {
 }
 
 function YourRankCard({ studentId, score, rank, rankTitle, category, timeframe, totalVoice }: YourRankCardProps) {
+  const isTopTen = rank <= 10;
+  const isTopThree = rank <= 3;
+  
   return (
-    <div className="p-6 rounded-xl glass border border-primary/30">
+    <div className={`p-6 rounded-xl glass border ${isTopThree ? 'border-yellow-500/50 shadow-lg shadow-yellow-500/20' : isTopTen ? 'border-primary/50' : 'border-primary/30'}`}>
       <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-sm text-primary uppercase">Your Rank</p>
           <h3 className="text-2xl font-bold text-white">{studentId}</h3>
+          {isTopTen && (
+            <p className="text-sm text-green-400 mt-1">✨ You're in the top 10!</p>
+          )}
         </div>
         <div className="flex flex-col items-end">
-          <span className="text-4xl font-bold text-white">#{rank}</span>
+          <span className={`text-4xl font-bold ${isTopThree ? 'text-yellow-400' : 'text-white'}`}>#{rank}</span>
           <span className="text-sm text-primary">{rankTitle}</span>
         </div>
       </div>
@@ -169,6 +175,26 @@ function EmptyState({ category }: { category: LeaderboardCategory }) {
       <p className="text-sm text-gray-400 mt-2">
         Encourage the community to participate to see this leaderboard come alive.
       </p>
+    </div>
+  );
+}
+
+function NoActivityCard({ category, timeframe }: { category: LeaderboardCategory; timeframe: TimeWindow }) {
+  return (
+    <div className="p-6 rounded-xl glass border border-primary/30">
+      <div className="text-center">
+        <p className="text-3xl mb-4">{getCategoryIcon(category)}</p>
+        <p className="text-lg text-white font-semibold mb-2">You haven't started yet</p>
+        <p className="text-sm text-gray-400">
+          {category === 'posts' && 'Create posts to climb the leaderboard'}
+          {category === 'helpful' && 'Help others by commenting to earn helpful votes'}
+          {category === 'engaged' && 'Engage with the community through reactions and comments'}
+          {category === 'supportive' && 'Support those in crisis to make a difference'}
+        </p>
+        <p className="text-sm text-gray-500 mt-3">
+          Your {timeframeLabels[timeframe]} progress will appear here once you join in.
+        </p>
+      </div>
     </div>
   );
 }
@@ -284,7 +310,7 @@ export default function LeaderboardPage() {
             )}
           </div>
 
-          {userRank && userRank.rank > 10 && (
+          {userRank ? (
             <YourRankCard
               studentId={studentId}
               score={userRank.score}
@@ -294,6 +320,8 @@ export default function LeaderboardPage() {
               timeframe={activeTimeframe}
               totalVoice={userRank.totalVoice}
             />
+          ) : (
+            <NoActivityCard category={activeCategory} timeframe={activeTimeframe} />
           )}
         </section>
       </div>
