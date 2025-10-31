@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../lib/store';
 import CreatePost from '../components/feed/CreatePost';
 import PostCard from '../components/feed/PostCard';
+import ModeratorPanel from '../components/feed/ModeratorPanel';
 
 export default function Feed() {
-  const { posts, initializeStore } = useStore();
+  const { posts, isModerator, initializeStore } = useStore();
 
   useEffect(() => {
     initializeStore();
@@ -27,6 +28,8 @@ export default function Feed() {
     >
       <div className="space-y-6">
         <CreatePost />
+
+        {isModerator && <ModeratorPanel />}
 
         {sortedPosts.length === 0 ? (
           <div className="glass p-10 text-center space-y-4">
