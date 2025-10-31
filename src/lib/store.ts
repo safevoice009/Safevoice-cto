@@ -134,6 +134,9 @@ export interface Report {
   description: string;
   reporterId: string;
   reportedAt: number;
+  status: 'pending' | 'valid' | 'invalid';
+  reviewedBy?: string;
+  reviewedAt?: number;
 }
 
 export interface Notification {
@@ -179,12 +182,23 @@ export interface MemorialTribute {
   milestoneRewardAwarded: boolean;
 }
 
+export interface ModeratorAction {
+  id: string;
+  moderatorId: string;
+  actionType: 'blur_post' | 'hide_post' | 'verify_advice' | 'review_report' | 'restore_post';
+  targetId: string; // postId, commentId, or reportId
+  timestamp: number;
+  rewardAwarded: boolean;
+  metadata?: Record<string, unknown>;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
   posts: Post[];
   bookmarkedPosts: string[];
   reports: Report[];
+  moderatorActions: ModeratorAction[];
   notifications: Notification[];
   unreadCount: number;
   encryptionKeys: Record<string, JsonWebKey>;
@@ -296,7 +310,13 @@ export interface StoreState {
   toggleBookmark: (postId: string) => void;
 
   // Report actions
-  addReport: (report: Omit<Report, 'id' | 'reportedAt'>) => void;
+  addReport: (report: Omit<Report, 'id' | 'reportedAt' | 'status'>) => void;
+  reviewReport: (reportId: string, status: 'valid' | 'invalid') => void;
+  recordModeratorAction: (
+    actionType: ModeratorAction['actionType'],
+    targetId: string,
+    metadata?: Record<string, unknown>
+  ) => void;
 
   // Notification actions
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read'>) => void;
@@ -321,6 +341,7 @@ const STORAGE_KEYS = {
   POSTS: 'safevoice_posts',
   BOOKMARKS: 'safevoice_bookmarks',
   REPORTS: 'safevoice_reports',
+  MODERATOR_ACTIONS: 'safevoice_moderator_actions',
   NOTIFICATIONS: 'safevoice_notifications',
   ENCRYPTION_KEYS: 'safevoice_encryption_keys',
   SAVED_HELPLINES: 'safevoice_saved_helplines',
@@ -338,6 +359,22 @@ const VIRAL_REACTION_THRESHOLD = 100;
 const VIRAL_REWARD_AMOUNT = EARN_RULES.viralPost;
 const HELPFUL_COMMENT_THRESHOLD = 5;
 const HELPFUL_COMMENT_REWARD_PREFIX = 'helpful_comment';
+const MODERATOR_ACTION_TYPES: ModeratorAction['actionType'][] = [
+  'blur_post',
+  'hide_post',
+  'verify_advice',
+  'review_report',
+  'restore_post',
+];
+const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = {
+  blur_post: 'Sensitive content blurred',
+  hide_post: 'Harmful content removed',
+  verify_advice: 'Verified community advice',
+  review_report: 'Community report reviewed',
+  restore_post: 'Content restored after review',
+};
+const VOLUNTEER_MOD_ACTION_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_MODERATOR_ACTIONS = 200;
 
 // Helper to generate random student ID
 const generateStudentId = () => `Student#${Math.floor(Math.random() * 9000 + 1000)}`;
@@ -365,6 +402,83 @@ const getEmergencyBannerDismissedUntil = (): number | null => {
     return null;
   }
   return parsed;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+const normalizeReport = (report: Partial<Report>): Report => {
+  const status: Report['status'] =
+    report.status === 'valid' || report.status === 'invalid' ? report.status : 'pending';
+
+  return {
+    id: typeof report.id === 'string' ? report.id : crypto.randomUUID(),
+    postId: typeof report.postId === 'string' && report.postId.length > 0 ? report.postId : undefined,
+    commentId:
+      typeof report.commentId === 'string' && report.commentId.length > 0 ? report.commentId : undefined,
+    reportType: typeof report.reportType === 'string' ? report.reportType : 'General report',
+    description: typeof report.description === 'string' ? report.description : '',
+    reporterId: typeof report.reporterId === 'string' ? report.reporterId : 'AnonymousReporter',
+    reportedAt: typeof report.reportedAt === 'number' ? report.reportedAt : Date.now(),
+    status,
+    reviewedBy: typeof report.reviewedBy === 'string' ? report.reviewedBy : undefined,
+    reviewedAt: typeof report.reviewedAt === 'number' ? report.reviewedAt : undefined,
+  } satisfies Report;
+};
+
+const upsertReport = (collection: Map<string, Report>, raw: Partial<Report>): Report => {
+  const normalized = normalizeReport(raw);
+  const existing = collection.get(normalized.id);
+  if (!existing) {
+    collection.set(normalized.id, normalized);
+    return normalized;
+  }
+
+  const merged: Report = {
+    ...existing,
+    ...normalized,
+    status: normalized.status,
+    description: normalized.description,
+    reporterId: normalized.reporterId,
+    reportType: normalized.reportType,
+    reviewedBy: normalized.reviewedBy ?? existing.reviewedBy,
+    reviewedAt: normalized.reviewedAt ?? existing.reviewedAt,
+    reportedAt: normalized.reportedAt ?? existing.reportedAt,
+    postId: normalized.postId ?? existing.postId,
+    commentId: normalized.commentId ?? existing.commentId,
+  };
+
+  collection.set(merged.id, merged);
+  return merged;
+};
+
+const normalizeModeratorAction = (action: Partial<ModeratorAction>): ModeratorAction | null => {
+  const candidateType = action.actionType;
+  if (!candidateType || !MODERATOR_ACTION_TYPES.includes(candidateType as ModeratorAction['actionType'])) {
+    return null;
+  }
+
+  const actionType = candidateType as ModeratorAction['actionType'];
+  const targetId = typeof action.targetId === 'string' && action.targetId.length > 0 ? action.targetId : null;
+  if (!targetId) {
+    return null;
+  }
+
+  const metadata = isRecord(action.metadata) ? (action.metadata as Record<string, unknown>) : undefined;
+
+  return {
+    id: typeof action.id === 'string' ? action.id : crypto.randomUUID(),
+    moderatorId:
+      typeof action.moderatorId === 'string' && action.moderatorId.length > 0
+        ? action.moderatorId
+        : 'UnknownModerator',
+    actionType,
+    targetId,
+    timestamp: typeof action.timestamp === 'number' ? action.timestamp : Date.now(),
+    rewardAwarded: Boolean(action.rewardAwarded),
+    metadata,
+  } satisfies ModeratorAction;
 };
 
 // Helpers removed - now handled by RewardEngine
@@ -518,6 +632,7 @@ export const useStore = create<StoreState>((set, get) => {
     posts: [],
     bookmarkedPosts: [],
     reports: [],
+    moderatorActions: [],
     notifications: [],
     unreadCount: 0,
     encryptionKeys: {},
@@ -705,14 +820,28 @@ export const useStore = create<StoreState>((set, get) => {
     const storedPosts = localStorage.getItem(STORAGE_KEYS.POSTS);
     const storedBookmarks = localStorage.getItem(STORAGE_KEYS.BOOKMARKS);
     const storedReports = localStorage.getItem(STORAGE_KEYS.REPORTS);
+    const storedModActions = localStorage.getItem(STORAGE_KEYS.MODERATOR_ACTIONS);
     const storedNotifications = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
     const storedEncryptionKeys = localStorage.getItem(STORAGE_KEYS.ENCRYPTION_KEYS);
 
     const rawPosts = storedPosts ? (JSON.parse(storedPosts) as Post[]) : [];
     const bookmarkedPosts = storedBookmarks ? JSON.parse(storedBookmarks) : [];
-    const reports = storedReports ? JSON.parse(storedReports) : [];
+    const rawReports = storedReports ? (JSON.parse(storedReports) as Array<Partial<Report>>) : [];
+    const rawModActions = storedModActions ? (JSON.parse(storedModActions) as Array<Partial<ModeratorAction>>) : [];
     const notifications = storedNotifications ? JSON.parse(storedNotifications) : [];
     const encryptionKeys = storedEncryptionKeys ? JSON.parse(storedEncryptionKeys) : {};
+
+    const reportCollection = new Map<string, Report>();
+    rawReports.forEach((rawReport) => {
+      upsertReport(reportCollection, rawReport);
+    });
+
+    const moderatorActions = rawModActions
+      .map(normalizeModeratorAction)
+      .filter((action): action is ModeratorAction => action !== null)
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, MAX_MODERATOR_ACTIONS);
+
     const studentId = get().studentId;
 
     let posts: Post[] = rawPosts.map((post) => {
@@ -731,6 +860,9 @@ export const useStore = create<StoreState>((set, get) => {
 
       const normalizedComments = normalizeStoredComments((post.comments as StoredComment[] | undefined) ?? []);
       const normalizedCommentCount = countAllComments(normalizedComments);
+      const normalizedReportsForPost = Array.isArray(post.reports)
+        ? (post.reports as Array<Partial<Report>>).map((rawReport) => upsertReport(reportCollection, rawReport))
+        : [];
 
       return {
         ...post,
@@ -745,8 +877,14 @@ export const useStore = create<StoreState>((set, get) => {
         warningShown: post.warningShown ?? false,
         isViral: post.isViral ?? false,
         viralAwardedAt: post.viralAwardedAt ?? null,
+        reports: normalizedReportsForPost,
+        reportCount:
+          typeof post.reportCount === 'number' ? Math.max(post.reportCount, normalizedReportsForPost.length) : normalizedReportsForPost.length,
       };
     });
+
+    const reports = Array.from(reportCollection.values()).sort((a, b) => b.reportedAt - a.reportedAt);
+
 
     const storedFirstPostFlag = localStorage.getItem(STORAGE_KEYS.FIRST_POST_AWARDED) === 'true';
     const hasExistingPosts = rawPosts.some((post) => post.studentId === studentId);
@@ -840,7 +978,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     const unreadCount = notifications.filter((n: Notification) => !n.read).length;
 
-    set({ posts: validPosts, bookmarkedPosts, reports, notifications, unreadCount, encryptionKeys, firstPostAwarded });
+    set({ posts: validPosts, bookmarkedPosts, reports, moderatorActions, notifications, unreadCount, encryptionKeys, firstPostAwarded });
 
     // Schedule expiry for posts
     validPosts.forEach((post: Post) => {
@@ -859,6 +997,7 @@ export const useStore = create<StoreState>((set, get) => {
     localStorage.setItem(STORAGE_KEYS.POSTS, JSON.stringify(state.posts));
     localStorage.setItem(STORAGE_KEYS.BOOKMARKS, JSON.stringify(state.bookmarkedPosts));
     localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(state.reports));
+    localStorage.setItem(STORAGE_KEYS.MODERATOR_ACTIONS, JSON.stringify(state.moderatorActions));
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(state.notifications));
     localStorage.setItem(STORAGE_KEYS.ENCRYPTION_KEYS, JSON.stringify(state.encryptionKeys));
     localStorage.setItem(STORAGE_KEYS.SAVED_HELPLINES, JSON.stringify(state.savedHelplines));
@@ -1758,15 +1897,16 @@ export const useStore = create<StoreState>((set, get) => {
     }
   },
 
-  addReport: (report: Omit<Report, 'id' | 'reportedAt'>) => {
+  addReport: (report: Omit<Report, 'id' | 'reportedAt' | 'status'>) => {
     const newReport: Report = {
       ...report,
       id: crypto.randomUUID(),
       reportedAt: Date.now(),
+      status: 'pending',
     };
 
     set((state) => ({
-      reports: [...state.reports, newReport],
+      reports: [newReport, ...state.reports],
     }));
 
     let updatedReportCount = 0;
@@ -1777,7 +1917,7 @@ export const useStore = create<StoreState>((set, get) => {
         const posts = state.posts.map((post) => {
           if (post.id !== report.postId) return post;
 
-          const reportsForPost = [...(post.reports || []), newReport];
+          const reportsForPost = [newReport, ...(post.reports || []).filter((existing) => existing.id !== newReport.id)];
           updatedReportCount = reportsForPost.length;
 
           let updated: Post = {
@@ -1841,6 +1981,197 @@ export const useStore = create<StoreState>((set, get) => {
     if (report.reportType === 'self_harm') {
       get().setShowCrisisModal(true);
     }
+  },
+
+  reviewReport: (reportId: string, status: 'valid' | 'invalid') => {
+    const { isModerator, studentId } = get();
+    if (!isModerator) {
+      toast.error('Moderator access is required to review reports.');
+      return;
+    }
+
+    const existingReport = get().reports.find((report) => report.id === reportId);
+    if (!existingReport) {
+      toast.error('Report not found or already removed.');
+      return;
+    }
+
+    const now = Date.now();
+
+    set((state) => {
+      const updatedReport: Report = {
+        ...existingReport,
+        status,
+        reviewedBy: studentId,
+        reviewedAt: now,
+      };
+
+      const updatedReports = state.reports.map((report) => (report.id === reportId ? updatedReport : report));
+
+      const updatedPosts = state.posts.map((post) => {
+        if (!post.reports || post.reports.length === 0) return post;
+        if (!post.reports.some((report) => report.id === reportId)) return post;
+
+        const postReports = post.reports.map((report) => (report.id === reportId ? updatedReport : report));
+
+        let updatedPost: Post = {
+          ...post,
+          reports: postReports,
+          reportCount: postReports.length,
+        };
+
+        if (!existingReport.commentId) {
+          if (status === 'valid') {
+            updatedPost = {
+              ...updatedPost,
+              contentBlurred: true,
+              moderationStatus: 'hidden',
+              hiddenReason: 'Report validated by moderators',
+              needsReview: false,
+            };
+          } else {
+            updatedPost = {
+              ...updatedPost,
+              contentBlurred: false,
+              moderationStatus: undefined,
+              hiddenReason: null,
+              needsReview: false,
+            };
+          }
+        }
+
+        return updatedPost;
+      });
+
+      return {
+        reports: updatedReports,
+        posts: updatedPosts,
+      };
+    });
+
+    get().saveToLocalStorage();
+
+    const rewardKey = `report_validation:${reportId}`;
+
+    if (status === 'valid') {
+      const reporterId = existingReport.reporterId;
+      const transactionHistory = rewardEngine.getTransactionHistory();
+      const alreadyRewarded = transactionHistory.some((tx) => {
+        if (tx.type !== 'earn' || !tx.metadata) return false;
+        const metadata = tx.metadata as Record<string, unknown>;
+        return metadata.rewardId === rewardKey;
+      });
+
+      if (!alreadyRewarded) {
+        void rewardEngine.awardTokens(
+          reporterId,
+          EARN_RULES.validReportReward,
+          'Report confirmed by moderators',
+          'reporting',
+          {
+            rewardId: rewardKey,
+            reportId,
+            moderatorId: studentId,
+            status,
+            targetPostId: existingReport.postId,
+            targetCommentId: existingReport.commentId,
+            reporterId,
+          }
+        );
+      }
+
+      toast.success('Report marked valid. Reporter rewarded +10 VOICE.');
+    } else {
+      toast('Report marked as invalid.', { icon: 'ℹ️' });
+    }
+
+    get().recordModeratorAction('review_report', reportId, {
+      status,
+      reporterId: existingReport.reporterId,
+      postId: existingReport.postId,
+      commentId: existingReport.commentId,
+    });
+  },
+
+  recordModeratorAction: (
+    actionType: ModeratorAction['actionType'],
+    targetId: string,
+    metadata?: Record<string, unknown>
+  ) => {
+    const { isModerator, studentId } = get();
+
+    if (!isModerator) {
+      toast.error('Enable moderator mode to perform this action.');
+      return;
+    }
+
+    if (!targetId) {
+      console.warn('Moderator action requires a valid target identifier.');
+      return;
+    }
+
+    if (!MODERATOR_ACTION_TYPES.includes(actionType)) {
+      console.warn('Unsupported moderator action type:', actionType);
+      return;
+    }
+
+    const now = Date.now();
+    const clonedMetadata = metadata ? { ...metadata } : undefined;
+
+    const action: ModeratorAction = {
+      id: crypto.randomUUID(),
+      moderatorId: studentId,
+      actionType,
+      targetId,
+      timestamp: now,
+      rewardAwarded: false,
+      metadata: clonedMetadata,
+    };
+
+    set((state) => {
+      const nextActions = [action, ...state.moderatorActions].slice(0, MAX_MODERATOR_ACTIONS);
+      return { moderatorActions: nextActions };
+    });
+    get().saveToLocalStorage();
+
+    const rewardKey = `moderator:${studentId}:${actionType}`;
+    const transactionHistory = rewardEngine.getTransactionHistory();
+    const lastRewardTx = transactionHistory.find((tx) => {
+      if (tx.type !== 'earn' || !tx.metadata) return false;
+      const metadataRecord = tx.metadata as Record<string, unknown>;
+      return metadataRecord.rewardId === rewardKey;
+    });
+
+    if (lastRewardTx && now - lastRewardTx.timestamp < VOLUNTEER_MOD_ACTION_COOLDOWN_MS) {
+      toast('Volunteer moderator cooldown active. Try again soon.', { icon: '⏱️' });
+      return;
+    }
+
+    const rewardMetadata: Record<string, unknown> = {
+      rewardId: rewardKey,
+      moderatorId: studentId,
+      actionType,
+      targetId,
+      cooldownMs: VOLUNTEER_MOD_ACTION_COOLDOWN_MS,
+      ...(clonedMetadata ?? {}),
+    };
+
+    const reason = MODERATOR_ACTION_REASONS[actionType] ?? 'Volunteer moderation action';
+
+    void rewardEngine
+      .awardTokens(studentId, EARN_RULES.volunteerModAction, reason, 'reporting', rewardMetadata)
+      .then((awarded) => {
+        if (!awarded) {
+          return;
+        }
+
+        set((state) => ({
+          moderatorActions: state.moderatorActions.map((existing) =>
+            existing.id === action.id ? { ...existing, rewardAwarded: true } : existing
+          ),
+        }));
+        get().saveToLocalStorage();
+      });
   },
 
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read'>) => {

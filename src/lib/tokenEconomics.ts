@@ -23,6 +23,10 @@ export const EARN_RULES = {
   verifiedAdvice: 200, // Comment marked as verified advice by moderator
   reportAccepted: 10, // Valid report
   reportRejected: -5, // False report (penalty)
+  
+  // Moderation
+  validReportReward: 10, // Reporter reward when report marked valid
+  volunteerModAction: 30, // Volunteer moderator action with cooldown
 
   // Engagement
   dailyLoginBonus: 5, // Log in once per day
