@@ -1931,6 +1931,8 @@ const VIRAL_REACTION_THRESHOLD = 100;
 const VIRAL_REWARD_AMOUNT = EARN_RULES.viralPost;
 const HELPFUL_COMMENT_THRESHOLD = 5;
 const HELPFUL_COMMENT_REWARD_PREFIX = 'helpful_comment';
+
+type BoostType = 'highlight' | 'crossCampus';
 const MODERATOR_ACTION_TYPES: ModeratorAction['actionType'][] = [
   'blur_post',
   'hide_post',
