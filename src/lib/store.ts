@@ -1077,6 +1077,10 @@ export interface StoreState {
   hasNFTBadge: (tier: NFTBadgeTier) => boolean;
   loadNFTBadges: () => void;
 
+  // Special Utilities
+  changeStudentId: (newId: string) => boolean;
+  downloadDataBackup: () => void;
+
   // Utility
   saveToLocalStorage: () => void;
 
