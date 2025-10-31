@@ -17,6 +17,7 @@ import { formatVoiceBalance, calculateTotalEarnings } from '../../lib/tokenEcono
 import toast from 'react-hot-toast';
 import ReferralSection from './ReferralSection';
 import PremiumSettings from './PremiumSettings';
+import NFTBadgeStore from './NFTBadgeStore';
 
 export default function WalletSection() {
   const [copied, setCopied] = useState(false);
@@ -220,6 +221,8 @@ export default function WalletSection() {
       </motion.div>
 
       <PremiumSettings />
+
+      <NFTBadgeStore />
 
       <ReferralSection />
 

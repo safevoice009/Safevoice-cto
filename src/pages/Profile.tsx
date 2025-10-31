@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useStore } from '../lib/store';
+import { useStore, NFT_BADGE_DEFINITIONS, NFT_BADGE_TIERS } from '../lib/store';
 import { User, Bookmark, MessageSquare, FileText, CheckCircle } from 'lucide-react';
 import PostCard from '../components/feed/PostCard';
 import WalletSection from '../components/wallet/WalletSection';
@@ -8,7 +8,7 @@ import WalletSection from '../components/wallet/WalletSection';
 type ProfileTab = 'overview' | 'wallet';
 
 export default function Profile() {
-  const { studentId, posts, bookmarkedPosts, initializeStore, isPremiumActive } = useStore();
+  const { studentId, posts, bookmarkedPosts, initializeStore, isPremiumActive, nftBadges } = useStore();
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const hasVerifiedBadge = isPremiumActive('verified_badge');
 
@@ -19,6 +19,9 @@ export default function Profile() {
   const myPosts = posts.filter((post) => post.studentId === studentId);
   const savedPosts = posts.filter((post) => bookmarkedPosts.includes(post.id));
   const totalComments = posts.reduce((sum, post) => sum + post.commentCount, 0);
+  const ownedBadgeTiers = NFT_BADGE_TIERS.filter((tier) =>
+    nftBadges.some((badge) => badge.tier === tier)
+  );
 
   return (
     <motion.section
@@ -47,6 +50,24 @@ export default function Profile() {
               )}
             </div>
             <p className="text-gray-400 mt-2">Your anonymous identity</p>
+
+            {ownedBadgeTiers.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                {ownedBadgeTiers.map((tier) => {
+                  const definition = NFT_BADGE_DEFINITIONS[tier];
+                  return (
+                    <div
+                      key={tier}
+                      className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r ${definition.gradientFrom} ${definition.gradientTo} border border-white/20 shadow-lg`}
+                      style={{ boxShadow: `0 0 12px ${definition.accent}33` }}
+                    >
+                      <span className="text-base">{definition.icon}</span>
+                      <span className="text-xs font-bold text-white">{definition.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/10">
