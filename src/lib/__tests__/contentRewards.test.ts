@@ -764,7 +764,7 @@ describe('Content rewards - comments and replies', () => {
     );
     expect(ownerCall?.[0]).toBe('Student#owner');
     expect(ownerCall?.[4]).toMatchObject({
-      rewardId: 'comment:reply-1',
+      rewardId: 'comment:00000000-0000-0000-0000-000000000002',
       recipientRole: 'postOwner',
     });
 
