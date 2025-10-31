@@ -16,6 +16,7 @@ import { useStore } from '../../lib/store';
 import { formatVoiceBalance, calculateTotalEarnings } from '../../lib/tokenEconomics';
 import toast from 'react-hot-toast';
 import ReferralSection from './ReferralSection';
+import PremiumSettings from './PremiumSettings';
 
 export default function WalletSection() {
   const [copied, setCopied] = useState(false);
@@ -217,6 +218,8 @@ export default function WalletSection() {
           </div>
         </div>
       </motion.div>
+
+      <PremiumSettings />
 
       <ReferralSection />
 

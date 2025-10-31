@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../lib/store';
-import { User, Bookmark, MessageSquare, FileText } from 'lucide-react';
+import { User, Bookmark, MessageSquare, FileText, CheckCircle } from 'lucide-react';
 import PostCard from '../components/feed/PostCard';
 import WalletSection from '../components/wallet/WalletSection';
 
 type ProfileTab = 'overview' | 'wallet';
 
 export default function Profile() {
-  const { studentId, posts, bookmarkedPosts, initializeStore } = useStore();
+  const { studentId, posts, bookmarkedPosts, initializeStore, isPremiumActive } = useStore();
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+  const hasVerifiedBadge = isPremiumActive('verified_badge');
 
   useEffect(() => {
     initializeStore();
@@ -36,7 +37,15 @@ export default function Profile() {
           </div>
 
           <div>
-            <h1 className="text-3xl font-bold text-white">{studentId}</h1>
+            <div className="flex items-center justify-center space-x-2">
+              <h1 className="text-3xl font-bold text-white">{studentId}</h1>
+              {hasVerifiedBadge && (
+                <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs font-semibold">
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Verified</span>
+                </span>
+              )}
+            </div>
             <p className="text-gray-400 mt-2">Your anonymous identity</p>
           </div>
 
