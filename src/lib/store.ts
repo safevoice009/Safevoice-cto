@@ -96,6 +96,8 @@ export interface Post {
   isEdited: boolean;
   editedAt: number | null;
   isPinned: boolean;
+  isViral?: boolean;
+  viralAwardedAt?: number | null;
   reportCount: number;
   helpfulCount: number;
   expiresAt: number | null;
@@ -293,6 +295,9 @@ const STORAGE_KEYS = {
 };
 
 const rewardEngine = new RewardEngine();
+
+const VIRAL_REACTION_THRESHOLD = 100;
+const VIRAL_REWARD_AMOUNT = EARN_RULES.viralPost;
 
 // Helper to generate random student ID
 const generateStudentId = () => `Student#${Math.floor(Math.random() * 9000 + 1000)}`;
@@ -625,6 +630,8 @@ export const useStore = create<StoreState>((set, get) => {
         encryptionMeta: normalizedMeta,
         imageUrl: typeof post.imageUrl === 'string' ? post.imageUrl : null,
         warningShown: post.warningShown ?? false,
+        isViral: post.isViral ?? false,
+        viralAwardedAt: post.viralAwardedAt ?? null,
       };
     });
 
@@ -652,6 +659,8 @@ export const useStore = create<StoreState>((set, get) => {
           isEdited: false,
           editedAt: null,
           isPinned: false,
+          isViral: false,
+          viralAwardedAt: null,
           reportCount: 0,
           helpfulCount: 5,
           expiresAt: null,
@@ -674,6 +683,8 @@ export const useStore = create<StoreState>((set, get) => {
           isEdited: false,
           editedAt: null,
           isPinned: false,
+          isViral: false,
+          viralAwardedAt: null,
           reportCount: 0,
           helpfulCount: 18,
           expiresAt: nowStamp + 24 * 60 * 60 * 1000,
@@ -696,6 +707,8 @@ export const useStore = create<StoreState>((set, get) => {
           isEdited: false,
           editedAt: null,
           isPinned: false,
+          isViral: false,
+          viralAwardedAt: null,
           reportCount: 0,
           helpfulCount: 10,
           expiresAt: nowStamp + 7 * 24 * 60 * 60 * 1000,
@@ -783,6 +796,8 @@ export const useStore = create<StoreState>((set, get) => {
       isEdited: false,
       editedAt: null,
       isPinned: false,
+      isViral: false,
+      viralAwardedAt: null,
       reportCount: 0,
       helpfulCount: 0,
       expiresAt,
@@ -1011,6 +1026,16 @@ export const useStore = create<StoreState>((set, get) => {
     const post = state.posts.find((p) => p.id === postId);
     if (!post) return;
 
+    const actorId = state.studentId;
+    const oldTotalReactions = Object.values(post.reactions).reduce((sum, count) => sum + count, 0);
+    const newTotalReactions = oldTotalReactions + 1;
+    const crossedThreshold =
+      !post.isViral &&
+      oldTotalReactions < VIRAL_REACTION_THRESHOLD &&
+      newTotalReactions >= VIRAL_REACTION_THRESHOLD;
+
+    const awardTimestamp = crossedThreshold ? Date.now() : null;
+
     set((state) => ({
       posts: state.posts.map((p) =>
         p.id === postId
@@ -1020,6 +1045,12 @@ export const useStore = create<StoreState>((set, get) => {
                 ...p.reactions,
                 [reactionType]: p.reactions[reactionType] + 1,
               },
+              ...(crossedThreshold
+                ? {
+                    isViral: true,
+                    viralAwardedAt: awardTimestamp,
+                  }
+                : {}),
             }
           : p
       ),
@@ -1037,14 +1068,34 @@ export const useStore = create<StoreState>((set, get) => {
     });
 
     // Add notification if reacting to someone else's post
-    if (post.studentId !== state.studentId) {
+    if (post.studentId !== actorId) {
       get().addNotification({
         recipientId: post.studentId,
         type: 'reaction',
         postId,
-        actorId: state.studentId,
+        actorId,
         message: `reacted ${getEmojiForReaction(reactionType)} to your post`,
       });
+    }
+
+    if (crossedThreshold && awardTimestamp) {
+      rewardEngine.awardTokens(post.studentId, VIRAL_REWARD_AMOUNT, 'Viral post reward', 'posts', {
+        postId,
+        totalReactions: newTotalReactions,
+        viralThreshold: VIRAL_REACTION_THRESHOLD,
+        awardedAt: awardTimestamp,
+        triggeringReaction: reactionType,
+        triggeredBy: actorId,
+        rewardAmount: VIRAL_REWARD_AMOUNT,
+        event: 'viral_post_reward',
+      });
+
+      const isOwner = post.studentId === actorId;
+      toast.success(
+        isOwner
+          ? 'Your post just went viral! +150 VOICE 🎉'
+          : 'Post went viral! +150 VOICE awarded to the creator 🎉'
+      );
     }
   },
 
