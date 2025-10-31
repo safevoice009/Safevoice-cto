@@ -1036,6 +1036,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     const awardTimestamp = crossedThreshold ? Date.now() : null;
 
+    // Update post with reaction
     set((state) => ({
       posts: state.posts.map((p) =>
         p.id === postId
@@ -1062,10 +1063,49 @@ export const useStore = create<StoreState>((set, get) => {
       navigator.vibrate(50);
     }
 
-    get().earnVoice(EARN_RULES.reactionGiven, 'Reaction given', 'reactions', {
-      postId,
-      reactionType,
-    });
+    const reactionRewardId = `reaction:${postId}:${actorId}`;
+    const transactionHistory = rewardEngine.getTransactionHistory();
+
+    type ReactionRewardMetadata = {
+      rewardId?: string;
+      recipientRole?: 'giver' | 'receiver';
+      userId?: string;
+      [key: string]: unknown;
+    };
+
+    const hasReward = (role: ReactionRewardMetadata['recipientRole'], userId: string) =>
+      transactionHistory.some((tx) => {
+        if (tx.type !== 'earn' || !tx.metadata) {
+          return false;
+        }
+        const metadata = tx.metadata as ReactionRewardMetadata;
+        return (
+          metadata.rewardId === reactionRewardId &&
+          metadata.recipientRole === role &&
+          metadata.userId === userId
+        );
+      });
+
+    if (!hasReward('giver', actorId)) {
+      get().earnVoice(EARN_RULES.reactionGiven, 'Reaction given', 'reactions', {
+        rewardId: reactionRewardId,
+        recipientRole: 'giver',
+        postId,
+        reactionType,
+        reactionEmoji: getEmojiForReaction(reactionType),
+      });
+    }
+
+    if (post.studentId !== actorId && !hasReward('receiver', post.studentId)) {
+      void rewardEngine.awardTokens(post.studentId, EARN_RULES.reactionReceived, 'Reaction received', 'reactions', {
+        rewardId: reactionRewardId,
+        recipientRole: 'receiver',
+        postId,
+        reactionType,
+        reactionEmoji: getEmojiForReaction(reactionType),
+        fromUser: actorId,
+      });
+    }
 
     // Add notification if reacting to someone else's post
     if (post.studentId !== actorId) {
@@ -1078,6 +1118,7 @@ export const useStore = create<StoreState>((set, get) => {
       });
     }
 
+    // Handle viral post reward
     if (crossedThreshold && awardTimestamp) {
       rewardEngine.awardTokens(post.studentId, VIRAL_REWARD_AMOUNT, 'Viral post reward', 'posts', {
         postId,
