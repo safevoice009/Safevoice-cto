@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Reply, Pencil, Trash2, Flag, ThumbsUp } from 'lucide-react';
+import { Reply, Pencil, Trash2, Flag, ThumbsUp, ShieldCheck, Shield } from 'lucide-react';
 import type { Comment } from '../../lib/store';
 import { useStore } from '../../lib/store';
 import { formatTimeAgo, getStudentIdColor, parseMarkdown } from '../../lib/utils';
@@ -15,7 +15,7 @@ interface CommentCardProps {
 }
 
 export default function CommentCard({ comment, postId, depth = 0 }: CommentCardProps) {
-  const { studentId, addCommentReaction, deleteComment, addComment, updateComment, addNotification, markCommentHelpful } =
+  const { studentId, isModerator, addCommentReaction, deleteComment, addComment, updateComment, addNotification, markCommentHelpful, markCommentAsVerifiedAdvice } =
     useStore();
 
   const [showReplyInput, setShowReplyInput] = useState(false);
@@ -33,6 +33,21 @@ export default function CommentCard({ comment, postId, depth = 0 }: CommentCardP
 
   const isOwnComment = comment.studentId === studentId;
   const hasReplies = comment.replies && comment.replies.length > 0;
+  const isVerifiedAdvice = comment.isVerifiedAdvice;
+
+  const containerClasses = [
+    'rounded-xl p-4 transition-all duration-300 border',
+    depth > 0
+      ? isVerifiedAdvice
+        ? 'ml-8 border-l-2 border-green-400/60'
+        : 'ml-8 border-l-2 border-primary/50'
+      : '',
+    isVerifiedAdvice
+      ? 'bg-green-500/10 border-green-400/40 shadow-[0_0_18px_rgba(34,197,94,0.3)]'
+      : 'bg-white/5 border-white/10',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const handleMarkHelpful = () => {
     if (hasMarkedHelpful) return;
@@ -63,8 +78,14 @@ export default function CommentCard({ comment, postId, depth = 0 }: CommentCardP
     }
   };
 
+  const handleVerifyAdvice = () => {
+    markCommentAsVerifiedAdvice(postId, comment.id);
+  };
+
+  const verifyButtonTitle = comment.isVerifiedAdvice ? 'Unverify advice' : 'Mark as verified advice';
+
   return (
-    <div className={`rounded-xl p-4 bg-white/5 ${depth > 0 ? 'ml-8 border-l-2 border-primary/50' : ''}`}>
+    <div className={containerClasses}>
       <div className="flex items-start justify-between">
         <div className="flex items-center space-x-3">
           <div
@@ -79,11 +100,43 @@ export default function CommentCard({ comment, postId, depth = 0 }: CommentCardP
               <p className="text-sm font-medium text-white">{comment.studentId}</p>
               <span className="text-xs text-gray-400">{formatTimeAgo(comment.createdAt)}</span>
               {comment.isEdited && <span className="text-xs text-gray-500">(edited)</span>}
+              {comment.isVerifiedAdvice && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>Verified Advice</span>
+                </span>
+              )}
+              {comment.crisisSupportRewardAwarded && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-500/20 text-rose-300 text-xs rounded-full">
+                  <span>🆘</span>
+                  <span>Crisis Support</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
 
         <div className="flex items-center space-x-2">
+          {isModerator && !isOwnComment && !isEditing && (
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={handleVerifyAdvice}
+              className={`p-2 rounded-lg transition-colors ${
+                comment.isVerifiedAdvice
+                  ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                  : 'hover:bg-white/10 text-gray-400'
+              }`}
+              title={verifyButtonTitle}
+            >
+              {comment.isVerifiedAdvice ? (
+                <ShieldCheck className="w-4 h-4" />
+              ) : (
+                <Shield className="w-4 h-4" />
+              )}
+            </motion.button>
+          )}
+
           {isOwnComment && !isEditing && (
             <motion.button
               whileHover={{ scale: 1.1 }}
@@ -187,8 +240,20 @@ export default function CommentCard({ comment, postId, depth = 0 }: CommentCardP
         </motion.button>
       </div>
 
-      <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-400">
         <span>{helpfulVotesLabel}</span>
+        {comment.crisisSupportRewardAwarded && (
+          <span className="inline-flex items-center gap-1 text-rose-300">
+            <span>🆘</span>
+            <span>Crisis support recognized</span>
+          </span>
+        )}
+        {isVerifiedAdvice && (
+          <span className="inline-flex items-center gap-1 text-green-400">
+            <ShieldCheck className="w-3 h-3" />
+            <span>Verified mentorship</span>
+          </span>
+        )}
         {hasHelpfulMilestone && (
           <span className="inline-flex items-center gap-1 text-primary">
             <ThumbsUp className="w-3 h-3" />

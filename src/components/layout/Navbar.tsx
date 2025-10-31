@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Lock, Menu, X } from 'lucide-react';
+import { AlertTriangle, Lock, Menu, X, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../../lib/store';
 import NotificationDropdown from './NotificationDropdown';
@@ -23,7 +23,7 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [visible, setVisible] = useState(true);
   const lastScrollYRef = useRef(0);
-  const { studentId, setShowCrisisModal } = useStore();
+  const { studentId, isModerator, toggleModeratorMode, setShowCrisisModal } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -105,6 +105,20 @@ export default function Navbar() {
               <AlertTriangle className="w-4 h-4" />
               <span>Crisis Help</span>
             </motion.button>
+            <motion.button
+              onClick={toggleModeratorMode}
+              className={`flex items-center space-x-1 px-3 py-2 rounded-lg font-medium transition-all ${
+                isModerator
+                  ? 'bg-green-600 text-white hover:bg-green-700'
+                  : 'bg-gray-600 text-gray-300 hover:bg-gray-700'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title={isModerator ? 'Moderator mode ON' : 'Moderator mode OFF (click to enable)'}
+            >
+              <Shield className="w-4 h-4" />
+              {isModerator && <span className="text-xs">MOD</span>}
+            </motion.button>
             <span className="text-primary font-medium">{studentId}</span>
             <ConnectWalletButton />
           </div>
@@ -148,6 +162,19 @@ export default function Navbar() {
               >
                 <AlertTriangle className="w-4 h-4" />
                 <span>Get Crisis Help</span>
+              </motion.button>
+              <motion.button
+                onClick={() => {
+                  toggleModeratorMode();
+                }}
+                className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                  isModerator ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'
+                }`}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Shield className="w-4 h-4" />
+                <span>{isModerator ? 'Disable Moderator Mode' : 'Enable Moderator Mode'}</span>
               </motion.button>
               <div className="pt-3 border-t border-white/10 space-y-3">
                 <NotificationDropdown />

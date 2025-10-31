@@ -20,6 +20,7 @@ export const EARN_RULES = {
   helpfulPost: 50, // Marked as helpful
   helpfulComment: 25, // Comment marked helpful (5+ votes)
   crisisResponse: 100, // Responding to crisis post
+  verifiedAdvice: 200, // Comment marked as verified advice by moderator
   reportAccepted: 10, // Valid report
   reportRejected: -5, // False report (penalty)
 
