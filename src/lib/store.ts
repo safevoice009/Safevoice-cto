@@ -4,10 +4,10 @@ import { createElement } from 'react';
 import { Wallet } from 'ethers';
 import {
   EARN_RULES,
-  formatVoiceBalance,
   type EarningsBreakdown,
 } from './tokenEconomics';
 import { setSecureItem, getSecureItem, clearSecureItem } from './secureStorage';
+import { RewardEngine } from './tokens/RewardEngine';
 
 // Types
 export interface Reaction {
@@ -141,12 +141,16 @@ export interface Notification {
 
 export interface VoiceTransaction {
   id: string;
-  type: 'earn' | 'spend';
+  type: 'earn' | 'spend' | 'claim';
   amount: number;
   reason: string;
+  reasonCode?: string;
   metadata: Record<string, unknown>;
   timestamp: number;
   balance: number;
+  pending?: number;
+  claimed?: number;
+  spent?: number;
 }
 
 export interface StoreState {
@@ -278,15 +282,11 @@ const STORAGE_KEYS = {
   ENCRYPTION_KEYS: 'safevoice_encryption_keys',
   SAVED_HELPLINES: 'safevoice_saved_helplines',
   EMERGENCY_BANNER: 'emergencyBannerDismissed',
-  VOICE_BALANCE: 'voiceBalance',
-  VOICE_PENDING: 'voicePending',
-  VOICE_HISTORY: 'voiceTransactions',
-  VOICE_BREAKDOWN: 'voiceEarningsBreakdown',
   ANON_WALLET_ADDRESS: 'anonWallet_address',
   ANON_WALLET_ENCRYPTED_KEY: 'anonWallet_encrypted',
-  LAST_LOGIN_DATE: 'voice_lastLogin',
-  LOGIN_STREAK: 'voice_loginStreak',
 };
+
+const rewardEngine = new RewardEngine();
 
 // Helper to generate random student ID
 const generateStudentId = () => `Student#${Math.floor(Math.random() * 9000 + 1000)}`;
@@ -316,37 +316,7 @@ const getEmergencyBannerDismissedUntil = (): number | null => {
   return parsed;
 };
 
-const getNumberFromStorage = (key: string, fallback = 0): number => {
-  if (typeof window === 'undefined') return fallback;
-  const raw = localStorage.getItem(key);
-  if (!raw) return fallback;
-  const parsed = parseFloat(raw);
-  if (Number.isNaN(parsed)) return fallback;
-  return parsed;
-};
-
-const getJSONFromStorage = <T>(key: string, fallback: T): T => {
-  if (typeof window === 'undefined') return fallback;
-  const raw = localStorage.getItem(key);
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch (error) {
-    console.error(`Failed to parse storage key ${key}`, error);
-    return fallback;
-  }
-};
-
-const DEFAULT_EARNINGS_BREAKDOWN: EarningsBreakdown = {
-  posts: 0,
-  reactions: 0,
-  comments: 0,
-  helpful: 0,
-  streaks: 0,
-  bonuses: 0,
-  crisis: 0,
-  reporting: 0,
-};
+// Helpers removed - now handled by RewardEngine
 
 // Helper to find and update a comment recursively
 const findAndUpdateComment = (
@@ -416,40 +386,61 @@ const findAndDeleteComment = (comments: Comment[], commentId: string): Comment[]
     .filter((comment): comment is Comment => comment !== null);
 };
 
-export const useStore = create<StoreState>((set, get) => ({
-  studentId:
-    typeof window !== 'undefined'
-      ? localStorage.getItem(STORAGE_KEYS.STUDENT_ID) || generateStudentId()
-      : generateStudentId(),
-  posts: [],
-  bookmarkedPosts: [],
-  reports: [],
-  notifications: [],
-  unreadCount: 0,
-  encryptionKeys: {},
-  expiryTimeouts: {},
-  showCrisisModal: false,
-  pendingPost: null,
-  savedHelplines: getSavedHelplinesFromStorage(),
-  emergencyBannerDismissedUntil: getEmergencyBannerDismissedUntil(),
+export const useStore = create<StoreState>((set, get) => {
+  const syncRewardState = () => {
+    const snapshot = rewardEngine.getWalletSnapshot();
+    set({
+      voiceBalance: snapshot.balance,
+      pendingRewards: snapshot.pending,
+      earningsBreakdown: snapshot.earningsBreakdown,
+      transactionHistory: snapshot.transactions,
+      lastLoginDate: snapshot.lastLogin,
+      loginStreak: snapshot.streakData.currentStreak,
+    });
+  };
 
-  // Wallet & Token state initialization
-  connectedAddress: null,
-  anonymousWalletAddress:
-    typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS) : null,
-  voiceBalance: getNumberFromStorage(STORAGE_KEYS.VOICE_BALANCE, 0),
-  pendingRewards: getNumberFromStorage(STORAGE_KEYS.VOICE_PENDING, 0),
-  earningsBreakdown: getJSONFromStorage<EarningsBreakdown>(
-    STORAGE_KEYS.VOICE_BREAKDOWN,
-    { ...DEFAULT_EARNINGS_BREAKDOWN }
-  ),
-  transactionHistory: getJSONFromStorage<VoiceTransaction[]>(STORAGE_KEYS.VOICE_HISTORY, []),
-  lastLoginDate:
-    typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.LAST_LOGIN_DATE) : null,
-  loginStreak: getNumberFromStorage(STORAGE_KEYS.LOGIN_STREAK, 0),
+  rewardEngine.onReward(() => {
+    syncRewardState();
+  });
 
-  setShowCrisisModal: (show: boolean) => set({ showCrisisModal: show }),
-  setPendingPost: (post: AddPostPayload | null) => set({ pendingPost: post }),
+  rewardEngine.onSpend(() => {
+    syncRewardState();
+  });
+
+  rewardEngine.onBalanceChange(() => {
+    syncRewardState();
+  });
+
+  return {
+    studentId:
+      typeof window !== 'undefined'
+        ? localStorage.getItem(STORAGE_KEYS.STUDENT_ID) || generateStudentId()
+        : generateStudentId(),
+    posts: [],
+    bookmarkedPosts: [],
+    reports: [],
+    notifications: [],
+    unreadCount: 0,
+    encryptionKeys: {},
+    expiryTimeouts: {},
+    showCrisisModal: false,
+    pendingPost: null,
+    savedHelplines: getSavedHelplinesFromStorage(),
+    emergencyBannerDismissedUntil: getEmergencyBannerDismissedUntil(),
+
+    // Wallet & Token state initialization - now using RewardEngine
+    connectedAddress: null,
+    anonymousWalletAddress:
+      typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS) : null,
+    voiceBalance: rewardEngine.getBalance(),
+    pendingRewards: rewardEngine.getPending(),
+    earningsBreakdown: rewardEngine.getEarningsBreakdown(),
+    transactionHistory: rewardEngine.getTransactionHistory(),
+    lastLoginDate: rewardEngine.getStreakData().lastLoginDate,
+    loginStreak: rewardEngine.getStreakData().currentStreak,
+
+    setShowCrisisModal: (show: boolean) => set({ showCrisisModal: show }),
+    setPendingPost: (post: AddPostPayload | null) => set({ pendingPost: post }),
 
   toggleSaveHelpline: (helplineId: string) => {
     const current = get().savedHelplines;
@@ -532,176 +523,39 @@ export const useStore = create<StoreState>((set, get) => ({
     category: keyof EarningsBreakdown = 'bonuses',
     metadata: Record<string, unknown> = {}
   ) => {
-    if (amount <= 0) {
-      return;
-    }
-
-    set((state) => {
-      const newBalance = state.voiceBalance + amount;
-      const newPending = state.pendingRewards + amount;
-      const updatedBreakdown = {
-        ...state.earningsBreakdown,
-        [category]: (state.earningsBreakdown[category] ?? 0) + amount,
-      } as EarningsBreakdown;
-
-      const transaction: VoiceTransaction = {
-        id: crypto.randomUUID(),
-        type: 'earn',
-        amount,
-        reason,
-        metadata,
-        timestamp: Date.now(),
-        balance: newBalance,
-      };
-
-      const history = [transaction, ...state.transactionHistory].slice(0, 100);
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEYS.VOICE_BALANCE, newBalance.toString());
-        localStorage.setItem(STORAGE_KEYS.VOICE_PENDING, newPending.toString());
-        localStorage.setItem(STORAGE_KEYS.VOICE_BREAKDOWN, JSON.stringify(updatedBreakdown));
-        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
-      }
-
-      return {
-        voiceBalance: newBalance,
-        pendingRewards: newPending,
-        earningsBreakdown: updatedBreakdown,
-        transactionHistory: history,
-      };
-    });
-
-    const formattedAmount = formatVoiceBalance(amount);
-    toast.success(`+${formattedAmount}${reason ? ` · ${reason}` : ''}`);
+    const state = get();
+    rewardEngine.awardTokens(state.studentId, amount, reason, category, metadata);
   },
 
   spendVoice: (amount: number, reason: string, metadata: Record<string, unknown> = {}) => {
-    if (amount <= 0) return;
-
-    set((state) => {
-      if (state.voiceBalance < amount) {
-        toast.error('Insufficient VOICE balance');
-        return state;
-      }
-
-      const newBalance = state.voiceBalance - amount;
-      const transaction: VoiceTransaction = {
-        id: crypto.randomUUID(),
-        type: 'spend',
-        amount: -amount,
-        reason,
-        metadata,
-        timestamp: Date.now(),
-        balance: newBalance,
-      };
-
-      const history = [transaction, ...state.transactionHistory].slice(0, 100);
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEYS.VOICE_BALANCE, newBalance.toString());
-        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
-      }
-
-      return {
-        voiceBalance: newBalance,
-        transactionHistory: history,
-      };
-    });
-
-    const formattedAmount = formatVoiceBalance(amount);
-    toast.success(`-${formattedAmount} spent on ${reason}`);
+    const state = get();
+    rewardEngine.spendTokens(state.studentId, amount, reason, metadata);
   },
 
   claimRewards: async () => {
-    const pending = get().pendingRewards;
-    if (pending <= 0) {
-      toast.error('No pending rewards to claim');
-      return;
-    }
-
     await new Promise((resolve) => setTimeout(resolve, 1200));
-
-    set((state) => {
-      const transaction: VoiceTransaction = {
-        id: crypto.randomUUID(),
-        type: 'earn',
-        amount: 0,
-        reason: 'Claimed to blockchain',
-        metadata: {
-          claimedAmount: pending,
-          address: state.connectedAddress,
-        },
-        timestamp: Date.now(),
-        balance: state.voiceBalance,
-      };
-
-      const history = [transaction, ...state.transactionHistory].slice(0, 100);
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEYS.VOICE_PENDING, '0');
-        localStorage.setItem(STORAGE_KEYS.VOICE_HISTORY, JSON.stringify(history));
-      }
-
-      return {
-        pendingRewards: 0,
-        transactionHistory: history,
-      };
-    });
-
-    const formattedPending = formatVoiceBalance(pending);
-    toast.success(`Claimed ${formattedPending}! 🎉`);
+    const state = get();
+    await rewardEngine.claimRewards(state.studentId, state.connectedAddress ?? undefined);
   },
 
   loadWalletData: () => {
-    if (typeof window === 'undefined') return;
-
+    const snapshot = rewardEngine.getWalletSnapshot();
     set({
-      voiceBalance: getNumberFromStorage(STORAGE_KEYS.VOICE_BALANCE, 0),
-      pendingRewards: getNumberFromStorage(STORAGE_KEYS.VOICE_PENDING, 0),
-      earningsBreakdown: getJSONFromStorage<EarningsBreakdown>(
-        STORAGE_KEYS.VOICE_BREAKDOWN,
-        { ...DEFAULT_EARNINGS_BREAKDOWN }
-      ),
-      transactionHistory: getJSONFromStorage<VoiceTransaction[]>(STORAGE_KEYS.VOICE_HISTORY, []),
-      anonymousWalletAddress: localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS),
-      lastLoginDate: localStorage.getItem(STORAGE_KEYS.LAST_LOGIN_DATE),
-      loginStreak: getNumberFromStorage(STORAGE_KEYS.LOGIN_STREAK, 0),
+      voiceBalance: snapshot.balance,
+      pendingRewards: snapshot.pending,
+      earningsBreakdown: snapshot.earningsBreakdown,
+      transactionHistory: snapshot.transactions,
+      anonymousWalletAddress:
+        typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS) : null,
+      lastLoginDate: snapshot.lastLogin,
+      loginStreak: snapshot.streakData.currentStreak,
     });
   },
 
   grantDailyLoginBonus: () => {
     if (typeof window === 'undefined') return;
-
-    const today = new Date().toDateString();
-    const { lastLoginDate, loginStreak } = get();
-
-    if (lastLoginDate === today) {
-      return;
-    }
-
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const isConsecutive = lastLoginDate === yesterday.toDateString();
-    const newStreak = isConsecutive ? loginStreak + 1 : 1;
-
-    set({ lastLoginDate: today, loginStreak: newStreak });
-
-    localStorage.setItem(STORAGE_KEYS.LAST_LOGIN_DATE, today);
-    localStorage.setItem(STORAGE_KEYS.LOGIN_STREAK, newStreak.toString());
-
-    get().earnVoice(EARN_RULES.dailyLoginBonus, 'Daily login bonus', 'streaks', { date: today });
-
-    if (newStreak > 0 && newStreak % 7 === 0) {
-      get().earnVoice(EARN_RULES.weeklyStreak, 'Weekly streak bonus', 'streaks', {
-        streak: newStreak,
-      });
-    }
-
-    if (newStreak > 0 && newStreak % 30 === 0) {
-      get().earnVoice(EARN_RULES.monthlyStreak, 'Monthly streak bonus', 'streaks', {
-        streak: newStreak,
-      });
-    }
+    const state = get();
+    rewardEngine.processDailyBonus(state.studentId);
   },
 
   dismissEmergencyBanner: () => {
@@ -1608,7 +1462,8 @@ export const useStore = create<StoreState>((set, get) => ({
   getEncryptionKey: (keyId: string) => {
     return get().encryptionKeys[keyId];
   },
-}));
+};
+});
 
 // Helper function to get emoji for reaction type
 function getEmojiForReaction(reactionType: keyof Reaction): string {
