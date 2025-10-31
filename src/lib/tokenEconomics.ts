@@ -26,6 +26,7 @@ export const EARN_RULES = {
   dailyLoginBonus: 5, // Log in once per day
   weeklyStreak: 50, // 7 consecutive days
   monthlyStreak: 300, // 30 consecutive days
+  postingStreakBonus: 100, // 7 consecutive posting days
 
   // Milestones
   milestone10Posts: 50,
