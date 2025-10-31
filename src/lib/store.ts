@@ -188,6 +188,12 @@ export interface VoiceTransaction {
   spent?: number;
 }
 
+export interface PendingRewardEntry {
+  category: string;
+  amount: number;
+  timestamp: number;
+}
+
 export interface ReferralFriend {
   id: string;
   name: string;
@@ -253,6 +259,11 @@ export interface StoreState {
   anonymousWalletAddress: string | null;
   voiceBalance: number;
   pendingRewards: number;
+  totalRewardsEarned: number;
+  claimedRewards: number;
+  spentRewards: number;
+  availableBalance: number;
+  pendingRewardBreakdown: PendingRewardEntry[];
   earningsBreakdown: EarningsBreakdown;
   transactionHistory: VoiceTransaction[];
   lastLoginDate: string | null;
@@ -260,6 +271,8 @@ export interface StoreState {
   lastPostDate: string | null;
   postingStreak: number;
   premiumSubscriptions: SubscriptionState;
+  walletLoading: boolean;
+  walletError: string | null;
 
   firstPostAwarded: boolean;
 
@@ -864,6 +877,11 @@ export const useStore = create<StoreState>((set, get) => {
     set({
       voiceBalance: snapshot.balance,
       pendingRewards: snapshot.pending,
+      totalRewardsEarned: snapshot.totalEarned,
+      claimedRewards: snapshot.claimed,
+      spentRewards: snapshot.spent,
+      availableBalance: rewardEngine.getAvailableBalance(),
+      pendingRewardBreakdown: rewardEngine.getPendingBreakdown(),
       earningsBreakdown: snapshot.earningsBreakdown,
       transactionHistory: snapshot.transactions,
       lastLoginDate: snapshot.lastLogin,
@@ -1045,6 +1063,11 @@ export const useStore = create<StoreState>((set, get) => {
       typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS) : null,
     voiceBalance: rewardEngine.getBalance(),
     pendingRewards: rewardEngine.getPending(),
+    totalRewardsEarned: rewardEngine.getTotalEarned(),
+    claimedRewards: rewardEngine.getClaimed(),
+    spentRewards: rewardEngine.getSpent(),
+    availableBalance: rewardEngine.getAvailableBalance(),
+    pendingRewardBreakdown: rewardEngine.getPendingBreakdown(),
     earningsBreakdown: rewardEngine.getEarningsBreakdown(),
     transactionHistory: rewardEngine.getTransactionHistory(),
     lastLoginDate: rewardEngine.getStreakData().lastLoginDate,
@@ -1052,6 +1075,8 @@ export const useStore = create<StoreState>((set, get) => {
     lastPostDate: rewardEngine.getStreakData().lastPostDate,
     postingStreak: rewardEngine.getStreakData().currentPostStreak,
     premiumSubscriptions: rewardEngine.getSubscriptions(),
+    walletLoading: false,
+    walletError: null,
     firstPostAwarded: typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.FIRST_POST_AWARDED) === 'true' : false,
 
     setShowCrisisModal: (show: boolean) => set({ showCrisisModal: show }),
@@ -1148,16 +1173,30 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   claimRewards: async () => {
+    set({ walletLoading: true, walletError: null });
     await new Promise((resolve) => setTimeout(resolve, 1200));
     const state = get();
-    await rewardEngine.claimRewards(state.studentId, state.connectedAddress ?? undefined);
+    const success = await rewardEngine.claimRewards(state.studentId, state.connectedAddress ?? undefined);
+    if (!success) {
+      set({ walletLoading: false, walletError: 'Failed to claim rewards. Please try again.' });
+      throw new Error('Failed to claim rewards. Please try again.');
+    }
+
+    syncRewardState();
+    set({ walletLoading: false, walletError: null });
   },
 
   loadWalletData: () => {
+    set({ walletLoading: true, walletError: null });
     const snapshot = rewardEngine.getWalletSnapshot();
     set({
       voiceBalance: snapshot.balance,
       pendingRewards: snapshot.pending,
+      totalRewardsEarned: snapshot.totalEarned,
+      claimedRewards: snapshot.claimed,
+      spentRewards: snapshot.spent,
+      availableBalance: rewardEngine.getAvailableBalance(),
+      pendingRewardBreakdown: rewardEngine.getPendingBreakdown(),
       earningsBreakdown: snapshot.earningsBreakdown,
       transactionHistory: snapshot.transactions,
       anonymousWalletAddress:
@@ -1167,11 +1206,12 @@ export const useStore = create<StoreState>((set, get) => {
       lastPostDate: snapshot.streakData.lastPostDate,
       postingStreak: snapshot.streakData.currentPostStreak,
       premiumSubscriptions: snapshot.subscriptions,
+      walletLoading: false,
     });
 
     if (typeof window !== 'undefined') {
       const state = get();
-      rewardEngine.checkSubscriptionRenewals(state.studentId);
+      void rewardEngine.checkSubscriptionRenewals(state.studentId);
     }
   },
 

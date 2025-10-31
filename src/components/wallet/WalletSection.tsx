@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import {
   Wallet,
   Coins,
@@ -10,6 +10,9 @@ import {
   Copy,
   Check,
   Clock,
+  AlertCircle,
+  Gift,
+  Award,
 } from 'lucide-react';
 import { useAccount, useEnsName, useNetwork } from 'wagmi';
 import { useStore } from '../../lib/store';
@@ -20,9 +23,37 @@ import PremiumSettings from './PremiumSettings';
 import NFTBadgeStore from './NFTBadgeStore';
 import UtilitiesSection from './UtilitiesSection';
 
+interface AnimatedCounterProps {
+  value: number;
+  duration?: number;
+}
+
+function AnimatedCounter({ value, duration = 1 }: AnimatedCounterProps) {
+  const motionValue = useMotionValue(value);
+  const rounded = useTransform(motionValue, (latest) => Math.max(0, Math.floor(latest)));
+  const [displayValue, setDisplayValue] = useState(() => Math.max(0, Math.floor(value)));
+
+  useEffect(() => {
+    const animation = animate(motionValue, value, {
+      duration,
+      ease: 'easeOut',
+    });
+
+    return () => animation.stop();
+  }, [motionValue, value, duration]);
+
+  useEffect(() => {
+    const unsubscribe = rounded.on('change', (v) => setDisplayValue(v));
+    return unsubscribe;
+  }, [rounded]);
+
+  return <>{formatVoiceBalance(displayValue)}</>;
+}
+
 export default function WalletSection() {
   const [copied, setCopied] = useState(false);
-  const [claimLoading, setClaimLoading] = useState(false);
+  const [localClaimLoading, setLocalClaimLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const { address, isConnected } = useAccount();
   const { data: ensName } = useEnsName({ address: address ?? undefined });
@@ -31,14 +62,22 @@ export default function WalletSection() {
   const {
     voiceBalance,
     pendingRewards,
+    totalRewardsEarned,
+    claimedRewards,
+    spentRewards,
+    availableBalance,
+    pendingRewardBreakdown,
     earningsBreakdown,
     transactionHistory,
     anonymousWalletAddress,
     connectedAddress,
     claimRewards,
+    walletLoading,
+    walletError,
   } = useStore();
 
-  const totalEarned = calculateTotalEarnings(earningsBreakdown);
+  const totalEarned = totalRewardsEarned || calculateTotalEarnings(earningsBreakdown);
+
   const truncatedConnected = connectedAddress
     ? `${connectedAddress.slice(0, 6)}...${connectedAddress.slice(-4)}`
     : null;
@@ -60,13 +99,24 @@ export default function WalletSection() {
       toast.error('Connect wallet first');
       return;
     }
-    setClaimLoading(true);
+    
+    if (pendingRewards === 0) {
+      toast.error('No pending rewards to claim');
+      return;
+    }
+
+    setLocalClaimLoading(true);
+    setLocalError(null);
+    
     try {
       await claimRewards();
-    } catch {
-      toast.error('Failed to claim rewards');
+      toast.success('🎉 Rewards claimed successfully!');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to claim rewards';
+      setLocalError(errorMessage);
+      toast.error(errorMessage);
     } finally {
-      setClaimLoading(false);
+      setLocalClaimLoading(false);
     }
   };
 
@@ -79,12 +129,250 @@ export default function WalletSection() {
     return `${Math.floor(diff / 86400000)}d ago`;
   };
 
+  // Use pending rewards breakdown from store
+  const pendingBreakdown = pendingRewardBreakdown.length > 0
+    ? pendingRewardBreakdown
+    : Object.entries(earningsBreakdown)
+        .filter(([, amount]) => amount > 0)
+        .map(([category, amount]) => ({ category, amount, timestamp: Date.now() }));
+
+  const LOW_BALANCE_THRESHOLD = 10;
+  const showLowBalanceAlert = availableBalance < LOW_BALANCE_THRESHOLD && availableBalance > 0;
+
   return (
     <div className="space-y-6">
+      {/* Low Balance Alert */}
+      <AnimatePresence>
+        {showLowBalanceAlert && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="glass p-4 border border-yellow-500/30 bg-yellow-500/10"
+          >
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+              <div>
+                <p className="text-yellow-300 font-medium">Low Balance Alert</p>
+                <p className="text-sm text-gray-300 mt-1">
+                  Your available balance is low. Keep engaging to earn more VOICE tokens!
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Balance Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Total Earned Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0 }}
+          className="glass p-6 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-400">Total Earned</h3>
+            <TrendingUp className="w-5 h-5 text-green-400" />
+          </div>
+          <p className="text-3xl font-bold text-white">
+            <AnimatedCounter value={totalEarned} />
+          </p>
+          <p className="text-xs text-gray-500">Lifetime earnings</p>
+        </motion.div>
+
+        {/* Pending Rewards Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="glass p-6 space-y-3 bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/30"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-400">Pending Rewards</h3>
+            <Clock className="w-5 h-5 text-purple-400" />
+          </div>
+          <p className="text-3xl font-bold text-purple-400">
+            <AnimatedCounter value={pendingRewards} />
+          </p>
+          <p className="text-xs text-gray-500">Ready to claim</p>
+        </motion.div>
+
+        {/* Claimed Amount Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="glass p-6 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-400">Claimed</h3>
+            <Check className="w-5 h-5 text-blue-400" />
+          </div>
+          <p className="text-3xl font-bold text-white">
+            <AnimatedCounter value={claimedRewards} />
+          </p>
+          <p className="text-xs text-gray-500">Total claimed rewards</p>
+        </motion.div>
+
+        {/* Spent Amount Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="glass p-6 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-400">Spent</h3>
+            <Send className="w-5 h-5 text-red-400" />
+          </div>
+          <p className="text-3xl font-bold text-white">
+            <AnimatedCounter value={spentRewards} />
+          </p>
+          <p className="text-xs text-gray-500">Total spending</p>
+        </motion.div>
+
+        {/* Available Balance Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="glass p-6 space-y-3 bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/30"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-400">Available</h3>
+            <Coins className="w-5 h-5 text-green-400" />
+          </div>
+          <p className="text-3xl font-bold text-green-400">
+            <AnimatedCounter value={availableBalance} />
+          </p>
+          <p className="text-xs text-gray-500">Spendable balance</p>
+        </motion.div>
+
+        {/* Total Balance Card (Claimed - Spent) */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="glass p-6 space-y-3 bg-gradient-to-br from-primary/20 to-blue-500/20 border border-primary/30"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-400">Total Balance</h3>
+            <Wallet className="w-5 h-5 text-primary" />
+          </div>
+          <p className="text-3xl font-bold text-primary">
+            <AnimatedCounter value={voiceBalance} />
+          </p>
+          <p className="text-xs text-gray-500">Current balance</p>
+        </motion.div>
+      </div>
+
+      {/* Claim Rewards Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6 }}
+        className="glass p-6 space-y-4"
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+            <Gift className="w-6 h-6 text-primary" />
+            <span>Claim Rewards</span>
+          </h2>
+          {pendingRewards > 0 && (
+            <span className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-full text-sm font-semibold">
+              {formatVoiceBalance(pendingRewards)} Available
+            </span>
+          )}
+        </div>
+
+        {(localError || walletError) && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start space-x-2"
+          >
+            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-red-300">{localError || walletError}</p>
+            </div>
+          </motion.div>
+        )}
+
+        <button
+          onClick={handleClaimRewards}
+          disabled={localClaimLoading || walletLoading || pendingRewards === 0 || !isConnected}
+          className="w-full relative flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          {localClaimLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+              <span>Claiming...</span>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: '100%' }}
+                transition={{ duration: 1.2 }}
+                className="absolute bottom-0 left-0 h-1 bg-white/30 rounded-b-lg"
+              />
+            </>
+          ) : walletLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+              <span>Syncing wallet...</span>
+            </>
+          ) : (
+            <>
+              <ExternalLink className="w-5 h-5" />
+              <span>
+                {pendingRewards === 0 
+                  ? 'No Rewards to Claim' 
+                  : !isConnected
+                  ? 'Connect Wallet to Claim'
+                  : 'Claim Rewards'}
+              </span>
+            </>
+          )}
+        </button>
+
+        {!isConnected && (
+          <p className="text-sm text-gray-400 text-center">
+            Connect your wallet above to claim your pending rewards
+          </p>
+        )}
+      </motion.div>
+
+      {/* Pending Rewards Breakdown */}
+      {pendingRewards > 0 && pendingBreakdown.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          className="glass p-6 space-y-4"
+        >
+          <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+            <Award className="w-6 h-6 text-primary" />
+            <span>Pending Breakdown</span>
+          </h2>
+          <div className="space-y-2">
+            {pendingBreakdown.slice(0, 5).map(({ category, amount }) => (
+              <div
+                key={category}
+                className="flex items-center justify-between p-3 bg-surface/30 rounded-lg hover:bg-surface/50 transition-colors"
+              >
+                <span className="text-gray-300 capitalize">{category}</span>
+                <span className="text-purple-400 font-semibold">+{amount} VOICE</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* Wallet Overview */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.8 }}
         className="glass p-6 space-y-4"
       >
         <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
@@ -116,7 +404,7 @@ export default function WalletSection() {
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 <span className="text-xs text-green-400 font-medium">Connected</span>
               </div>
-              </div>
+            </div>
 
             {anonymousWalletAddress && (
               <div className="flex items-center justify-between p-4 bg-surface/50 rounded-lg">
@@ -142,62 +430,11 @@ export default function WalletSection() {
         )}
       </motion.div>
 
-      {/* VOICE Balance */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="glass p-6 space-y-4"
-      >
-        <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
-          <Coins className="w-6 h-6 text-primary" />
-          <span>💎 $VOICE Balance</span>
-        </h2>
-
-        <div className="text-center py-6 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-lg border border-purple-500/30">
-          <p className="text-5xl font-bold text-white">{formatVoiceBalance(voiceBalance)}</p>
-          <p className="text-gray-400 mt-2">Total Balance</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 bg-surface/50 rounded-lg">
-            <p className="text-sm text-gray-400">On-Chain</p>
-            <p className="text-xl font-bold text-white mt-1">0 VOICE</p>
-            <p className="text-xs text-gray-500 mt-1">Coming Soon</p>
-          </div>
-          <div className="p-4 bg-surface/50 rounded-lg">
-            <p className="text-sm text-gray-400">Claimable</p>
-            <p className="text-xl font-bold text-primary mt-1">
-              {formatVoiceBalance(pendingRewards)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Rewards earned</p>
-          </div>
-        </div>
-
-        <button
-          onClick={handleClaimRewards}
-          disabled={claimLoading || pendingRewards === 0 || !isConnected}
-          className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-        >
-          {claimLoading ? (
-            <>
-              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
-              <span>Claiming...</span>
-            </>
-          ) : (
-            <>
-              <ExternalLink className="w-5 h-5" />
-              <span>Claim Rewards to Blockchain</span>
-            </>
-          )}
-        </button>
-      </motion.div>
-
       {/* Earnings Breakdown */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+        transition={{ delay: 0.9 }}
         className="glass p-6 space-y-4"
       >
         <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
@@ -233,7 +470,7 @@ export default function WalletSection() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+        transition={{ delay: 1.0 }}
         className="glass p-6 space-y-4"
       >
         <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
@@ -287,19 +524,19 @@ export default function WalletSection() {
                 </div>
               );
             })}
-            </div>
-            )}
-            </motion.div>
+          </div>
+        )}
+      </motion.div>
 
       {/* Action Buttons */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+        transition={{ delay: 1.1 }}
         className="glass p-6 space-y-4"
       >
         <h2 className="text-xl font-bold text-white">Quick Actions</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button
             disabled
             className="flex items-center justify-center space-x-2 px-4 py-3 bg-surface/50 rounded-lg text-gray-400 cursor-not-allowed relative overflow-hidden"

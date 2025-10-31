@@ -821,30 +821,42 @@ export class RewardEngine {
       await this.acquireLock();
 
       const claimAmount = this.snapshot.pending;
+      const oldBalance = this.snapshot.balance;
+      const newClaimedTotal = this.snapshot.claimed + claimAmount;
+      const now = Date.now();
+
       const transaction: VoiceTransaction = {
         id: crypto.randomUUID(),
         type: 'claim',
-        amount: 0,
-        reason: 'Claimed to blockchain',
+        amount: claimAmount,
+        reason: 'Claimed pending rewards',
+        reasonCode: 'claim_rewards',
         metadata: {
           userId,
           claimedAmount: claimAmount,
-          address: walletAddress,
-          timestamp: Date.now(),
+          address: walletAddress ?? null,
+          transfer: {
+            from: 'pending',
+            to: 'claimed',
+          },
+          timestamp: now,
         },
-        timestamp: Date.now(),
-        balance: this.snapshot.balance,
-        claimed: claimAmount,
+        timestamp: now,
+        balance: oldBalance,
+        pending: 0,
+        claimed: newClaimedTotal,
       };
 
       this.snapshot = {
         ...this.snapshot,
         pending: 0,
-        claimed: this.snapshot.claimed + claimAmount,
+        claimed: newClaimedTotal,
         transactions: [transaction, ...this.snapshot.transactions].slice(0, this.MAX_TRANSACTIONS),
       };
 
       this.persist();
+
+      this.onBalanceChangeCallbacks.forEach(cb => cb(oldBalance, oldBalance));
 
       const formattedAmount = formatVoiceBalance(claimAmount);
       toast.success(`Claimed ${formattedAmount}! 🎉`);
@@ -852,6 +864,7 @@ export class RewardEngine {
       return true;
     } catch (error) {
       console.error('Failed to claim rewards:', error);
+      toast.error('Failed to claim rewards');
       return false;
     } finally {
       this.releaseLock();
@@ -1122,6 +1135,44 @@ export class RewardEngine {
 
   getClaimed(): number {
     return this.snapshot.claimed;
+  }
+
+  /**
+   * Get available balance (claimed - spent)
+   * This represents tokens that can be spent
+   */
+  getAvailableBalance(): number {
+    return Math.max(0, this.snapshot.balance - this.snapshot.pending);
+  }
+
+  /**
+   * Get pending rewards breakdown by category with timestamps
+   */
+  getPendingBreakdown(): Array<{ category: string; amount: number; timestamp: number }> {
+    const breakdown = new Map<string, { amount: number; timestamp: number }>();
+
+    for (const tx of this.snapshot.transactions) {
+      if (tx.type === 'claim') {
+        // Once we hit the last claim, older earn transactions have already been claimed
+        break;
+      }
+
+      if (tx.type !== 'earn') {
+        continue;
+      }
+
+      const category = tx.reasonCode || 'other';
+      const existing = breakdown.get(category) ?? { amount: 0, timestamp: 0 };
+      breakdown.set(category, {
+        amount: existing.amount + Math.abs(tx.amount),
+        timestamp: Math.max(existing.timestamp, tx.timestamp),
+      });
+    }
+
+    return Array.from(breakdown.entries())
+      .map(([category, data]) => ({ category, amount: data.amount, timestamp: data.timestamp }))
+      .filter((entry) => entry.amount > 0)
+      .sort((a, b) => b.timestamp - a.timestamp);
   }
 
   getTransactionHistory(): VoiceTransaction[] {
