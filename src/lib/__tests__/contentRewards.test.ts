@@ -48,6 +48,7 @@ const createEmptySnapshot = () => ({
     bonuses: 0,
     crisis: 0,
     reporting: 0,
+    referrals: 0,
   } satisfies EarningsBreakdown,
   streakData: {
     currentStreak: 0,
@@ -237,8 +238,9 @@ vi.mock('../tokens/RewardEngine', () => {
       snapshot.totalEarned += amount;
       snapshot.transactions = transactionHistory;
 
-      if (category in snapshot.earningsBreakdown) {
-        snapshot.earningsBreakdown[category as keyof EarningsBreakdown] += amount;
+      const breakdown = snapshot.earningsBreakdown as Record<keyof EarningsBreakdown, number>;
+      if (category in breakdown) {
+        breakdown[category as keyof EarningsBreakdown] += amount;
       }
 
       rewardCallbacks.forEach((cb) => cb(amount, reason, metadataWithUser));

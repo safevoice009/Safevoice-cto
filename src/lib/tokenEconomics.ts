@@ -47,6 +47,10 @@ export const EARN_RULES = {
   memorialTribute: 20, // Create a tribute
   memorialCandle: 2, // Light a candle
   memorialMilestone: 100, // Tribute reaches 50 candles
+
+  // Referrals
+  referralJoin: 25, // When someone joins using your invite code
+  referralFirstPost: 10, // When referred friend makes their first post
 } as const;
 
 export const SPEND_RULES = {
@@ -104,6 +108,7 @@ export interface EarningsBreakdown {
   bonuses: number;
   crisis: number;
   reporting: number;
+  referrals: number;
 }
 
 export function calculateTotalEarnings(breakdown: EarningsBreakdown): number {
@@ -115,6 +120,7 @@ export function calculateTotalEarnings(breakdown: EarningsBreakdown): number {
     breakdown.streaks +
     breakdown.bonuses +
     breakdown.crisis +
-    breakdown.reporting
+    breakdown.reporting +
+    breakdown.referrals
   );
 }

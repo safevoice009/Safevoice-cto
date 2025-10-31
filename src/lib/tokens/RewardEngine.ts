@@ -154,6 +154,7 @@ export class RewardEngine {
       bonuses: 0,
       crisis: 0,
       reporting: 0,
+      referrals: 0,
     });
     const lastLogin = localStorage.getItem(legacyKeys.lastLogin);
     const streak = this.getNumberFromStorage(legacyKeys.streak, 0);
@@ -222,6 +223,7 @@ export class RewardEngine {
         bonuses: 0,
         crisis: 0,
         reporting: 0,
+        referrals: 0,
       },
       streakData: {
         currentStreak: 0,
@@ -260,10 +262,24 @@ export class RewardEngine {
       lastPostStreakResetDate: streakData.lastPostStreakResetDate ?? null,
     };
 
+    const breakdown = snapshot.earningsBreakdown ?? this.createEmptySnapshot().earningsBreakdown;
+    const normalizedBreakdown: EarningsBreakdown = {
+      posts: breakdown.posts ?? 0,
+      reactions: breakdown.reactions ?? 0,
+      comments: breakdown.comments ?? 0,
+      helpful: breakdown.helpful ?? 0,
+      streaks: breakdown.streaks ?? 0,
+      bonuses: breakdown.bonuses ?? 0,
+      crisis: breakdown.crisis ?? 0,
+      reporting: breakdown.reporting ?? 0,
+      referrals: breakdown.referrals ?? 0,
+    };
+
     return {
       ...snapshot,
       streakData: normalizedStreakData,
       lastLogin: snapshot.lastLogin ?? normalizedStreakData.lastLoginDate,
+      earningsBreakdown: normalizedBreakdown,
     };
   }
 
