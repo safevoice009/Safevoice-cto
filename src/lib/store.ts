@@ -706,6 +706,10 @@ export interface StoreState {
 
   firstPostAwarded: boolean;
 
+  referralCode: string;
+  referredByCode: string | null;
+  referredFriends: ReferralFriend[];
+
   setConnectedAddress: (address: string | null) => void;
   setAnonymousWallet: (address: string | null) => void;
   generateAnonymousWallet: (password: string) => Promise<{ address: string; mnemonic: string }>;
@@ -1038,6 +1042,12 @@ export interface StoreState {
   addCommunityEvent: (title: string, date: string, location: string, description: string) => boolean;
   toggleEventRsvp: (eventId: string) => void;
   loadCommunityEvents: () => void;
+
+  // Referral System
+  generateReferralCode: () => string;
+  simulateReferralJoin: (code: string, friendName: string) => boolean;
+  markReferralFirstPost: (friendId: string) => boolean;
+  loadReferralData: () => void;
 
   // Utility
   saveToLocalStorage: () => void;
@@ -2829,6 +2839,10 @@ export const useStore = create<StoreState>((set, get) => {
       });
     },
 
+    referralCode: initialReferralState.code,
+    referredByCode: initialReferralState.referredByCode,
+    referredFriends: initialReferralState.friends,
+
     toggleModeratorMode: () => {
       set((state) => {
         const next = !state.isModerator;
@@ -4051,6 +4065,146 @@ export const useStore = create<StoreState>((set, get) => {
     if (typeof window === 'undefined') return;
     const state = get();
     rewardEngine.processDailyBonus(state.studentId);
+  },
+
+  generateReferralCode: () => {
+    const state = get();
+    const currentNormalized = normalizeInviteCode(state.referralCode);
+    let newCode = generateReferralCodeForStudent(state.studentId);
+    let attempts = 0;
+
+    while (normalizeInviteCode(newCode) === currentNormalized && attempts < 5) {
+      attempts += 1;
+      newCode = generateReferralCodeForStudent(`${state.studentId}-${Math.random().toString(36).slice(2, 4)}`);
+    }
+
+    const snapshot: ReferralStorageState = {
+      code: normalizeInviteCode(newCode),
+      referredByCode: state.referredByCode ? normalizeInviteCode(state.referredByCode) : null,
+      friends: state.referredFriends.map((friend) => ({
+        ...friend,
+        codeUsed: normalizeInviteCode(friend.codeUsed),
+      })),
+    };
+
+    set({ referralCode: snapshot.code, referredFriends: snapshot.friends });
+    persistReferralState(snapshot);
+    toast.success('Invite code refreshed!');
+    return snapshot.code;
+  },
+
+  simulateReferralJoin: (code: string, friendName: string) => {
+    const normalizedCode = normalizeInviteCode(code);
+    const trimmedName = friendName.trim();
+
+    if (normalizedCode.length === 0) {
+      toast.error('Enter an invite code to simulate a join.');
+      return false;
+    }
+
+    if (trimmedName.length === 0) {
+      toast.error('Give your friend a name to track their progress.');
+      return false;
+    }
+
+    const state = get();
+    const userCode = normalizeInviteCode(state.referralCode);
+
+    if (normalizedCode !== userCode) {
+      toast.error('That invite code does not match your current referral code.');
+      return false;
+    }
+
+    const duplicate = state.referredFriends.some(
+      (friend) =>
+        normalizeInviteCode(friend.codeUsed) === normalizedCode && friend.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (duplicate) {
+      toast.error(`${trimmedName} is already linked to this invite code.`);
+      return false;
+    }
+
+    const newFriend: ReferralFriend = {
+      id: crypto.randomUUID(),
+      name: trimmedName,
+      codeUsed: normalizedCode,
+      joinedAt: Date.now(),
+      firstPostAt: null,
+      firstPostRewarded: false,
+    };
+
+    const updatedFriends = [newFriend, ...state.referredFriends].sort((a, b) => b.joinedAt - a.joinedAt);
+
+    set({ referredFriends: updatedFriends });
+
+    persistReferralState({
+      code: userCode,
+      referredByCode: state.referredByCode ? normalizeInviteCode(state.referredByCode) : null,
+      friends: updatedFriends,
+    });
+
+    get().earnVoice(EARN_RULES.referralJoin, 'Friend joined with your invite', 'referrals', {
+      referralEvent: 'friend_join',
+      friendId: newFriend.id,
+      friendName: newFriend.name,
+      inviteCode: userCode,
+    });
+
+    toast.success(`${newFriend.name} joined! +${EARN_RULES.referralJoin} VOICE earned.`);
+    return true;
+  },
+
+  markReferralFirstPost: (friendId: string) => {
+    const state = get();
+    const target = state.referredFriends.find((friend) => friend.id === friendId);
+
+    if (!target) {
+      toast.error('Could not find that referral friend.');
+      return false;
+    }
+
+    if (target.firstPostRewarded) {
+      toast('First-post reward already granted for this friend.', { icon: 'ℹ️' });
+      return false;
+    }
+
+    const updatedFriend: ReferralFriend = {
+      ...target,
+      firstPostRewarded: true,
+      firstPostAt: Date.now(),
+    };
+
+    const updatedFriends = state.referredFriends
+      .map((friend) => (friend.id === friendId ? updatedFriend : friend))
+      .sort((a, b) => b.joinedAt - a.joinedAt);
+
+    set({ referredFriends: updatedFriends });
+
+    persistReferralState({
+      code: normalizeInviteCode(state.referralCode),
+      referredByCode: state.referredByCode ? normalizeInviteCode(state.referredByCode) : null,
+      friends: updatedFriends,
+    });
+
+    get().earnVoice(EARN_RULES.referralFirstPost, 'Referred friend shared their first post', 'referrals', {
+      referralEvent: 'friend_first_post',
+      friendId: updatedFriend.id,
+      friendName: updatedFriend.name,
+      inviteCode: updatedFriend.codeUsed,
+    });
+
+    toast.success(`Celebrating ${updatedFriend.name}'s first post! +${EARN_RULES.referralFirstPost} VOICE earned.`);
+    return true;
+  },
+
+  loadReferralData: () => {
+    const snapshot = readReferralState(get().studentId);
+    set({
+      referralCode: snapshot.code,
+      referredByCode: snapshot.referredByCode,
+      referredFriends: snapshot.friends,
+    });
   },
 
   dismissEmergencyBanner: () => {
