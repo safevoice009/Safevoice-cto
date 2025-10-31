@@ -127,6 +127,14 @@ export interface Post {
   supportOffered?: boolean;
   flaggedAt?: number | null;
   flaggedForSupport?: boolean;
+  pinnedAt?: number | null;
+  isHighlighted?: boolean;
+  highlightedAt?: number | null;
+  highlightedUntil?: number | null;
+  extendedLifetimeHours?: number;
+  crossCampusBoostedAt?: number | null;
+  crossCampusUntil?: number | null;
+  crossCampusBoosts?: string[];
 }
 
 export interface Report {
@@ -215,6 +223,7 @@ export interface StoreState {
   unreadCount: number;
   encryptionKeys: Record<string, JsonWebKey>;
   expiryTimeouts: Record<string, number>;
+  boostTimeouts: Record<string, { highlight?: number; crossCampus?: number }>;
 
   // Wallet & Token state
   connectedAddress: string | null;
@@ -306,7 +315,9 @@ export interface StoreState {
     }
   ) => void;
   deletePost: (postId: string, options?: { silent?: boolean }) => void;
-  togglePin: (postId: string) => void;
+  pinPost: (postId: string) => void;
+  highlightPost: (postId: string) => void;
+  boostToCampuses: (postId: string, campusIds: string[]) => void;
   addReaction: (postId: string, reactionType: keyof Reaction) => void;
   incrementHelpful: (postId: string) => void;
 
@@ -314,7 +325,7 @@ export interface StoreState {
   scheduleExpiry: (post: Post) => void;
   clearExpiryTimer: (postId: string) => void;
   markWarningShown: (postId: string) => void;
-  extendPostLifetime: (postId: string, duration: number) => void;
+  extendPostLifetime: (postId: string, hours?: number) => void;
   restoreDeletedPost: (post: Post) => void;
 
   // Encryption
@@ -389,6 +400,8 @@ const VIRAL_REACTION_THRESHOLD = 100;
 const VIRAL_REWARD_AMOUNT = EARN_RULES.viralPost;
 const HELPFUL_COMMENT_THRESHOLD = 5;
 const HELPFUL_COMMENT_REWARD_PREFIX = 'helpful_comment';
+
+type BoostType = 'highlight' | 'crossCampus';
 const MODERATOR_ACTION_TYPES: ModeratorAction['actionType'][] = [
   'blur_post',
   'hide_post',
@@ -750,6 +763,104 @@ export const useStore = create<StoreState>((set, get) => {
 
   const initialReferralState = readReferralState(initialStudentId);
 
+  const clearBoostTimeout = (postId: string, type: BoostType) => {
+    if (typeof window === 'undefined') return;
+    const timeoutId = get().boostTimeouts[postId]?.[type];
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
+
+    set((state) => {
+      const existing = state.boostTimeouts[postId] ?? {};
+      const updatedEntry = { ...existing };
+      delete updatedEntry[type];
+      const updatedMap = { ...state.boostTimeouts };
+      if (Object.keys(updatedEntry).length === 0) {
+        delete updatedMap[postId];
+      } else {
+        updatedMap[postId] = updatedEntry;
+      }
+      return { boostTimeouts: updatedMap };
+    });
+  };
+
+  const handleBoostExpiry = (postId: string, type: BoostType) => {
+    const post = get().posts.find((p) => p.id === postId);
+    if (!post) return;
+
+    if (type === 'highlight') {
+      if (!post.isHighlighted) return;
+      clearBoostTimeout(postId, 'highlight');
+      set((state) => ({
+        posts: state.posts.map((p) =>
+          p.id === postId
+            ? { ...p, isHighlighted: false, highlightedAt: null, highlightedUntil: null }
+            : p
+        ),
+      }));
+      get().saveToLocalStorage();
+      toast('Highlight boost expired', { icon: '⏱️' });
+    } else if (type === 'crossCampus') {
+      const hasActiveBoost = Array.isArray(post.crossCampusBoosts) && post.crossCampusBoosts.length > 0;
+      if (!hasActiveBoost) return;
+      clearBoostTimeout(postId, 'crossCampus');
+      set((state) => ({
+        posts: state.posts.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                crossCampusBoosts: [],
+                crossCampusBoostedAt: null,
+                crossCampusUntil: null,
+              }
+            : p
+        ),
+      }));
+      get().saveToLocalStorage();
+      toast('Cross-campus boost expired', { icon: '⏱️' });
+    }
+  };
+
+  const scheduleBoostTimeout = (postId: string, type: BoostType, expiresAt: number) => {
+    if (typeof window === 'undefined') return;
+    const timeLeft = expiresAt - Date.now();
+    if (timeLeft <= 0) {
+      handleBoostExpiry(postId, type);
+      return;
+    }
+
+    clearBoostTimeout(postId, type);
+
+    const timeoutId = window.setTimeout(() => {
+      handleBoostExpiry(postId, type);
+    }, timeLeft);
+
+    set((state) => ({
+      boostTimeouts: {
+        ...state.boostTimeouts,
+        [postId]: {
+          ...state.boostTimeouts[postId],
+          [type]: timeoutId,
+        },
+      },
+    }));
+  };
+
+  const scheduleExistingBoosts = (post: Post) => {
+    if (post.highlightedUntil && post.highlightedUntil > Date.now() && post.isHighlighted) {
+      scheduleBoostTimeout(post.id, 'highlight', post.highlightedUntil);
+    }
+
+    if (
+      post.crossCampusUntil &&
+      post.crossCampusUntil > Date.now() &&
+      Array.isArray(post.crossCampusBoosts) &&
+      post.crossCampusBoosts.length > 0
+    ) {
+      scheduleBoostTimeout(post.id, 'crossCampus', post.crossCampusUntil);
+    }
+  };
+
   return {
     studentId: initialStudentId,
     isModerator: initialIsModerator,
@@ -761,6 +872,7 @@ export const useStore = create<StoreState>((set, get) => {
     unreadCount: 0,
     encryptionKeys: {},
     expiryTimeouts: {},
+    boostTimeouts: {},
     showCrisisModal: false,
     pendingPost: null,
     savedHelplines: getSavedHelplinesFromStorage(),
@@ -1158,6 +1270,24 @@ export const useStore = create<StoreState>((set, get) => {
       const normalizedReportsForPost = Array.isArray(post.reports)
         ? (post.reports as Array<Partial<Report>>).map((rawReport) => upsertReport(reportCollection, rawReport))
         : [];
+      const nowTs = Date.now();
+      const rawPinnedAt = typeof post.pinnedAt === 'number' ? post.pinnedAt : null;
+      const rawHighlightUntil = typeof post.highlightedUntil === 'number' ? post.highlightedUntil : null;
+      const highlightActive = Boolean(post.isHighlighted && rawHighlightUntil && rawHighlightUntil > nowTs);
+      const sanitizedHighlightUntil = highlightActive ? rawHighlightUntil : null;
+      const rawHighlightAt = typeof post.highlightedAt === 'number' ? post.highlightedAt : null;
+      const normalizedExtendedHours =
+        typeof post.extendedLifetimeHours === 'number' && Number.isFinite(post.extendedLifetimeHours)
+          ? Math.max(0, Math.round(post.extendedLifetimeHours))
+          : 0;
+      const rawCrossUntil = typeof post.crossCampusUntil === 'number' ? post.crossCampusUntil : null;
+      const crossCampuses = Array.isArray(post.crossCampusBoosts)
+        ? (post.crossCampusBoosts as string[])
+            .map((id) => (typeof id === 'string' ? id.trim() : String(id || '')).trim())
+            .filter((id) => id.length > 0)
+        : [];
+      const crossActive = Boolean(rawCrossUntil && rawCrossUntil > nowTs && crossCampuses.length > 0);
+      const rawCrossBoostedAt = typeof post.crossCampusBoostedAt === 'number' ? post.crossCampusBoostedAt : null;
 
       return {
         ...post,
@@ -1175,6 +1305,14 @@ export const useStore = create<StoreState>((set, get) => {
         reports: normalizedReportsForPost,
         reportCount:
           typeof post.reportCount === 'number' ? Math.max(post.reportCount, normalizedReportsForPost.length) : normalizedReportsForPost.length,
+        pinnedAt: rawPinnedAt ?? (post.isPinned ? (typeof post.createdAt === 'number' ? post.createdAt : nowTs) : null),
+        isHighlighted: highlightActive,
+        highlightedAt: highlightActive ? (rawHighlightAt ?? nowTs) : null,
+        highlightedUntil: sanitizedHighlightUntil,
+        extendedLifetimeHours: normalizedExtendedHours,
+        crossCampusBoosts: crossActive ? crossCampuses : [],
+        crossCampusBoostedAt: crossActive ? (rawCrossBoostedAt ?? nowTs) : null,
+        crossCampusUntil: crossActive ? rawCrossUntil : null,
       };
     });
 
@@ -1215,6 +1353,14 @@ export const useStore = create<StoreState>((set, get) => {
           isEncrypted: false,
           encryptionMeta: null,
           warningShown: false,
+          pinnedAt: null,
+          isHighlighted: false,
+          highlightedAt: null,
+          highlightedUntil: null,
+          extendedLifetimeHours: 0,
+          crossCampusBoosts: [],
+          crossCampusBoostedAt: null,
+          crossCampusUntil: null,
         },
         {
           id: crypto.randomUUID(),
@@ -1239,6 +1385,14 @@ export const useStore = create<StoreState>((set, get) => {
           isEncrypted: false,
           encryptionMeta: null,
           warningShown: false,
+          pinnedAt: null,
+          isHighlighted: false,
+          highlightedAt: null,
+          highlightedUntil: null,
+          extendedLifetimeHours: 0,
+          crossCampusBoosts: [],
+          crossCampusBoostedAt: null,
+          crossCampusUntil: null,
         },
         {
           id: crypto.randomUUID(),
@@ -1263,6 +1417,14 @@ export const useStore = create<StoreState>((set, get) => {
           isEncrypted: false,
           encryptionMeta: null,
           warningShown: false,
+          pinnedAt: null,
+          isHighlighted: false,
+          highlightedAt: null,
+          highlightedUntil: null,
+          extendedLifetimeHours: 0,
+          crossCampusBoosts: [],
+          crossCampusBoostedAt: null,
+          crossCampusUntil: null,
         },
       ];
     }
@@ -1280,6 +1442,7 @@ export const useStore = create<StoreState>((set, get) => {
       if (post.expiresAt) {
         get().scheduleExpiry(post);
       }
+      scheduleExistingBoosts(post);
     });
 
     get().loadMemorialData();
@@ -2604,12 +2767,36 @@ export const useStore = create<StoreState>((set, get) => {
     get().saveToLocalStorage();
   },
 
-  extendPostLifetime: (postId: string, duration: number) => {
+  extendPostLifetime: (postId: string, hours: number = 24) => {
     const state = get();
     const post = state.posts.find((p) => p.id === postId);
-    if (!post || !post.expiresAt) return;
+    if (!post) return;
 
-    // Clear existing timer
+    if (post.studentId !== state.studentId) {
+      toast.error('You can only extend your own posts');
+      return;
+    }
+
+    if (!post.expiresAt) {
+      toast.error('This post has no expiration date');
+      return;
+    }
+
+    const extendCost = 10;
+    if (state.voiceBalance < extendCost) {
+      toast.error(`Insufficient balance. Need ${extendCost} VOICE to extend post lifetime`);
+      return;
+    }
+
+    get().spendVoice(extendCost, `Extend post lifetime by ${hours}h`, {
+      postId,
+      action: 'extend_lifetime',
+      hours,
+    });
+
+    const duration = hours * 60 * 60 * 1000;
+    const extendedHours = (post.extendedLifetimeHours || 0) + hours;
+
     get().clearExpiryTimer(postId);
 
     const newExpiresAt = post.expiresAt + duration;
@@ -2620,6 +2807,7 @@ export const useStore = create<StoreState>((set, get) => {
           ? {
               ...p,
               expiresAt: newExpiresAt,
+              extendedLifetimeHours: extendedHours,
               warningShown: false,
             }
           : p
@@ -2627,15 +2815,12 @@ export const useStore = create<StoreState>((set, get) => {
     }));
     get().saveToLocalStorage();
 
-    // Schedule new expiry
     const updatedPost = get().posts.find((p) => p.id === postId);
     if (updatedPost && updatedPost.expiresAt) {
       get().scheduleExpiry(updatedPost);
     }
 
-    toast.success('Post lifetime extended! ⏳', {
-      icon: '⏱️',
-    });
+    toast.success(`Post lifetime extended by ${hours} hours! ⏱️`);
   },
 
   restoreDeletedPost: (post: Post) => {
@@ -2658,6 +2843,147 @@ export const useStore = create<StoreState>((set, get) => {
     toast.success('Post restored! 🔓', {
       duration: 3000,
     });
+  },
+
+  // Post boost actions
+  pinPost: (postId: string) => {
+    const state = get();
+    const post = state.posts.find((p) => p.id === postId);
+    if (!post) return;
+
+    if (post.studentId !== state.studentId) {
+      toast.error('You can only pin your own posts');
+      return;
+    }
+
+    if (post.isPinned) {
+      set((state) => ({
+        posts: state.posts.map((p) =>
+          p.id === postId ? { ...p, isPinned: false } : p
+        ),
+      }));
+      get().saveToLocalStorage();
+      toast.success('Post unpinned');
+      return;
+    }
+
+    const pinnedCount = state.posts.filter((p) => p.isPinned && p.studentId === state.studentId).length;
+
+    if (pinnedCount >= 3) {
+      toast.error('Maximum 3 pinned posts allowed');
+      return;
+    }
+
+    const pinCost = 25;
+    if (state.voiceBalance < pinCost) {
+      toast.error(`Insufficient balance. Need ${pinCost} VOICE to pin post`);
+      return;
+    }
+
+    get().spendVoice(pinCost, 'Pin post to profile', { postId, action: 'pin_post' });
+
+    set((state) => ({
+      posts: state.posts.map((p) =>
+        p.id === postId ? { ...p, isPinned: true } : p
+      ),
+    }));
+    get().saveToLocalStorage();
+    toast.success('Post pinned to top! 📌');
+  },
+
+  highlightPost: (postId: string) => {
+    const state = get();
+    const post = state.posts.find((p) => p.id === postId);
+    if (!post) return;
+
+    if (post.studentId !== state.studentId) {
+      toast.error('You can only highlight your own posts');
+      return;
+    }
+
+    if (post.isHighlighted && post.highlightedUntil && post.highlightedUntil > Date.now()) {
+      toast.error('Post is already highlighted');
+      return;
+    }
+
+    const highlightCost = 15;
+    if (state.voiceBalance < highlightCost) {
+      toast.error(`Insufficient balance. Need ${highlightCost} VOICE to highlight post`);
+      return;
+    }
+
+    get().spendVoice(highlightCost, 'Highlight post', { postId, action: 'highlight_post' });
+
+    const now = Date.now();
+    const highlightedUntil = now + 24 * 60 * 60 * 1000; // 24 hours
+
+    set((state) => ({
+      posts: state.posts.map((p) =>
+        p.id === postId
+          ? { ...p, isHighlighted: true, highlightedAt: now, highlightedUntil }
+          : p
+      ),
+    }));
+    get().saveToLocalStorage();
+
+    scheduleBoostTimeout(postId, 'highlight', highlightedUntil);
+
+    toast.success('Post highlighted for 24 hours! ✨');
+  },
+
+  boostToCampuses: (postId: string, campusIds: string[]) => {
+    const state = get();
+    const post = state.posts.find((p) => p.id === postId);
+    if (!post) return;
+
+    if (post.studentId !== state.studentId) {
+      toast.error('You can only boost your own posts');
+      return;
+    }
+
+    if (!campusIds || campusIds.length === 0) {
+      toast.error('Please select at least one campus');
+      return;
+    }
+
+    const uniqueCampuses = Array.from(new Set(campusIds.map((id) => id.trim()).filter((id) => id.length > 0)));
+    if (uniqueCampuses.length === 0) {
+      toast.error('No valid campuses selected');
+      return;
+    }
+
+    const boostCost = 50;
+    if (state.voiceBalance < boostCost) {
+      toast.error(`Insufficient balance. Need ${boostCost} VOICE to boost cross-campus`);
+      return;
+    }
+
+    get().spendVoice(boostCost, `Cross-campus boost`, {
+      postId,
+      action: 'cross_campus_boost',
+      campusIds: uniqueCampuses,
+    });
+
+    const now = Date.now();
+    const crossCampusUntil = now + 24 * 60 * 60 * 1000;
+
+    set((state) => ({
+      posts: state.posts.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              crossCampusBoosts: uniqueCampuses,
+              crossCampusBoostedAt: now,
+              crossCampusUntil,
+            }
+          : p
+      ),
+    }));
+    get().saveToLocalStorage();
+
+    scheduleBoostTimeout(postId, 'crossCampus', crossCampusUntil);
+
+    toast.success(`Post boosted to ${uniqueCampuses.length} campus${uniqueCampuses.length === 1 ? '' : 'es'}! 🚀`);
   },
 
   // Encryption methods
