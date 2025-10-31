@@ -417,11 +417,33 @@ export class RewardEngine {
       referrals: breakdown.referrals ?? 0,
     };
 
+    const defaultSubscriptions = this.createDefaultSubscriptions();
+    const normalizedSubscriptions = (Object.keys(defaultSubscriptions) as PremiumFeatureType[]).reduce<SubscriptionState>(
+      (acc, feature) => {
+        const existing = snapshot.subscriptions?.[feature];
+        const defaultFeature = defaultSubscriptions[feature];
+        acc[feature] = {
+          ...defaultFeature,
+          ...existing,
+          id: defaultFeature.id,
+          name: existing?.name ?? defaultFeature.name,
+          description: existing?.description ?? defaultFeature.description,
+          monthlyCost: existing?.monthlyCost ?? defaultFeature.monthlyCost,
+          enabled: Boolean(existing?.enabled),
+          activatedAt: typeof existing?.activatedAt === 'number' ? existing.activatedAt : null,
+          nextRenewal: typeof existing?.nextRenewal === 'number' ? existing.nextRenewal : null,
+        };
+        return acc;
+      },
+      {} as SubscriptionState
+    );
+
     return {
       ...snapshot,
       streakData: normalizedStreakData,
       lastLogin: snapshot.lastLogin ?? normalizedStreakData.lastLoginDate,
       earningsBreakdown: normalizedBreakdown,
+      subscriptions: normalizedSubscriptions,
     };
   }
 

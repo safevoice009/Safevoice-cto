@@ -703,6 +703,7 @@ export interface StoreState {
   loginStreak: number;
   lastPostDate: string | null;
   postingStreak: number;
+  premiumSubscriptions: SubscriptionState;
 
   firstPostAwarded: boolean;
 
@@ -727,6 +728,12 @@ export interface StoreState {
   claimRewards: () => Promise<void>;
   loadWalletData: () => void;
   grantDailyLoginBonus: () => void;
+  checkSubscriptionRenewals: () => void;
+
+  // Premium subscriptions
+  activatePremium: (feature: PremiumFeatureType, cost?: number) => Promise<boolean>;
+  deactivatePremium: (feature: PremiumFeatureType) => Promise<boolean>;
+  isPremiumActive: (feature: PremiumFeatureType) => boolean;
 
   // Crisis support
   showCrisisModal: boolean;
@@ -2459,6 +2466,10 @@ export const useStore = create<StoreState>((set, get) => {
     void syncRewardState();
   });
 
+  rewardEngine.onSubscription(() => {
+    syncRewardState();
+  });
+
   const initialStudentId = typeof window !== 'undefined'
     ? localStorage.getItem(STORAGE_KEYS.STUDENT_ID) || generateStudentId()
     : generateStudentId();
@@ -4058,13 +4069,39 @@ export const useStore = create<StoreState>((set, get) => {
       loginStreak: snapshot.streakData.currentStreak,
       lastPostDate: snapshot.streakData.lastPostDate,
       postingStreak: snapshot.streakData.currentPostStreak,
+      premiumSubscriptions: snapshot.subscriptions,
     });
+
+    if (typeof window !== 'undefined') {
+      const state = get();
+      rewardEngine.checkSubscriptionRenewals(state.studentId);
+    }
   },
 
   grantDailyLoginBonus: () => {
     if (typeof window === 'undefined') return;
     const state = get();
     rewardEngine.processDailyBonus(state.studentId);
+    rewardEngine.checkSubscriptionRenewals(state.studentId);
+  },
+
+  checkSubscriptionRenewals: () => {
+    if (typeof window === 'undefined') return;
+    const state = get();
+    rewardEngine.checkSubscriptionRenewals(state.studentId);
+  },
+
+  activatePremium: async (feature: PremiumFeatureType, cost?: number) => {
+    const state = get();
+    return await rewardEngine.activatePremiumFeature(state.studentId, feature, cost);
+  },
+
+  deactivatePremium: async (feature: PremiumFeatureType) => {
+    return await rewardEngine.deactivatePremiumFeature(feature);
+  },
+
+  isPremiumActive: (feature: PremiumFeatureType) => {
+    return rewardEngine.isPremiumFeatureActive(feature);
   },
 
   generateReferralCode: () => {
