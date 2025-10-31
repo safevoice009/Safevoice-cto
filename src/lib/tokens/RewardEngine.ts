@@ -28,6 +28,7 @@ export interface WalletSnapshot {
   streakData: StreakData;
   lastLogin: string | null;
   achievements: Achievement[];
+  subscriptions: SubscriptionState;
 }
 
 // Streak tracking
@@ -66,10 +67,26 @@ export interface PostRewardBreakdown {
   details: string[];
 }
 
+// Premium subscription feature types
+export type PremiumFeatureType = 'verified_badge' | 'analytics' | 'ad_free' | 'priority_support';
+
+export interface PremiumFeature {
+  id: PremiumFeatureType;
+  name: string;
+  description: string;
+  monthlyCost: number;
+  enabled: boolean;
+  activatedAt: number | null;
+  nextRenewal: number | null;
+}
+
+export type SubscriptionState = Record<PremiumFeatureType, PremiumFeature>;
+
 // Event callback types
 export type RewardEventCallback = (amount: number, reason: string, metadata?: Record<string, unknown>) => void;
 export type SpendEventCallback = (amount: number, reason: string, metadata?: Record<string, unknown>) => void;
 export type BalanceChangeCallback = (newBalance: number, oldBalance: number) => void;
+export type SubscriptionEventCallback = (feature: PremiumFeatureType, enabled: boolean) => void;
 
 /**
  * RewardEngine: Centralized token management for $VOICE
@@ -90,13 +107,73 @@ export class RewardEngine {
   private readonly MIGRATION_KEY = 'voice_migration_v1';
   private readonly MAX_TRANSACTIONS = 100;
 
+  // Premium feature costs (monthly in VOICE tokens)
+  private readonly PREMIUM_COSTS: Record<PremiumFeatureType, number> = {
+    verified_badge: 50,
+    analytics: 30,
+    ad_free: 20,
+    priority_support: 40,
+  };
+
   // Event callbacks
   private onRewardCallbacks: RewardEventCallback[] = [];
   private onSpendCallbacks: SpendEventCallback[] = [];
   private onBalanceChangeCallbacks: BalanceChangeCallback[] = [];
+  private onSubscriptionCallbacks: SubscriptionEventCallback[] = [];
 
   constructor() {
     this.snapshot = this.loadOrMigrateSnapshot();
+  }
+
+  /**
+   * Create default subscription state with all features disabled
+   */
+  private createDefaultSubscriptions(): SubscriptionState {
+    return {
+      verified_badge: {
+        id: 'verified_badge',
+        name: 'Verified Badge',
+        description: 'Display a verified badge on your profile',
+        monthlyCost: this.PREMIUM_COSTS.verified_badge,
+        enabled: false,
+        activatedAt: null,
+        nextRenewal: null,
+      },
+      analytics: {
+        id: 'analytics',
+        name: 'Advanced Analytics',
+        description: 'Track detailed stats about your posts and engagement',
+        monthlyCost: this.PREMIUM_COSTS.analytics,
+        enabled: false,
+        activatedAt: null,
+        nextRenewal: null,
+      },
+      ad_free: {
+        id: 'ad_free',
+        name: 'Ad-Free Experience',
+        description: 'Remove all ads from your SafeVoice experience',
+        monthlyCost: this.PREMIUM_COSTS.ad_free,
+        enabled: false,
+        activatedAt: null,
+        nextRenewal: null,
+      },
+      priority_support: {
+        id: 'priority_support',
+        name: 'Priority Support',
+        description: 'Get faster responses from our support team',
+        monthlyCost: this.PREMIUM_COSTS.priority_support,
+        enabled: false,
+        activatedAt: null,
+        nextRenewal: null,
+      },
+    };
+  }
+
+  private cloneSubscriptions(subscriptions: SubscriptionState): SubscriptionState {
+    return (Object.keys(this.PREMIUM_COSTS) as PremiumFeatureType[]).reduce<SubscriptionState>((acc, feature) => {
+      acc[feature] = { ...subscriptions[feature] };
+      return acc;
+    }, {} as SubscriptionState);
   }
 
   /**
@@ -190,6 +267,7 @@ export class RewardEngine {
       },
       lastLogin,
       achievements: [],
+      subscriptions: this.createDefaultSubscriptions(),
     };
 
     // Save migrated snapshot
@@ -239,6 +317,7 @@ export class RewardEngine {
       },
       lastLogin: null,
       achievements: [],
+      subscriptions: this.createDefaultSubscriptions(),
     };
   }
 
@@ -275,11 +354,33 @@ export class RewardEngine {
       referrals: breakdown.referrals ?? 0,
     };
 
+    const defaultSubscriptions = this.createDefaultSubscriptions();
+    const normalizedSubscriptions = (Object.keys(defaultSubscriptions) as PremiumFeatureType[]).reduce<SubscriptionState>(
+      (acc, feature) => {
+        const existing = snapshot.subscriptions?.[feature];
+        const defaultFeature = defaultSubscriptions[feature];
+        acc[feature] = {
+          ...defaultFeature,
+          ...existing,
+          id: defaultFeature.id,
+          name: existing?.name ?? defaultFeature.name,
+          description: existing?.description ?? defaultFeature.description,
+          monthlyCost: existing?.monthlyCost ?? defaultFeature.monthlyCost,
+          enabled: Boolean(existing?.enabled),
+          activatedAt: typeof existing?.activatedAt === 'number' ? existing.activatedAt : null,
+          nextRenewal: typeof existing?.nextRenewal === 'number' ? existing.nextRenewal : null,
+        };
+        return acc;
+      },
+      {} as SubscriptionState
+    );
+
     return {
       ...snapshot,
       streakData: normalizedStreakData,
       lastLogin: snapshot.lastLogin ?? normalizedStreakData.lastLoginDate,
       earningsBreakdown: normalizedBreakdown,
+      subscriptions: normalizedSubscriptions,
     };
   }
 
@@ -757,6 +858,251 @@ export class RewardEngine {
     }
   }
 
+  /**
+   * Activate a premium feature with monthly subscription
+   */
+  async activatePremiumFeature(
+    userId: string,
+    feature: PremiumFeatureType,
+    cost?: number
+  ): Promise<boolean> {
+    const actualCost = cost ?? this.PREMIUM_COSTS[feature];
+
+    if (actualCost <= 0) {
+      console.warn('Invalid premium feature cost:', actualCost);
+      return false;
+    }
+
+    try {
+      await this.acquireLock();
+
+      const oldBalance = this.snapshot.balance;
+
+      if (oldBalance < actualCost) {
+        toast.error(`Insufficient balance. Need ${formatVoiceBalance(actualCost)} VOICE`);
+        return false;
+      }
+
+      const currentFeature = this.snapshot.subscriptions[feature];
+      if (currentFeature.enabled) {
+        toast.error(`${currentFeature.name} is already active`);
+        return false;
+      }
+
+      const now = Date.now();
+      const nextRenewal = now + 30 * 24 * 60 * 60 * 1000; // 30 days from now
+
+      const newBalance = oldBalance - actualCost;
+      const newSpent = this.snapshot.spent + actualCost;
+
+      const transaction: VoiceTransaction = {
+        id: crypto.randomUUID(),
+        type: 'spend',
+        amount: -actualCost,
+        reason: `Activated ${currentFeature.name}`,
+        reasonCode: 'premium_activation',
+        metadata: { userId, feature, activatedAt: now, nextRenewal },
+        timestamp: now,
+        balance: newBalance,
+        spent: newSpent,
+      };
+
+      const updatedSubscriptions = this.cloneSubscriptions(this.snapshot.subscriptions);
+      updatedSubscriptions[feature] = {
+        ...currentFeature,
+        enabled: true,
+        activatedAt: now,
+        nextRenewal,
+      };
+
+      this.snapshot = {
+        ...this.snapshot,
+        balance: newBalance,
+        spent: newSpent,
+        subscriptions: updatedSubscriptions,
+        transactions: [transaction, ...this.snapshot.transactions].slice(0, this.MAX_TRANSACTIONS),
+      };
+
+      this.persist();
+
+      this.onSpendCallbacks.forEach(cb => cb(actualCost, `Activated ${currentFeature.name}`, { feature }));
+      this.onBalanceChangeCallbacks.forEach(cb => cb(newBalance, oldBalance));
+      this.onSubscriptionCallbacks.forEach(cb => cb(feature, true));
+
+      toast.success(`${currentFeature.name} activated! 🎉`);
+
+      return true;
+    } catch (error) {
+      console.error('Failed to activate premium feature:', error);
+      return false;
+    } finally {
+      this.releaseLock();
+    }
+  }
+
+  /**
+   * Deactivate a premium feature
+   */
+  async deactivatePremiumFeature(feature: PremiumFeatureType): Promise<boolean> {
+    try {
+      await this.acquireLock();
+
+      const currentFeature = this.snapshot.subscriptions[feature];
+      if (!currentFeature.enabled) {
+        toast.error(`${currentFeature.name} is not active`);
+        return false;
+      }
+
+      const updatedSubscriptions = this.cloneSubscriptions(this.snapshot.subscriptions);
+      updatedSubscriptions[feature] = {
+        ...currentFeature,
+        enabled: false,
+        activatedAt: null,
+        nextRenewal: null,
+      };
+
+      this.snapshot = {
+        ...this.snapshot,
+        subscriptions: updatedSubscriptions,
+      };
+
+      this.persist();
+
+      this.onSubscriptionCallbacks.forEach(cb => cb(feature, false));
+
+      toast.success(`${currentFeature.name} deactivated`);
+
+      return true;
+    } catch (error) {
+      console.error('Failed to deactivate premium feature:', error);
+      return false;
+    } finally {
+      this.releaseLock();
+    }
+  }
+
+  /**
+   * Check and process subscription renewals
+   * Should be called on login and day rollover
+   */
+  async checkSubscriptionRenewals(userId: string): Promise<void> {
+    const now = Date.now();
+    const features = Object.keys(this.snapshot.subscriptions) as PremiumFeatureType[];
+
+    for (const feature of features) {
+      const sub = this.snapshot.subscriptions[feature];
+      
+      if (!sub.enabled || !sub.nextRenewal) {
+        continue;
+      }
+
+      if (now >= sub.nextRenewal) {
+        const cost = sub.monthlyCost;
+        
+        if (this.snapshot.balance >= cost) {
+          await this.processSubscriptionRenewal(userId, feature, cost);
+        } else {
+          await this.disableSubscriptionDueToInsufficientBalance(feature);
+        }
+      }
+    }
+  }
+
+  /**
+   * Process a subscription renewal (monthly charge)
+   */
+  private async processSubscriptionRenewal(
+    userId: string,
+    feature: PremiumFeatureType,
+    cost: number
+  ): Promise<boolean> {
+    try {
+      await this.acquireLock();
+
+      const oldBalance = this.snapshot.balance;
+      const newBalance = oldBalance - cost;
+      const newSpent = this.snapshot.spent + cost;
+      const now = Date.now();
+      const nextRenewal = now + 30 * 24 * 60 * 60 * 1000;
+
+      const currentFeature = this.snapshot.subscriptions[feature];
+
+      const transaction: VoiceTransaction = {
+        id: crypto.randomUUID(),
+        type: 'spend',
+        amount: -cost,
+        reason: `${currentFeature.name} renewal`,
+        reasonCode: 'premium_renewal',
+        metadata: { userId, feature, renewedAt: now, nextRenewal },
+        timestamp: now,
+        balance: newBalance,
+        spent: newSpent,
+      };
+
+      const updatedSubscriptions = this.cloneSubscriptions(this.snapshot.subscriptions);
+      updatedSubscriptions[feature] = {
+        ...currentFeature,
+        nextRenewal,
+      };
+
+      this.snapshot = {
+        ...this.snapshot,
+        balance: newBalance,
+        spent: newSpent,
+        subscriptions: updatedSubscriptions,
+        transactions: [transaction, ...this.snapshot.transactions].slice(0, this.MAX_TRANSACTIONS),
+      };
+
+      this.persist();
+
+      this.onSpendCallbacks.forEach(cb => cb(cost, `${currentFeature.name} renewal`, { feature }));
+      this.onBalanceChangeCallbacks.forEach(cb => cb(newBalance, oldBalance));
+
+      toast.success(`${currentFeature.name} renewed for ${formatVoiceBalance(cost)} 🔄`);
+
+      return true;
+    } catch (error) {
+      console.error('Failed to renew subscription:', error);
+      return false;
+    } finally {
+      this.releaseLock();
+    }
+  }
+
+  /**
+   * Disable subscription due to insufficient balance
+   */
+  private async disableSubscriptionDueToInsufficientBalance(feature: PremiumFeatureType): Promise<void> {
+    try {
+      await this.acquireLock();
+
+      const currentFeature = this.snapshot.subscriptions[feature];
+
+      const updatedSubscriptions = this.cloneSubscriptions(this.snapshot.subscriptions);
+      updatedSubscriptions[feature] = {
+        ...currentFeature,
+        enabled: false,
+        activatedAt: null,
+        nextRenewal: null,
+      };
+
+      this.snapshot = {
+        ...this.snapshot,
+        subscriptions: updatedSubscriptions,
+      };
+
+      this.persist();
+
+      this.onSubscriptionCallbacks.forEach(cb => cb(feature, false));
+
+      toast.error(`${currentFeature.name} disabled due to insufficient balance ⚠️`);
+    } catch (error) {
+      console.error('Failed to disable subscription:', error);
+    } finally {
+      this.releaseLock();
+    }
+  }
+
   // Getters
   getBalance(): number {
     return this.snapshot.balance;
@@ -798,6 +1144,14 @@ export class RewardEngine {
     return { ...this.snapshot };
   }
 
+  getSubscriptions(): SubscriptionState {
+    return this.cloneSubscriptions(this.snapshot.subscriptions);
+  }
+
+  isPremiumFeatureActive(feature: PremiumFeatureType): boolean {
+    return this.snapshot.subscriptions[feature]?.enabled ?? false;
+  }
+
   // Setters
   setBalance(balance: number): void {
     const oldBalance = this.snapshot.balance;
@@ -819,10 +1173,15 @@ export class RewardEngine {
     this.onBalanceChangeCallbacks.push(callback);
   }
 
+  onSubscription(callback: SubscriptionEventCallback): void {
+    this.onSubscriptionCallbacks.push(callback);
+  }
+
   // Clear listeners
   clearListeners(): void {
     this.onRewardCallbacks = [];
     this.onSpendCallbacks = [];
     this.onBalanceChangeCallbacks = [];
+    this.onSubscriptionCallbacks = [];
   }
 }
