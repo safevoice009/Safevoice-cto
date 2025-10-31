@@ -37,6 +37,12 @@ export interface StreakData {
   lastLoginDate: string | null;
   streakBroken: boolean;
   lastStreakResetDate: string | null;
+  // Posting streak tracking
+  currentPostStreak: number;
+  longestPostStreak: number;
+  lastPostDate: string | null;
+  postStreakBroken: boolean;
+  lastPostStreakResetDate: string | null;
 }
 
 // Achievement tracking
@@ -105,7 +111,8 @@ export class RewardEngine {
     const rawSnapshot = localStorage.getItem(this.STORAGE_KEY);
     if (rawSnapshot) {
       try {
-        return JSON.parse(rawSnapshot) as WalletSnapshot;
+        const parsed = JSON.parse(rawSnapshot) as WalletSnapshot;
+        return this.normalizeSnapshot(parsed);
       } catch (error) {
         console.error('Failed to parse wallet snapshot', error);
       }
@@ -174,6 +181,11 @@ export class RewardEngine {
         lastLoginDate: lastLogin,
         streakBroken: false,
         lastStreakResetDate: null,
+        currentPostStreak: 0,
+        longestPostStreak: 0,
+        lastPostDate: null,
+        postStreakBroken: false,
+        lastPostStreakResetDate: null,
       },
       lastLogin,
       achievements: [],
@@ -217,9 +229,41 @@ export class RewardEngine {
         lastLoginDate: null,
         streakBroken: false,
         lastStreakResetDate: null,
+        currentPostStreak: 0,
+        longestPostStreak: 0,
+        lastPostDate: null,
+        postStreakBroken: false,
+        lastPostStreakResetDate: null,
       },
       lastLogin: null,
       achievements: [],
+    };
+  }
+
+  /**
+   * Normalize snapshot to ensure all fields exist (backwards compatibility)
+   */
+  private normalizeSnapshot(snapshot: WalletSnapshot): WalletSnapshot {
+    const streakData = snapshot.streakData ?? this.createEmptySnapshot().streakData;
+
+    const normalizedStreakData: StreakData = {
+      ...streakData,
+      currentStreak: streakData.currentStreak ?? 0,
+      longestStreak: streakData.longestStreak ?? streakData.currentStreak ?? 0,
+      lastLoginDate: streakData.lastLoginDate ?? null,
+      streakBroken: streakData.streakBroken ?? false,
+      lastStreakResetDate: streakData.lastStreakResetDate ?? null,
+      currentPostStreak: streakData.currentPostStreak ?? 0,
+      longestPostStreak: streakData.longestPostStreak ?? streakData.currentPostStreak ?? 0,
+      lastPostDate: streakData.lastPostDate ?? null,
+      postStreakBroken: streakData.postStreakBroken ?? false,
+      lastPostStreakResetDate: streakData.lastPostStreakResetDate ?? null,
+    };
+
+    return {
+      ...snapshot,
+      streakData: normalizedStreakData,
+      lastLogin: snapshot.lastLogin ?? normalizedStreakData.lastLoginDate,
     };
   }
 
@@ -529,6 +573,7 @@ export class RewardEngine {
     const streakBroken = !isConsecutive && streakData.currentStreak > 0;
 
     this.snapshot.streakData = {
+      ...streakData,
       currentStreak: newStreak,
       longestStreak: Math.max(newStreak, streakData.longestStreak),
       lastLoginDate: today,
@@ -540,7 +585,12 @@ export class RewardEngine {
     this.persist();
 
     // Award daily login bonus
-    await this.awardTokens(userId, EARN_RULES.dailyLoginBonus, 'Daily login bonus', 'streaks', { date: today });
+    await this.awardTokens(userId, EARN_RULES.dailyLoginBonus, 'Daily login bonus', 'streaks', {
+      date: today,
+      streakType: 'login',
+      streakLength: newStreak,
+      previousStreak: streakData.currentStreak,
+    });
 
     // Check for streak milestones
     let milestone: string | undefined;
@@ -550,7 +600,7 @@ export class RewardEngine {
         EARN_RULES.monthlyStreak,
         `${newStreak}-day streak bonus! 🔥`,
         'streaks',
-        { streak: newStreak, milestone: '30-day' }
+        { streak: newStreak, milestone: '30-day', streakType: 'login' }
       );
       milestone = '30-day';
     } else if (newStreak % 7 === 0) {
@@ -559,7 +609,7 @@ export class RewardEngine {
         EARN_RULES.weeklyStreak,
         `${newStreak}-day streak bonus!`,
         'streaks',
-        { streak: newStreak, milestone: '7-day' }
+        { streak: newStreak, milestone: '7-day', streakType: 'login' }
       );
       milestone = '7-day';
     }
@@ -589,6 +639,56 @@ export class RewardEngine {
       );
     }
     return false;
+  }
+
+  /**
+   * Process daily posting streak bonus
+   * Tracks consecutive days with at least one post
+   * Awards bonus on 7th consecutive day
+   */
+  async processPostingStreak(userId: string): Promise<{ awarded: boolean; streakBonus: boolean; currentStreak: number }> {
+    const today = new Date().toDateString();
+    const { streakData } = this.snapshot;
+
+    // Check if already posted today
+    if (streakData.lastPostDate === today) {
+      // Already posted today, no need to update streak
+      return { awarded: false, streakBonus: false, currentStreak: streakData.currentPostStreak };
+    }
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isConsecutive = streakData.lastPostDate === yesterday.toDateString();
+
+    // Update posting streak
+    const newPostStreak = isConsecutive ? streakData.currentPostStreak + 1 : 1;
+    const postStreakBroken = !isConsecutive && streakData.currentPostStreak > 0;
+
+    this.snapshot.streakData = {
+      ...streakData,
+      currentPostStreak: newPostStreak,
+      longestPostStreak: Math.max(newPostStreak, streakData.longestPostStreak),
+      lastPostDate: today,
+      postStreakBroken,
+      lastPostStreakResetDate: postStreakBroken ? today : streakData.lastPostStreakResetDate,
+    };
+
+    this.persist();
+
+    // Award bonus on 7th consecutive posting day
+    let streakBonus = false;
+    if (newPostStreak === 7) {
+      await this.awardTokens(
+        userId,
+        EARN_RULES.postingStreakBonus,
+        '7-day posting streak! 🔥',
+        'streaks',
+        { postStreak: newPostStreak, milestone: '7-day-posting' }
+      );
+      streakBonus = true;
+    }
+
+    return { awarded: true, streakBonus, currentStreak: newPostStreak };
   }
 
   /**

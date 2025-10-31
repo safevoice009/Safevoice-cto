@@ -176,6 +176,8 @@ export interface StoreState {
   transactionHistory: VoiceTransaction[];
   lastLoginDate: string | null;
   loginStreak: number;
+  lastPostDate: string | null;
+  postingStreak: number;
 
   firstPostAwarded: boolean;
 
@@ -407,6 +409,8 @@ export const useStore = create<StoreState>((set, get) => {
       transactionHistory: snapshot.transactions,
       lastLoginDate: snapshot.lastLogin,
       loginStreak: snapshot.streakData.currentStreak,
+      lastPostDate: snapshot.streakData.lastPostDate,
+      postingStreak: snapshot.streakData.currentPostStreak,
     });
   };
 
@@ -449,6 +453,8 @@ export const useStore = create<StoreState>((set, get) => {
     transactionHistory: rewardEngine.getTransactionHistory(),
     lastLoginDate: rewardEngine.getStreakData().lastLoginDate,
     loginStreak: rewardEngine.getStreakData().currentStreak,
+    lastPostDate: rewardEngine.getStreakData().lastPostDate,
+    postingStreak: rewardEngine.getStreakData().currentPostStreak,
     firstPostAwarded: typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.FIRST_POST_AWARDED) === 'true' : false,
 
     setShowCrisisModal: (show: boolean) => set({ showCrisisModal: show }),
@@ -561,6 +567,8 @@ export const useStore = create<StoreState>((set, get) => {
         typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS) : null,
       lastLoginDate: snapshot.lastLogin,
       loginStreak: snapshot.streakData.currentStreak,
+      lastPostDate: snapshot.streakData.lastPostDate,
+      postingStreak: snapshot.streakData.currentPostStreak,
     });
   },
 
@@ -892,6 +900,19 @@ export const useStore = create<StoreState>((set, get) => {
         );
       }, delay);
     }
+
+    // Process daily posting streak
+    const postStreakDelay = (postRewardTotal > 0 ? 150 : 0) + (rewardBreakdown.crisis > 0 ? 150 : 0);
+    setTimeout(() => {
+      rewardEngine
+        .processPostingStreak(storeState.studentId)
+        .then(() => {
+          syncRewardState();
+        })
+        .catch((error) => {
+          console.error('Failed to process posting streak', error);
+        });
+    }, postStreakDelay);
 
     toast.success('Post created! 🎉');
   },
