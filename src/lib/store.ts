@@ -22,6 +22,18 @@ export interface Reaction {
   laugh: number;
 }
 
+export type TipEventType = 'tip' | 'gift';
+
+export interface TipEvent {
+  id: string;
+  postId: string;
+  from: string;
+  amount: number;
+  timestamp: number;
+  type: TipEventType;
+  isAnonymous?: boolean;
+}
+
 export type PostLifetime = '1h' | '6h' | '24h' | '7d' | '30d' | 'custom' | 'never';
 
 export interface EncryptionMeta {
@@ -224,6 +236,7 @@ export interface StoreState {
   encryptionKeys: Record<string, JsonWebKey>;
   expiryTimeouts: Record<string, number>;
   boostTimeouts: Record<string, { highlight?: number; crossCampus?: number }>;
+  communitySupport: Record<string, number>;
 
   // Wallet & Token state
   connectedAddress: string | null;
@@ -372,6 +385,11 @@ export interface StoreState {
   markReferralFirstPost: (friendId: string) => boolean;
   loadReferralData: () => void;
 
+  // Social Spending (tips, gifts, sponsorships)
+  tipUser: (userId: string, postId: string, amount: number) => boolean;
+  sendAnonymousGift: (userId: string, amount: number) => boolean;
+  sponsorHelpline: (amount: number) => boolean;
+
   // Utility
   saveToLocalStorage: () => void;
 }
@@ -392,6 +410,7 @@ const STORAGE_KEYS = {
   IS_MODERATOR: 'safevoice_is_moderator',
   MEMORIAL_TRIBUTES: 'safevoice_memorial_tributes',
   REFERRAL_STATE: 'safevoice_referral_state',
+  COMMUNITY_SUPPORT: 'safevoice_community_support',
 };
 
 const rewardEngine = new RewardEngine();
@@ -873,6 +892,7 @@ export const useStore = create<StoreState>((set, get) => {
     encryptionKeys: {},
     expiryTimeouts: {},
     boostTimeouts: {},
+    communitySupport: {},
     showCrisisModal: false,
     pendingPost: null,
     savedHelplines: getSavedHelplinesFromStorage(),
@@ -1198,6 +1218,134 @@ export const useStore = create<StoreState>((set, get) => {
       referredByCode: snapshot.referredByCode,
       referredFriends: snapshot.friends,
     });
+  },
+
+  // Social Spending Functions
+  tipUser: (userId: string, postId: string, amount: number) => {
+    const state = get();
+    const post = state.posts.find((p) => p.id === postId);
+    
+    if (!post) {
+      toast.error('Post not found');
+      return false;
+    }
+
+    if (post.studentId !== userId) {
+      toast.error('User ID does not match post author');
+      return false;
+    }
+
+    if (userId === state.studentId) {
+      toast.error('You cannot tip your own post');
+      return false;
+    }
+
+    if (amount < 1 || amount > 100) {
+      toast.error('Tip amount must be between 1 and 100 VOICE');
+      return false;
+    }
+
+    if (state.voiceBalance < amount) {
+      toast.error(`Insufficient balance. Need ${amount} VOICE to send tip`);
+      return false;
+    }
+
+    // Deduct from tipper
+    get().spendVoice(amount, `Tip for post`, {
+      postId,
+      recipientId: userId,
+      action: 'tip_user',
+      tipAmount: amount,
+    });
+
+    // Award to recipient
+    void rewardEngine.awardTokens(userId, amount, `Received tip from ${state.studentId}`, 'bonuses', {
+      postId,
+      tipperId: state.studentId,
+      action: 'received_tip',
+      tipAmount: amount,
+    });
+
+    // Notify recipient
+    get().addNotification({
+      recipientId: userId,
+      type: 'award',
+      postId,
+      actorId: state.studentId,
+      message: `Received ${amount} VOICE tip on your post! 💰`,
+    });
+
+    toast.success(`Sent ${amount} VOICE tip! 💰`);
+    return true;
+  },
+
+  sendAnonymousGift: (userId: string, amount: number) => {
+    const state = get();
+
+    if (userId === state.studentId) {
+      toast.error('You cannot gift yourself');
+      return false;
+    }
+
+    if (amount !== 10) {
+      toast.error('Anonymous gift amount must be 10 VOICE');
+      return false;
+    }
+
+    if (state.voiceBalance < amount) {
+      toast.error(`Insufficient balance. Need ${amount} VOICE to send gift`);
+      return false;
+    }
+
+    // Deduct from sender
+    get().spendVoice(amount, `Anonymous gift sent`, {
+      recipientId: userId,
+      action: 'anonymous_gift',
+      giftAmount: amount,
+    });
+
+    // Award to recipient
+    void rewardEngine.awardTokens(userId, amount, `Received anonymous gift`, 'bonuses', {
+      action: 'received_anonymous_gift',
+      giftAmount: amount,
+    });
+
+    // Notify recipient
+    get().addNotification({
+      recipientId: userId,
+      type: 'award',
+      postId: '',
+      actorId: 'anonymous',
+      message: `Someone sent you an anonymous gift of ${amount} VOICE! 🎁`,
+    });
+
+    toast.success(`Sent ${amount} VOICE anonymous gift! 🎁`);
+    return true;
+  },
+
+  sponsorHelpline: (amount: number) => {
+    const state = get();
+
+    if (amount !== 100) {
+      toast.error('Helpline sponsorship amount must be 100 VOICE');
+      return false;
+    }
+
+    if (state.voiceBalance < amount) {
+      toast.error(`Insufficient balance. Need ${amount} VOICE to sponsor helpline`);
+      return false;
+    }
+
+    // Deduct from sponsor
+    get().spendVoice(amount, `Sponsored helpline support`, {
+      action: 'sponsor_helpline',
+      sponsorshipAmount: amount,
+    });
+
+    toast.success(`Sponsored helpline with ${amount} VOICE! 💙 Thank you for supporting mental health resources.`, {
+      duration: 5000,
+    });
+    return true;
   },
 
   dismissEmergencyBanner: () => {

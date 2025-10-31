@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Bookmark, BookmarkCheck, AlertCircle, XCircle } from 'lucide-react';
+import { Search, Bookmark, BookmarkCheck, AlertCircle, XCircle, Heart } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { helplines, type Helpline } from '../lib/helplines';
 import EmergencyBanner from '../components/helplines/EmergencyBanner';
@@ -21,10 +21,16 @@ export default function HelplinesPage() {
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | '24_7' | 'open_now'>('all');
   const savedHelplines = useStore((state) => state.savedHelplines);
   const toggleSaveHelpline = useStore((state) => state.toggleSaveHelpline);
+  const sponsorHelpline = useStore((state) => state.sponsorHelpline);
+  const voiceBalance = useStore((state) => state.voiceBalance);
 
   useEffect(() => {
     document.title = 'Crisis Helplines | SafeVoice';
   }, []);
+
+  const handleSponsor = () => {
+    sponsorHelpline(100);
+  };
 
   const handleShare = async (helpline: Helpline) => {
     const text = `${helpline.name} (${helpline.category})\nPhone: ${helpline.number}\n${helpline.description}`;
@@ -96,6 +102,20 @@ export default function HelplinesPage() {
             You are not alone. These organizations offer confidential, compassionate support for
             anyone experiencing distress, anxiety, or thoughts of self-harm.
           </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={handleSponsor}
+              disabled={voiceBalance < 100}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-rose-500 to-purple-600 text-white font-semibold shadow-lg shadow-rose-500/30 hover:from-rose-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Heart className="w-4 h-4" />
+              <span>Sponsor a Helpline (100 VOICE)</span>
+            </button>
+            <span className="text-xs text-gray-400">
+              Your balance: <span className="text-primary font-semibold">{voiceBalance.toFixed(1)} VOICE</span>
+            </span>
+          </div>
         </header>
 
         <section className="glass p-6 rounded-2xl border border-white/10 space-y-6">
