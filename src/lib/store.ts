@@ -1056,6 +1056,11 @@ export interface StoreState {
   markReferralFirstPost: (friendId: string) => boolean;
   loadReferralData: () => void;
 
+  // Social Spending (tips, gifts, sponsorships)
+  tipUser: (userId: string, postId: string, amount: number) => boolean;
+  sendAnonymousGift: (userId: string, amount: number) => boolean;
+  sponsorHelpline: (amount: number) => boolean;
+
   // Utility
   saveToLocalStorage: () => void;
 
@@ -4244,6 +4249,134 @@ export const useStore = create<StoreState>((set, get) => {
       referredByCode: snapshot.referredByCode,
       referredFriends: snapshot.friends,
     });
+  },
+
+  // Social Spending Functions
+  tipUser: (userId: string, postId: string, amount: number) => {
+    const state = get();
+    const post = state.posts.find((p) => p.id === postId);
+    
+    if (!post) {
+      toast.error('Post not found');
+      return false;
+    }
+
+    if (post.studentId !== userId) {
+      toast.error('User ID does not match post author');
+      return false;
+    }
+
+    if (userId === state.studentId) {
+      toast.error('You cannot tip your own post');
+      return false;
+    }
+
+    if (amount < 1 || amount > 100) {
+      toast.error('Tip amount must be between 1 and 100 VOICE');
+      return false;
+    }
+
+    if (state.voiceBalance < amount) {
+      toast.error(`Insufficient balance. Need ${amount} VOICE to send tip`);
+      return false;
+    }
+
+    // Deduct from tipper
+    get().spendVoice(amount, `Tip for post`, {
+      postId,
+      recipientId: userId,
+      action: 'tip_user',
+      tipAmount: amount,
+    });
+
+    // Award to recipient
+    void rewardEngine.awardTokens(userId, amount, `Received tip from ${state.studentId}`, 'bonuses', {
+      postId,
+      tipperId: state.studentId,
+      action: 'received_tip',
+      tipAmount: amount,
+    });
+
+    // Notify recipient
+    get().addNotification({
+      recipientId: userId,
+      type: 'award',
+      postId,
+      actorId: state.studentId,
+      message: `Received ${amount} VOICE tip on your post! 💰`,
+    });
+
+    toast.success(`Sent ${amount} VOICE tip! 💰`);
+    return true;
+  },
+
+  sendAnonymousGift: (userId: string, amount: number) => {
+    const state = get();
+
+    if (userId === state.studentId) {
+      toast.error('You cannot gift yourself');
+      return false;
+    }
+
+    if (amount !== 10) {
+      toast.error('Anonymous gift amount must be 10 VOICE');
+      return false;
+    }
+
+    if (state.voiceBalance < amount) {
+      toast.error(`Insufficient balance. Need ${amount} VOICE to send gift`);
+      return false;
+    }
+
+    // Deduct from sender
+    get().spendVoice(amount, `Anonymous gift sent`, {
+      recipientId: userId,
+      action: 'anonymous_gift',
+      giftAmount: amount,
+    });
+
+    // Award to recipient
+    void rewardEngine.awardTokens(userId, amount, `Received anonymous gift`, 'bonuses', {
+      action: 'received_anonymous_gift',
+      giftAmount: amount,
+    });
+
+    // Notify recipient
+    get().addNotification({
+      recipientId: userId,
+      type: 'award',
+      postId: '',
+      actorId: 'anonymous',
+      message: `Someone sent you an anonymous gift of ${amount} VOICE! 🎁`,
+    });
+
+    toast.success(`Sent ${amount} VOICE anonymous gift! 🎁`);
+    return true;
+  },
+
+  sponsorHelpline: (amount: number) => {
+    const state = get();
+
+    if (amount !== 100) {
+      toast.error('Helpline sponsorship amount must be 100 VOICE');
+      return false;
+    }
+
+    if (state.voiceBalance < amount) {
+      toast.error(`Insufficient balance. Need ${amount} VOICE to sponsor helpline`);
+      return false;
+    }
+
+    // Deduct from sponsor
+    get().spendVoice(amount, `Sponsored helpline support`, {
+      action: 'sponsor_helpline',
+      sponsorshipAmount: amount,
+    });
+
+    toast.success(`Sponsored helpline with ${amount} VOICE! 💙 Thank you for supporting mental health resources.`, {
+      duration: 5000,
+    });
+    return true;
   },
 
   dismissEmergencyBanner: () => {
