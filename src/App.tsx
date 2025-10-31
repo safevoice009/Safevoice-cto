@@ -17,6 +17,7 @@ import Profile from './pages/Profile';
 import PostDetail from './pages/PostDetail';
 import HelplinesPage from './pages/Helplines';
 import GuidelinesPage from './pages/Guidelines';
+import MemorialWallPage from './pages/MemorialWall';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
 import { useStore } from './lib/store';
 import PostLifecycleManager from './lib/postLifecycleManager';
@@ -93,6 +94,7 @@ function AnimatedRoutes() {
             <Route path="/post/:postId" element={<PostDetail />} />
             <Route path="/helplines" element={<HelplinesPage />} />
             <Route path="/guidelines" element={<GuidelinesPage />} />
+            <Route path="/memorial" element={<MemorialWallPage />} />
           </Routes>
         </AnimatePresence>
       </main>

@@ -162,6 +162,23 @@ export interface VoiceTransaction {
   spent?: number;
 }
 
+export interface MemorialCandle {
+  id: string;
+  tributeId: string;
+  lightedBy: string;
+  lightedAt: number;
+}
+
+export interface MemorialTribute {
+  id: string;
+  createdBy: string;
+  createdAt: number;
+  personName: string;
+  message: string;
+  candles: MemorialCandle[];
+  milestoneRewardAwarded: boolean;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -289,6 +306,12 @@ export interface StoreState {
   // Moderator
   toggleModeratorMode: () => void;
 
+  // Memorial Wall
+  memorialTributes: MemorialTribute[];
+  createTribute: (personName: string, message: string) => boolean;
+  lightCandle: (tributeId: string) => void;
+  loadMemorialData: () => void;
+
   // Utility
   saveToLocalStorage: () => void;
 }
@@ -306,6 +329,7 @@ const STORAGE_KEYS = {
   ANON_WALLET_ENCRYPTED_KEY: 'anonWallet_encrypted',
   FIRST_POST_AWARDED: 'safevoice_first_post_awarded',
   IS_MODERATOR: 'safevoice_is_moderator',
+  MEMORIAL_TRIBUTES: 'safevoice_memorial_tributes',
 };
 
 const rewardEngine = new RewardEngine();
@@ -502,6 +526,7 @@ export const useStore = create<StoreState>((set, get) => {
     pendingPost: null,
     savedHelplines: getSavedHelplinesFromStorage(),
     emergencyBannerDismissedUntil: getEmergencyBannerDismissedUntil(),
+    memorialTributes: [],
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -823,6 +848,8 @@ export const useStore = create<StoreState>((set, get) => {
         get().scheduleExpiry(post);
       }
     });
+
+    get().loadMemorialData();
   },
 
   saveToLocalStorage: () => {
@@ -836,6 +863,7 @@ export const useStore = create<StoreState>((set, get) => {
     localStorage.setItem(STORAGE_KEYS.ENCRYPTION_KEYS, JSON.stringify(state.encryptionKeys));
     localStorage.setItem(STORAGE_KEYS.SAVED_HELPLINES, JSON.stringify(state.savedHelplines));
     localStorage.setItem(STORAGE_KEYS.FIRST_POST_AWARDED, state.firstPostAwarded ? 'true' : 'false');
+    localStorage.setItem(STORAGE_KEYS.MEMORIAL_TRIBUTES, JSON.stringify(state.memorialTributes));
   },
 
   addPost: (
@@ -2016,6 +2044,159 @@ export const useStore = create<StoreState>((set, get) => {
 
   getEncryptionKey: (keyId: string) => {
     return get().encryptionKeys[keyId];
+  },
+
+  loadMemorialData: () => {
+    if (typeof window === 'undefined') return;
+
+    const storedTributes = localStorage.getItem(STORAGE_KEYS.MEMORIAL_TRIBUTES);
+
+    if (!storedTributes) {
+      set({ memorialTributes: [] });
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(storedTributes) as Array<Partial<MemorialTribute>>;
+      const normalized = parsed.map((rawTribute) => {
+        const tributeId = rawTribute.id ?? crypto.randomUUID();
+        const candles = Array.isArray(rawTribute.candles)
+          ? rawTribute.candles.map((candle) => {
+              const partial = candle as Partial<MemorialCandle>;
+              return {
+                id: partial.id ?? crypto.randomUUID(),
+                tributeId,
+                lightedBy: typeof partial.lightedBy === 'string' ? partial.lightedBy : 'Anonymous',
+                lightedAt:
+                  typeof partial.lightedAt === 'number' ? partial.lightedAt : Date.now(),
+              } satisfies MemorialCandle;
+            })
+          : [];
+
+        return {
+          id: tributeId,
+          createdBy: typeof rawTribute.createdBy === 'string' ? rawTribute.createdBy : 'UnknownGuardian',
+          createdAt: typeof rawTribute.createdAt === 'number' ? rawTribute.createdAt : Date.now(),
+          personName: rawTribute.personName?.toString() ?? 'Beloved Soul',
+          message: rawTribute.message?.toString() ?? '',
+          candles,
+          milestoneRewardAwarded: Boolean(rawTribute.milestoneRewardAwarded),
+        } satisfies MemorialTribute;
+      });
+
+      set({ memorialTributes: normalized });
+    } catch (error) {
+      console.error('Failed to load memorial tributes:', error);
+      set({ memorialTributes: [] });
+    }
+  },
+
+  createTribute: (personName: string, message: string) => {
+    const currentStudentId = get().studentId;
+    const trimmedName = personName.trim();
+    const trimmedMessage = message.trim();
+
+    if (!trimmedName || !trimmedMessage) {
+      toast.error('Please provide both a name and a tribute message.');
+      return false;
+    }
+
+    if (trimmedMessage.length > 600) {
+      toast.error('Tribute message is too long. Please keep it under 600 characters.');
+      return false;
+    }
+
+    const newTribute: MemorialTribute = {
+      id: crypto.randomUUID(),
+      createdBy: currentStudentId,
+      createdAt: Date.now(),
+      personName: trimmedName,
+      message: trimmedMessage,
+      candles: [],
+      milestoneRewardAwarded: false,
+    };
+
+    set((state) => ({
+      memorialTributes: [newTribute, ...state.memorialTributes],
+    }));
+    get().saveToLocalStorage();
+
+    get().earnVoice(EARN_RULES.memorialTribute, `Tribute created for ${trimmedName} 🕊️`, 'bonuses', {
+      tributeId: newTribute.id,
+      personName: newTribute.personName,
+      action: 'create_tribute',
+      feature: 'memorial_wall',
+    });
+
+    return true;
+  },
+
+  lightCandle: (tributeId: string) => {
+    const currentStudentId = get().studentId;
+    const tribute = get().memorialTributes.find((t) => t.id === tributeId);
+
+    if (!tribute) {
+      toast.error('Tribute not found');
+      return;
+    }
+
+    const newCandle: MemorialCandle = {
+      id: crypto.randomUUID(),
+      tributeId,
+      lightedBy: currentStudentId,
+      lightedAt: Date.now(),
+    };
+
+    let milestoneAwardedNow = false;
+
+    const updatedTributes = get().memorialTributes.map((t) => {
+      if (t.id !== tributeId) {
+        return t;
+      }
+
+      const updatedCandles = [...t.candles, newCandle];
+      const hitMilestone = !t.milestoneRewardAwarded && updatedCandles.length >= 50;
+
+      if (hitMilestone) {
+        milestoneAwardedNow = true;
+      }
+
+      return {
+        ...t,
+        candles: updatedCandles,
+        milestoneRewardAwarded: t.milestoneRewardAwarded || hitMilestone,
+      };
+    });
+
+    set({ memorialTributes: updatedTributes });
+    get().saveToLocalStorage();
+
+    get().earnVoice(EARN_RULES.memorialCandle, `Candle lit for ${tribute.personName} 🕯️`, 'bonuses', {
+      tributeId,
+      personName: tribute.personName,
+      action: 'light_candle',
+      feature: 'memorial_wall',
+    });
+
+    if (milestoneAwardedNow) {
+      void rewardEngine.awardTokens(
+        tribute.createdBy,
+        EARN_RULES.memorialMilestone,
+        `${tribute.personName} reached 50 candles 🎉`,
+        'bonuses',
+        {
+          tributeId: tribute.id,
+          personName: tribute.personName,
+          action: 'candle_milestone',
+          feature: 'memorial_wall',
+          candleCount: 50,
+        }
+      );
+
+      toast.success(`${tribute.personName} has been honored with 50 candles! +100 VOICE to the tribute creator ✨`, {
+        duration: 5000,
+      });
+    }
   },
 };
 });

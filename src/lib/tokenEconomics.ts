@@ -38,6 +38,11 @@ export const EARN_RULES = {
   // Reputation
   trustedContributor: 100, // Verified helpful user
   earlyAdopter: 500, // First 1000 users
+
+  // Memorial Wall
+  memorialTribute: 20, // Create a tribute
+  memorialCandle: 2, // Light a candle
+  memorialMilestone: 100, // Tribute reaches 50 candles
 } as const;
 
 export const SPEND_RULES = {
