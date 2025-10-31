@@ -13,6 +13,7 @@ export const EARN_RULES = {
 
   // Comments
   comment: 3, // Each comment
+  reply: 2, // Each reply
   replyReceived: 2, // Someone replies to you
 
   // Community

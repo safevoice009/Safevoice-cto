@@ -1169,11 +1169,13 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   addComment: (postId: string, content: string, parentCommentId?: string) => {
+    const currentStudentId = get().studentId;
+
     const newComment: Comment = {
       id: crypto.randomUUID(),
       postId,
       parentCommentId: parentCommentId || null,
-      studentId: generateStudentId(),
+      studentId: currentStudentId,
       content,
       reactions: { heart: 0, fire: 0, clap: 0, sad: 0, angry: 0, laugh: 0 },
       replies: [],
@@ -1201,49 +1203,96 @@ export const useStore = create<StoreState>((set, get) => {
             comments: updatedComments,
             commentCount: countAllComments(updatedComments),
           };
-        } else {
-          // Add as root comment
-          const updatedComments = [...post.comments, newComment];
-          return {
-            ...post,
-            comments: updatedComments,
-            commentCount: countAllComments(updatedComments),
-          };
         }
+
+        // Add as root comment
+        const updatedComments = [...post.comments, newComment];
+        return {
+          ...post,
+          comments: updatedComments,
+          commentCount: countAllComments(updatedComments),
+        };
       }),
     }));
     get().saveToLocalStorage();
     toast.success('Comment posted! 💬');
 
-    get().earnVoice(EARN_RULES.comment, parentCommentId ? 'Reply posted' : 'Comment posted', 'comments', {
-      postId,
-      commentId: newComment.id,
-      parentCommentId: parentCommentId ?? null,
-    });
-
     if (navigator.vibrate) {
       navigator.vibrate(50);
     }
 
-    // Add notification to post owner
     const post = get().posts.find((p) => p.id === postId);
-    const currentStudentId = get().studentId;
 
-    if (post && post.studentId !== currentStudentId) {
-      const notifType = parentCommentId ? 'reply' : 'comment';
-      const message = parentCommentId ? 'replied to your post' : 'commented on your post';
-      get().addNotification({
-        recipientId: post.studentId,
-        type: notifType,
-        postId,
-        commentId: newComment.id,
-        actorId: currentStudentId,
-        message,
+    const commentRewardId = `comment:${newComment.id}`;
+    const transactionHistory = rewardEngine.getTransactionHistory();
+
+    type CommentRewardMetadata = {
+      rewardId?: string;
+      recipientRole?: 'author' | 'postOwner';
+      userId?: string;
+      [key: string]: unknown;
+    };
+
+    const hasReward = (role: CommentRewardMetadata['recipientRole'], userId: string) =>
+      transactionHistory.some((tx) => {
+        if (tx.type !== 'earn' || !tx.metadata) {
+          return false;
+        }
+        const metadata = tx.metadata as CommentRewardMetadata;
+        return (
+          metadata.rewardId === commentRewardId &&
+          metadata.recipientRole === role &&
+          metadata.userId === userId
+        );
       });
-    }
 
-    // Notify parent comment owner if replying
     if (parentCommentId) {
+      if (!hasReward('author', currentStudentId)) {
+        rewardEngine.awardTokens(
+          currentStudentId,
+          EARN_RULES.reply,
+          'Reply posted',
+          'comments',
+          {
+            rewardId: commentRewardId,
+            recipientRole: 'author',
+            postId,
+            commentId: newComment.id,
+            parentCommentId,
+            userId: currentStudentId,
+          }
+        );
+      }
+
+      if (post && post.studentId !== currentStudentId && !hasReward('postOwner', post.studentId)) {
+        rewardEngine.awardTokens(
+          post.studentId,
+          EARN_RULES.replyReceived,
+          'Reply received on post',
+          'comments',
+          {
+            rewardId: commentRewardId,
+            recipientRole: 'postOwner',
+            postId,
+            commentId: newComment.id,
+            parentCommentId,
+            fromUser: currentStudentId,
+            userId: post.studentId,
+          }
+        );
+      }
+
+      if (post && post.studentId !== currentStudentId) {
+        get().addNotification({
+          recipientId: post.studentId,
+          type: 'reply',
+          postId,
+          commentId: newComment.id,
+          actorId: currentStudentId,
+          message: 'replied to your post',
+        });
+      }
+
       const parentCommentOwner = findCommentOwner(post?.comments || [], parentCommentId);
       if (parentCommentOwner && parentCommentOwner !== currentStudentId) {
         get().addNotification({
@@ -1253,6 +1302,51 @@ export const useStore = create<StoreState>((set, get) => {
           commentId: newComment.id,
           actorId: currentStudentId,
           message: 'replied to your comment',
+        });
+      }
+    } else {
+      if (!hasReward('author', currentStudentId)) {
+        rewardEngine.awardTokens(
+          currentStudentId,
+          EARN_RULES.comment,
+          'Comment posted',
+          'comments',
+          {
+            rewardId: commentRewardId,
+            recipientRole: 'author',
+            postId,
+            commentId: newComment.id,
+            parentCommentId: null,
+            userId: currentStudentId,
+          }
+        );
+      }
+
+      if (post && post.studentId !== currentStudentId && !hasReward('postOwner', post.studentId)) {
+        rewardEngine.awardTokens(
+          post.studentId,
+          EARN_RULES.replyReceived,
+          'Comment received',
+          'comments',
+          {
+            rewardId: commentRewardId,
+            recipientRole: 'postOwner',
+            postId,
+            commentId: newComment.id,
+            fromUser: currentStudentId,
+            userId: post.studentId,
+          }
+        );
+      }
+
+      if (post && post.studentId !== currentStudentId) {
+        get().addNotification({
+          recipientId: post.studentId,
+          type: 'comment',
+          postId,
+          commentId: newComment.id,
+          actorId: currentStudentId,
+          message: 'commented on your post',
         });
       }
     }
