@@ -14,6 +14,7 @@ type NavLink = {
 
 const navLinks: NavLink[] = [
   { name: 'Feed', value: '/feed', type: 'route' },
+  { name: 'Marketplace', value: '/marketplace', type: 'route' },
   { name: 'Helplines', value: '/helplines', type: 'route' },
   { name: 'Guidelines', value: '/guidelines', type: 'route' },
   { name: 'Memorial', value: '/memorial', type: 'route' },

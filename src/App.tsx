@@ -18,6 +18,7 @@ import PostDetail from './pages/PostDetail';
 import HelplinesPage from './pages/Helplines';
 import GuidelinesPage from './pages/Guidelines';
 import MemorialWallPage from './pages/MemorialWall';
+import TokenMarketplace from './pages/TokenMarketplace';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
 import { useStore } from './lib/store';
 import PostLifecycleManager from './lib/postLifecycleManager';
@@ -95,6 +96,7 @@ function AnimatedRoutes() {
             <Route path="/helplines" element={<HelplinesPage />} />
             <Route path="/guidelines" element={<GuidelinesPage />} />
             <Route path="/memorial" element={<MemorialWallPage />} />
+            <Route path="/marketplace" element={<TokenMarketplace />} />
           </Routes>
         </AnimatePresence>
       </main>
