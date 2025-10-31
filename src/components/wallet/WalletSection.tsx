@@ -32,15 +32,22 @@ function AnimatedCounter({ value, duration = 1 }: AnimatedCounterProps) {
   const motionValue = useMotionValue(value);
   const rounded = useTransform(motionValue, (latest) => Math.max(0, Math.floor(latest)));
   const [displayValue, setDisplayValue] = useState(() => Math.max(0, Math.floor(value)));
+  const isTestEnv = process.env.NODE_ENV === 'test';
 
   useEffect(() => {
+    if (isTestEnv) {
+      motionValue.set(value);
+      setDisplayValue(Math.max(0, Math.floor(value)));
+      return;
+    }
+
     const animation = animate(motionValue, value, {
       duration,
       ease: 'easeOut',
     });
 
     return () => animation.stop();
-  }, [motionValue, value, duration]);
+  }, [motionValue, value, duration, isTestEnv]);
 
   useEffect(() => {
     const unsubscribe = rounded.on('change', (v) => setDisplayValue(v));
