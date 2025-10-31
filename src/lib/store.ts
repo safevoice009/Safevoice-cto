@@ -522,6 +522,16 @@ export interface ModeratorAction {
   metadata?: Record<string, unknown>;
 }
 
+export type NFTBadgeTier = 'bronze' | 'silver' | 'gold' | 'lifetime';
+
+export interface NFTBadge {
+  id: string;
+  tier: NFTBadgeTier;
+  purchasedAt: number;
+  purchasedBy: string;
+  cost: number;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -1060,6 +1070,12 @@ export interface StoreState {
   tipUser: (userId: string, postId: string, amount: number) => boolean;
   sendAnonymousGift: (userId: string, amount: number) => boolean;
   sponsorHelpline: (amount: number) => boolean;
+
+  // NFT Badges
+  nftBadges: NFTBadge[];
+  purchaseNFTBadge: (tier: NFTBadgeTier, cost: number) => boolean;
+  hasNFTBadge: (tier: NFTBadgeTier) => boolean;
+  loadNFTBadges: () => void;
 
   // Utility
   saveToLocalStorage: () => void;
@@ -4377,6 +4393,114 @@ export const useStore = create<StoreState>((set, get) => {
       duration: 5000,
     });
     return true;
+  },
+
+  purchaseNFTBadge: (tier, cost) => {
+    const definition = NFT_BADGE_DEFINITIONS[tier];
+    if (!definition) {
+      toast.error('Badge tier unavailable right now.');
+      return false;
+    }
+
+    if (cost !== definition.cost) {
+      toast.error('Badge cost mismatch detected. Please refresh and try again.');
+      return false;
+    }
+
+    const state = get();
+
+    const ownsBadge = state.nftBadges.some((badge) => badge.tier === tier);
+    if (ownsBadge) {
+      toast('You already own this NFT badge!', { icon: '✨' });
+      return false;
+    }
+
+    if (state.voiceBalance < definition.cost) {
+      toast.error(`Insufficient balance. Need ${definition.cost} VOICE to purchase ${definition.label}.`);
+      return false;
+    }
+
+    const purchasedAt = Date.now();
+    const badge: NFTBadge = {
+      id: crypto.randomUUID(),
+      tier,
+      purchasedAt,
+      purchasedBy: state.studentId,
+      cost: definition.cost,
+    };
+
+    get().spendVoice(definition.cost, `Purchased ${definition.label} NFT Badge`, {
+      action: 'purchase_nft_badge',
+      badgeTier: tier,
+      badgeName: definition.label,
+      badgeCost: definition.cost,
+      purchasedAt,
+    });
+
+    set((current) => {
+      const nextBadges = [...current.nftBadges, badge];
+      persistNFTBadges(nextBadges);
+      return { nftBadges: nextBadges };
+    });
+
+    get().saveToLocalStorage();
+
+    toast.custom(
+      (t) =>
+        createElement(
+          'div',
+          {
+            className:
+              'pointer-events-auto bg-slate-950/90 backdrop-blur-md border border-white/20 rounded-xl px-4 py-3 flex items-center space-x-3 shadow-lg',
+            style: { borderColor: definition.accent },
+          },
+          createElement(
+            'div',
+            {
+              className: `w-12 h-12 rounded-full bg-gradient-to-br ${definition.gradientFrom} ${definition.gradientTo} flex items-center justify-center text-xl shadow-inner`,
+              style: { boxShadow: `0 0 18px ${definition.accent}55` },
+            },
+            definition.icon
+          ),
+          createElement(
+            'div',
+            { className: 'flex flex-col text-white text-sm max-w-xs' },
+            createElement('span', { className: 'font-semibold' }, `${definition.label} Badge Unlocked!`),
+            createElement('span', { className: 'text-xs text-gray-300 mt-1 leading-snug' }, definition.description),
+            createElement(
+              'span',
+              { className: 'text-[11px] text-primary font-semibold mt-2' },
+              `-${definition.cost} VOICE`
+            )
+          ),
+          createElement(
+            'button',
+            {
+              className: 'text-xs text-gray-400 hover:text-white transition-colors',
+              onClick: () => toast.dismiss(t.id),
+              type: 'button',
+            },
+            'Close'
+          )
+        ),
+      { duration: 5000 }
+    );
+
+    if (navigator.vibrate) {
+      navigator.vibrate(40);
+    }
+
+    return true;
+  },
+
+  hasNFTBadge: (tier) => {
+    return get().nftBadges.some((badge) => badge.tier === tier);
+  },
+
+  loadNFTBadges: () => {
+    if (typeof window === 'undefined') return;
+    const badges = readStoredNFTBadges();
+    set({ nftBadges: badges });
   },
 
   dismissEmergencyBanner: () => {
