@@ -2803,6 +2803,21 @@ export const useStore = create<StoreState>((set, get) => {
       });
     },
 
+    toggleModeratorMode: () => {
+      set((state) => {
+        const next = !state.isModerator;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEYS.IS_MODERATOR, next ? 'true' : 'false');
+        }
+        if (next) {
+          toast.success('Moderator mode enabled');
+        } else {
+          toast('Moderator mode disabled', { icon: 'ℹ️' });
+        }
+        return { isModerator: next };
+      });
+    },
+
     // Wallet & Token state initialization - now using RewardEngine
     connectedAddress: null,
     anonymousWalletAddress:
