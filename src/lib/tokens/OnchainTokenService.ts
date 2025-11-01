@@ -8,7 +8,6 @@
 
 import type {
   TokenService,
-  TokenMetadata,
   TokenBalance,
   TransferResult,
   ApprovalResult,
@@ -274,7 +273,7 @@ export class OnchainTokenService implements TokenService {
     });
   }
 
-  onApproval(callback: (owner: string, spender: string, amount: number) => void): () => void {
+  onApproval(_callback: (owner: string, spender: string, amount: number) => void): () => void {
     // TODO: Subscribe to blockchain events
     // const contract = new ethers.Contract(this.config.contractAddress, ERC20_ABI, provider);
     // const filter = contract.filters.Approval();

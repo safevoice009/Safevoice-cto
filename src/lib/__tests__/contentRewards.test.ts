@@ -190,6 +190,31 @@ vi.mock('../tokens/RewardEngine', () => {
       return { ...snapshot.streakData };
     }
 
+    getSubscriptions() {
+      return {
+        verified_badge: { id: 'verified_badge', name: 'Verified Badge', description: '', monthlyCost: 50, enabled: false, activatedAt: null, nextRenewal: null },
+        analytics: { id: 'analytics', name: 'Advanced Analytics', description: '', monthlyCost: 30, enabled: false, activatedAt: null, nextRenewal: null },
+        ad_free: { id: 'ad_free', name: 'Ad-Free Experience', description: '', monthlyCost: 20, enabled: false, activatedAt: null, nextRenewal: null },
+        priority_support: { id: 'priority_support', name: 'Priority Support', description: '', monthlyCost: 40, enabled: false, activatedAt: null, nextRenewal: null },
+      };
+    }
+
+    getAchievements() {
+      return snapshot.achievements;
+    }
+
+    getAvailableBalance() {
+      return snapshot.balance;
+    }
+
+    getPendingBreakdown() {
+      return [];
+    }
+
+    async checkAndUnlockAchievements() {
+      return [];
+    }
+
     onReward(callback: RewardEventCallback) {
       rewardCallbacks.push(callback);
     }

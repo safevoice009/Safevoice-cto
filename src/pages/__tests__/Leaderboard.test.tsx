@@ -195,7 +195,7 @@ describe('Leaderboard Page', () => {
     expect(screen.getByText('🥈 Guardian')).toBeInTheDocument();
   });
 
-  it('should not display "Your Rank" card when user is in top 10', () => {
+  it('shows "Your Rank" card with top 10 badge when user is in top 10', () => {
     const posts: Post[] = [
       createMockPost({ studentId: 'Student#1000' }),
       createMockPost({ studentId: 'Student#1001' }),
@@ -212,7 +212,8 @@ describe('Leaderboard Page', () => {
       </BrowserRouter>
     );
 
-    expect(screen.queryByText('Your Rank')).not.toBeInTheDocument();
+    expect(screen.getByText('Your Rank')).toBeInTheDocument();
+    expect(screen.getByText(/you're in the top 10/i)).toBeInTheDocument();
   });
 
   it('should display "Your Rank" card when user is outside top 10', () => {

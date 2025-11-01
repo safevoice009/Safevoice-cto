@@ -94,16 +94,24 @@ describe('calculateUserStats', () => {
   });
 
   it('should include comments in engagement score', () => {
+    const comments = Array.from({ length: 5 }, (_, index) =>
+      createMockComment({
+        id: `comment-${index + 1}`,
+        studentId: `Student#200${index}`,
+      })
+    );
+
     const posts: Post[] = [
       createMockPost({
         studentId: 'Student#1000',
-        commentCount: 5,
+        comments,
+        commentCount: comments.length,
       }),
     ];
 
     const stats = calculateUserStats(posts, 'all-time');
 
-    expect(stats.get('Student#1000')?.engagementScore).toBeGreaterThanOrEqual(5);
+    expect(stats.get('Student#1000')?.engagementScore).toBeGreaterThanOrEqual(comments.length);
   });
 
   it('should count crisis assists for comments on crisis posts', () => {

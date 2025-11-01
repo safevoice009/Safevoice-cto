@@ -93,14 +93,22 @@ const rewardEngineStub = vi.hoisted(() => {
     onSpend: vi.fn(),
     onBalanceChange: vi.fn(),
     onSubscription: vi.fn(),
+    onAchievementUnlocked: vi.fn(),
     clearListeners: vi.fn(),
     setBalance: vi.fn(),
     getBalance: vi.fn(() => 0),
     getPending: vi.fn(() => 0),
+    getTotalEarned: vi.fn(() => 0),
+    getSpent: vi.fn(() => 0),
+    getClaimed: vi.fn(() => 0),
+    getAvailableBalance: vi.fn(() => 0),
+    getPendingBreakdown: vi.fn(() => []),
     getEarningsBreakdown: vi.fn(() => deepClone(createSnapshot().earningsBreakdown)),
     getTransactionHistory: vi.fn(() => []),
     getStreakData: vi.fn(() => deepClone(createSnapshot().streakData)),
     getSubscriptions: vi.fn(() => deepClone(createSnapshot().subscriptions)),
+    getAchievements: vi.fn(() => deepClone(createSnapshot().achievements)),
+    checkAndUnlockAchievements: vi.fn(async () => []),
   };
 });
 

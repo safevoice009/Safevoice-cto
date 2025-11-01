@@ -200,7 +200,8 @@ describe('WalletSection', () => {
     setupStore({ walletError: 'Network issue' });
     renderWalletSection();
 
-    expect(screen.getByText('Network issue')).toBeInTheDocument();
+    const errorElements = screen.getAllByText('Network issue');
+    expect(errorElements.length).toBeGreaterThan(0);
   });
 
   it('handles claim flow and updates UI state', async () => {

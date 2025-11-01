@@ -5,11 +5,10 @@
  * while adding event bus integration for decoupled event handling.
  */
 
-import { RewardEngine, type VoiceTransaction, type WalletSnapshot } from './RewardEngine';
+import { RewardEngine, type VoiceTransaction } from './RewardEngine';
 import { getTokenEventBus } from './TokenEventBus';
 import type {
   TokenService,
-  TokenMetadata,
   TokenBalance,
   TransferResult,
   ApprovalResult,
@@ -98,7 +97,7 @@ export class LocalTokenService implements TokenService {
     return 'Voice Token';
   }
 
-  async balanceOf(address: string): Promise<number> {
+  async balanceOf(_address: string): Promise<number> {
     // In local mode, we only track one user's balance
     return this.rewardEngine.getBalance();
   }
@@ -210,7 +209,7 @@ export class LocalTokenService implements TokenService {
     };
   }
 
-  async getBalance(address: string): Promise<TokenBalance> {
+  async getBalance(_address: string): Promise<TokenBalance> {
     return {
       total: this.rewardEngine.getTotalEarned(),
       available: this.rewardEngine.getBalance(),
@@ -219,17 +218,17 @@ export class LocalTokenService implements TokenService {
     };
   }
 
-  async getEarningsBreakdown(address: string): Promise<EarningsBreakdown> {
+  async getEarningsBreakdown(_address: string): Promise<EarningsBreakdown> {
     return this.rewardEngine.getEarningsBreakdown();
   }
 
-  async getTransactionHistory(address: string, limit?: number): Promise<TokenTransaction[]> {
+  async getTransactionHistory(_address: string, limit?: number): Promise<TokenTransaction[]> {
     const history = this.rewardEngine.getTransactionHistory();
     const transactions: TokenTransaction[] = history.map((tx: VoiceTransaction) => ({
       id: tx.id,
       type: tx.type === 'earn' ? 'mint' : tx.type === 'spend' ? 'burn' : 'transfer',
-      from: tx.type === 'earn' ? 'system' : address,
-      to: tx.type === 'spend' ? 'system' : address,
+      from: tx.type === 'earn' ? 'system' : _address,
+      to: tx.type === 'spend' ? 'system' : _address,
       amount: Math.abs(tx.amount),
       reason: tx.reason,
       metadata: tx.metadata,
@@ -250,7 +249,7 @@ export class LocalTokenService implements TokenService {
     });
   }
 
-  onApproval(callback: (owner: string, spender: string, amount: number) => void): () => void {
+  onApproval(_callback: (owner: string, spender: string, amount: number) => void): () => void {
     // Local service doesn't emit approval events currently
     return () => {};
   }
