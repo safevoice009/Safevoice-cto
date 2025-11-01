@@ -22,6 +22,7 @@ import TokenMarketplace from './pages/TokenMarketplace';
 import LeaderboardPage from './pages/Leaderboard';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
+import AchievementToastContainer from './components/wallet/AchievementToastContainer';
 import { useStore } from './lib/store';
 import PostLifecycleManager from './lib/postLifecycleManager';
 import { wagmiConfig, chains } from './lib/wagmiConfig';
@@ -106,6 +107,7 @@ function AnimatedRoutes() {
       </main>
       <Footer />
       <BottomNav />
+      <AchievementToastContainer />
       <CrisisAlertModal
         isOpen={showCrisisModal}
         onAcknowledge={handleCrisisAcknowledge}

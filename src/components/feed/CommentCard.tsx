@@ -7,6 +7,8 @@ import { formatTimeAgo, getStudentIdColor, parseMarkdown } from '../../lib/utils
 import ReactionBar from './ReactionBar';
 import CommentInput from './CommentInput';
 import ConfirmModal from './ConfirmModal';
+import RankChip from '../wallet/RankChip';
+import { AchievementService } from '../../lib/tokens/AchievementService';
 
 interface CommentCardProps {
   comment: Comment;
@@ -15,8 +17,19 @@ interface CommentCardProps {
 }
 
 export default function CommentCard({ comment, postId, depth = 0 }: CommentCardProps) {
-  const { studentId, isModerator, addCommentReaction, deleteComment, addComment, updateComment, addNotification, markCommentHelpful, markCommentAsVerifiedAdvice } =
-    useStore();
+  const {
+    studentId,
+    isModerator,
+    addCommentReaction,
+    deleteComment,
+    addComment,
+    updateComment,
+    addNotification,
+    markCommentHelpful,
+    markCommentAsVerifiedAdvice,
+    currentRank,
+    achievements,
+  } = useStore();
 
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -34,6 +47,8 @@ export default function CommentCard({ comment, postId, depth = 0 }: CommentCardP
   const isOwnComment = comment.studentId === studentId;
   const hasReplies = comment.replies && comment.replies.length > 0;
   const isVerifiedAdvice = comment.isVerifiedAdvice;
+  const authorRank = isOwnComment ? currentRank : AchievementService.getRank(0);
+
 
   const containerClasses = [
     'rounded-xl p-4 transition-all duration-300 border',
@@ -96,18 +111,30 @@ export default function CommentCard({ comment, postId, depth = 0 }: CommentCardP
             {comment.studentId.slice(-4)}
           </div>
           <div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-medium text-white">{comment.studentId}</p>
-              <span className="text-xs text-gray-400">{formatTimeAgo(comment.createdAt)}</span>
-              {comment.isEdited && <span className="text-xs text-gray-500">(edited)</span>}
+              <RankChip rank={authorRank} size="sm" />
+              {isOwnComment && achievements.length > 0 && (
+                <div className="flex items-center gap-1">
+                  {achievements.slice(0, 2).map((badge) => (
+                    <span key={badge.id} className="text-xs" title={badge.name}>
+                      {badge.icon}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap text-xs text-gray-400 mt-1">
+              <span>{formatTimeAgo(comment.createdAt)}</span>
+              {comment.isEdited && <span className="text-gray-500">(edited)</span>}
               {comment.isVerifiedAdvice && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full">
                   <ShieldCheck className="w-3 h-3" />
                   <span>Verified Advice</span>
                 </span>
               )}
               {comment.crisisSupportRewardAwarded && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-500/20 text-rose-300 text-xs rounded-full">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-500/20 text-rose-300 rounded-full">
                   <span>🆘</span>
                   <span>Crisis Support</span>
                 </span>

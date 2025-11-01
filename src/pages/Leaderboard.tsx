@@ -206,7 +206,7 @@ export default function LeaderboardPage() {
 
   const leaderboardEntries = useMemo(
     () => getTopUsers(posts, activeTimeframe, activeCategory),
-    [posts, activeTimeframe, activeCategory, studentId]
+    [posts, activeTimeframe, activeCategory]
   );
 
   const userRank = useMemo(
