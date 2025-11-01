@@ -136,6 +136,10 @@ vi.mock('../tokens/RewardEngine', () => {
       balanceChangeCallbacks.push(callback);
     }
 
+    onSubscription() {}
+
+    onAchievementUnlocked() {}
+
     clearListeners() {
       rewardCallbacks = [];
       balanceChangeCallbacks = [];
