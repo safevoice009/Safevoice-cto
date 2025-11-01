@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Wallet,
   Coins,
@@ -24,6 +24,7 @@ import ReferralSection from './ReferralSection';
 import PremiumSettings from './PremiumSettings';
 import NFTBadgeStore from './NFTBadgeStore';
 import UtilitiesSection from './UtilitiesSection';
+import TransactionHistory from './TransactionHistory';
 
 interface AnimatedCounterProps {
   value: number;
@@ -60,6 +61,7 @@ function AnimatedCounter({ value, duration = 1 }: AnimatedCounterProps) {
 }
 
 export default function WalletSection() {
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [localClaimLoading, setLocalClaimLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -129,15 +131,6 @@ export default function WalletSection() {
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    const now = Date.now();
-    const diff = now - timestamp;
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    return `${Math.floor(diff / 86400000)}d ago`;
-  };
-
   // Use pending rewards breakdown from store
   const pendingBreakdown = pendingRewardBreakdown.length > 0
     ? pendingRewardBreakdown
@@ -147,8 +140,8 @@ export default function WalletSection() {
 
   const LOW_BALANCE_THRESHOLD = 10;
   const showLowBalanceAlert = availableBalance < LOW_BALANCE_THRESHOLD && availableBalance > 0;
-  const isTransactionLoading = walletLoading && transactionHistory.length === 0;
   const hasTransactions = transactionHistory.length > 0;
+  const isTransactionLoading = walletLoading && !hasTransactions;
 
   return (
     <div className="space-y-6">
@@ -477,123 +470,69 @@ export default function WalletSection() {
 
       <UtilitiesSection />
 
-      {/* Transaction History */}
+      {/* Recent Transaction History with View All Link */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 1.0 }}
-        className="glass p-6 space-y-4"
+        className="space-y-4"
       >
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
-            <Clock className="w-6 h-6 text-primary" />
-            <span>🕒 Recent Transactions</span>
-          </h2>
-          {transactionHistory.length > 0 && (
-            <Link
-              to="/transactions"
-              className="flex items-center space-x-1 text-primary hover:text-primary/80 transition-colors text-sm font-medium"
-            >
-              <span>View All</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+        <div className="glass p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
+              <Clock className="w-6 h-6 text-primary" />
+              <span>🕒 Recent Transactions</span>
+            </h2>
+            {transactionHistory.length > 10 && (
+              <button
+                onClick={() => navigate('/transactions')}
+                className="flex items-center space-x-2 px-4 py-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors font-medium"
+              >
+                <span>View All</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {walletLoading && hasTransactions && (
+            <div className="flex items-center space-x-2 text-xs text-gray-400">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span>Syncing latest activity...</span>
+            </div>
+          )}
+
+          {walletError && hasTransactions && (
+            <div className="flex items-center space-x-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-300">
+              <AlertCircle className="w-4 h-4" />
+              <span>{walletError}</span>
+            </div>
+          )}
+
+          {isTransactionLoading ? (
+            <div className="text-center py-8">
+              <div className="flex flex-col items-center space-y-3">
+                <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent" />
+                <p className="text-gray-400 text-sm">Loading transactions...</p>
+              </div>
+            </div>
+          ) : !hasTransactions ? (
+            <div className="text-center py-8 text-gray-400">
+              <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No transactions yet</p>
+              <p className="text-sm mt-2">Start earning VOICE by creating posts!</p>
+            </div>
+          ) : (
+            <TransactionHistory
+              transactions={transactionHistory}
+              showFilters={false}
+              showPagination={false}
+              showExport={false}
+              showHeader={false}
+              visibleCount={10}
+              maxHeight="max-h-[500px]"
+            />
           )}
         </div>
-
-        {walletLoading && hasTransactions && (
-          <div className="flex items-center space-x-2 text-xs text-gray-400">
-            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            <span>Syncing latest activity...</span>
-          </div>
-        )}
-
-        {walletError && hasTransactions && (
-          <div className="flex items-center space-x-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-300">
-            <AlertCircle className="w-4 h-4" />
-            <span>{walletError}</span>
-          </div>
-        )}
-
-        {isTransactionLoading ? (
-          <div className="text-center py-8">
-            <div className="flex flex-col items-center space-y-3">
-              <div className="animate-spin rounded-full h-10 w-10 border-3 border-primary border-t-transparent" />
-              <p className="text-gray-400 text-sm">Loading transactions...</p>
-            </div>
-          </div>
-        ) : !hasTransactions ? (
-          <div className="text-center py-8 text-gray-400">
-            <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>No transactions yet</p>
-            <p className="text-sm mt-2">Start earning VOICE by creating posts!</p>
-          </div>
-        ) : (
-          <>
-            <div className="space-y-2">
-              {transactionHistory.slice(0, 5).map((tx) => {
-                const metadata = (tx.metadata ?? {}) as Record<string, unknown>;
-                const claimedAmountRaw = metadata['claimedAmount'];
-                const claimedAmount = typeof claimedAmountRaw === 'number' ? claimedAmountRaw : 0;
-                const rawAmount = tx.type === 'claim' ? claimedAmount : tx.amount;
-                const signedAmount = tx.type === 'spend' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
-                const isNegative = signedAmount < 0;
-                const sign = isNegative ? '-' : signedAmount > 0 ? '+' : '';
-                const formattedAmount = formatVoiceBalance(Math.abs(signedAmount));
-                const amountColor =
-                  tx.type === 'spend'
-                    ? 'text-red-400'
-                    : tx.type === 'claim'
-                    ? 'text-blue-400'
-                    : 'text-green-400';
-                const categoryRaw = metadata['category'];
-                const categoryLabel = typeof categoryRaw === 'string' ? categoryRaw : null;
-
-                return (
-                  <div
-                    key={tx.id}
-                    className="flex items-center justify-between p-3 bg-surface/30 rounded-lg hover:bg-surface/50 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <p className="text-white font-medium flex items-center gap-2">
-                        {tx.reason}
-                        {tx.reasonCode && (
-                          <span className="text-[10px] uppercase tracking-wide text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
-                            {tx.reasonCode}
-                          </span>
-                        )}
-                        {categoryLabel && (
-                          <span className="text-[10px] uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                            {categoryLabel}
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">{formatDate(tx.timestamp)}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Balance after: <span className="text-gray-300">{formatVoiceBalance(tx.balance)}</span>
-                        {typeof tx.pending === 'number' && (
-                          <span className="ml-2">Pending: {formatVoiceBalance(tx.pending)}</span>
-                        )}
-                      </p>
-                    </div>
-                    <span className={`font-semibold ${amountColor}`}>
-                      {sign}
-                      {formattedAmount}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-            
-            {transactionHistory.length > 5 && (
-              <Link
-                to="/transactions"
-                className="block text-center py-3 text-primary hover:text-primary/80 transition-colors text-sm font-medium"
-              >
-                View all {transactionHistory.length} transactions →
-              </Link>
-            )}
-          </>
-        )}
       </motion.div>
 
       {/* Action Buttons */}

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { MockedFunction } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { MemoryRouter } from 'react-router-dom';
 import WalletSection from '../WalletSection';
 import { useAccount, useEnsName, useNetwork } from 'wagmi';
 import { useStore } from '../../../lib/store';
@@ -29,6 +30,7 @@ vi.mock('../ReferralSection', () => ({ default: () => <div data-testid="referral
 vi.mock('../PremiumSettings', () => ({ default: () => <div data-testid="premium-settings" /> }));
 vi.mock('../NFTBadgeStore', () => ({ default: () => <div data-testid="nft-store" /> }));
 vi.mock('../UtilitiesSection', () => ({ default: () => <div data-testid="utilities" /> }));
+vi.mock('../TransactionHistory', () => ({ default: () => <div data-testid="transaction-history" /> }));
 
 const mockedUseAccount = useAccount as unknown as MockedFunction<typeof useAccount>;
 const mockedUseEnsName = useEnsName as unknown as MockedFunction<typeof useEnsName>;
@@ -36,6 +38,13 @@ const mockedUseNetwork = useNetwork as unknown as MockedFunction<typeof useNetwo
 
 const initialStoreState = useStore.getState();
 let claimRewardsStub: ReturnType<typeof vi.fn>;
+
+const renderWalletSection = () =>
+  render(
+    <MemoryRouter>
+      <WalletSection />
+    </MemoryRouter>
+  );
 
 const setupStore = (overrides: Partial<ReturnType<typeof useStore.getState>> = {}) => {
   const now = Date.now();
@@ -153,7 +162,7 @@ afterEach(() => {
 
 describe('WalletSection', () => {
   it('renders aggregated balance facets', () => {
-    render(<WalletSection />);
+    renderWalletSection();
 
     expect(screen.getAllByText('Total Earned').length).toBeGreaterThan(0);
     expect(screen.getByText('Pending Rewards')).toBeInTheDocument();
@@ -172,7 +181,7 @@ describe('WalletSection', () => {
 
   it('disables claim button when no pending rewards', () => {
     setupStore({ pendingRewards: 0, pendingRewardBreakdown: [] });
-    render(<WalletSection />);
+    renderWalletSection();
 
     const button = screen.getByRole('button', { name: /no rewards to claim/i });
     expect(button).toBeDisabled();
@@ -180,7 +189,7 @@ describe('WalletSection', () => {
 
   it('shows syncing state when wallet loading', () => {
     setupStore({ walletLoading: true });
-    render(<WalletSection />);
+    renderWalletSection();
 
     expect(screen.getByText(/syncing wallet/i)).toBeInTheDocument();
     const button = screen.getByRole('button', { name: /syncing wallet/i });
@@ -189,13 +198,13 @@ describe('WalletSection', () => {
 
   it('shows error alert when wallet error is present', () => {
     setupStore({ walletError: 'Network issue' });
-    render(<WalletSection />);
+    renderWalletSection();
 
     expect(screen.getByText('Network issue')).toBeInTheDocument();
   });
 
   it('handles claim flow and updates UI state', async () => {
-    render(<WalletSection />);
+    renderWalletSection();
 
     const button = screen.getByRole('button', { name: /claim rewards/i });
     fireEvent.click(button);

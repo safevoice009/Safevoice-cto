@@ -20,7 +20,7 @@ import GuidelinesPage from './pages/Guidelines';
 import MemorialWallPage from './pages/MemorialWall';
 import TokenMarketplace from './pages/TokenMarketplace';
 import LeaderboardPage from './pages/Leaderboard';
-import TransactionsPage from './pages/Transactions';
+import TransactionHistoryPage from './pages/TransactionHistoryPage';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
 import { useStore } from './lib/store';
 import PostLifecycleManager from './lib/postLifecycleManager';
@@ -100,7 +100,7 @@ function AnimatedRoutes() {
             <Route path="/memorial" element={<MemorialWallPage />} />
             <Route path="/marketplace" element={<TokenMarketplace />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
-            <Route path="/transactions" element={<TransactionsPage />} />
+            <Route path="/transactions" element={<TransactionHistoryPage />} />
           </Routes>
         </AnimatePresence>
       </main>
