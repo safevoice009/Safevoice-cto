@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   Wallet,
   Coins,
@@ -13,6 +14,7 @@ import {
   AlertCircle,
   Gift,
   Award,
+  ArrowRight,
 } from 'lucide-react';
 import { useAccount, useEnsName, useNetwork } from 'wagmi';
 import { useStore } from '../../lib/store';
@@ -22,6 +24,7 @@ import ReferralSection from './ReferralSection';
 import PremiumSettings from './PremiumSettings';
 import NFTBadgeStore from './NFTBadgeStore';
 import UtilitiesSection from './UtilitiesSection';
+import TransactionHistory from './TransactionHistory';
 
 interface AnimatedCounterProps {
   value: number;
@@ -58,6 +61,7 @@ function AnimatedCounter({ value, duration = 1 }: AnimatedCounterProps) {
 }
 
 export default function WalletSection() {
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [localClaimLoading, setLocalClaimLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -125,15 +129,6 @@ export default function WalletSection() {
     } finally {
       setLocalClaimLoading(false);
     }
-  };
-
-  const formatDate = (timestamp: number) => {
-    const now = Date.now();
-    const diff = now - timestamp;
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    return `${Math.floor(diff / 86400000)}d ago`;
   };
 
   // Use pending rewards breakdown from store
@@ -473,66 +468,48 @@ export default function WalletSection() {
 
       <UtilitiesSection />
 
-      {/* Transaction History */}
+      {/* Recent Transaction History with View All Link */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 1.0 }}
-        className="glass p-6 space-y-4"
+        className="space-y-4"
       >
-        <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
-          <Clock className="w-6 h-6 text-primary" />
-          <span>🕒 Recent Transactions</span>
-        </h2>
-
-        {transactionHistory.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">
-            <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>No transactions yet</p>
-            <p className="text-sm mt-2">Start earning VOICE by creating posts!</p>
+        <div className="glass p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
+              <Clock className="w-6 h-6 text-primary" />
+              <span>🕒 Recent Transactions</span>
+            </h2>
+            {transactionHistory.length > 10 && (
+              <button
+                onClick={() => navigate('/transactions')}
+                className="flex items-center space-x-2 px-4 py-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors font-medium"
+              >
+                <span>View All</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
-        ) : (
-          <div className="space-y-2">
-            {transactionHistory.slice(0, 10).map((tx) => {
-              const claimedAmount = typeof tx.metadata.claimedAmount === 'number' ? tx.metadata.claimedAmount : 0;
-              const rawAmount = tx.type === 'claim' ? claimedAmount : tx.amount;
-              const signedAmount = tx.type === 'spend' ? -Math.abs(rawAmount) : Math.abs(rawAmount);
-              const amountLabel = `${signedAmount > 0 ? '+' : ''}${Math.abs(signedAmount)} VOICE`;
-              const amountColor =
-                tx.type === 'spend'
-                  ? 'text-red-400'
-                  : tx.type === 'claim'
-                  ? 'text-blue-400'
-                  : 'text-green-400';
 
-              return (
-                <div
-                  key={tx.id}
-                  className="flex items-center justify-between p-3 bg-surface/30 rounded-lg hover:bg-surface/50 transition-colors"
-                >
-                  <div className="flex-1">
-                    <p className="text-white font-medium flex items-center gap-2">
-                      {tx.reason}
-                      {tx.reasonCode && (
-                        <span className="text-[10px] uppercase tracking-wide text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
-                          {tx.reasonCode}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">{formatDate(tx.timestamp)}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Balance after: <span className="text-gray-300">{formatVoiceBalance(tx.balance)}</span>
-                      {typeof tx.pending === 'number' && (
-                        <span className="ml-2">Pending: {formatVoiceBalance(tx.pending)}</span>
-                      )}
-                    </p>
-                  </div>
-                  <span className={`font-semibold ${amountColor}`}>{amountLabel}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
+          {transactionHistory.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No transactions yet</p>
+              <p className="text-sm mt-2">Start earning VOICE by creating posts!</p>
+            </div>
+          ) : (
+            <TransactionHistory
+              transactions={transactionHistory}
+              showFilters={false}
+              showPagination={false}
+              showExport={false}
+              showHeader={false}
+              visibleCount={10}
+              maxHeight="max-h-[500px]"
+            />
+          )}
+        </div>
       </motion.div>
 
       {/* Action Buttons */}
