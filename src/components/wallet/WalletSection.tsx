@@ -140,6 +140,8 @@ export default function WalletSection() {
 
   const LOW_BALANCE_THRESHOLD = 10;
   const showLowBalanceAlert = availableBalance < LOW_BALANCE_THRESHOLD && availableBalance > 0;
+  const hasTransactions = transactionHistory.length > 0;
+  const isTransactionLoading = walletLoading && !hasTransactions;
 
   return (
     <div className="space-y-6">
@@ -492,7 +494,28 @@ export default function WalletSection() {
             )}
           </div>
 
-          {transactionHistory.length === 0 ? (
+          {walletLoading && hasTransactions && (
+            <div className="flex items-center space-x-2 text-xs text-gray-400">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span>Syncing latest activity...</span>
+            </div>
+          )}
+
+          {walletError && hasTransactions && (
+            <div className="flex items-center space-x-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-300">
+              <AlertCircle className="w-4 h-4" />
+              <span>{walletError}</span>
+            </div>
+          )}
+
+          {isTransactionLoading ? (
+            <div className="text-center py-8">
+              <div className="flex flex-col items-center space-y-3">
+                <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent" />
+                <p className="text-gray-400 text-sm">Loading transactions...</p>
+              </div>
+            </div>
+          ) : !hasTransactions ? (
             <div className="text-center py-8 text-gray-400">
               <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No transactions yet</p>
