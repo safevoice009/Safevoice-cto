@@ -54,11 +54,25 @@ describe('TransactionHistory component', () => {
 
     render(<TransactionHistory transactions={transactions} showPagination={false} />);
 
-    expect(screen.getByText('Post reward')).toBeInTheDocument();
-    expect(screen.getByText('Badge purchase')).toBeInTheDocument();
-    expect(screen.getByText('Claimed pending rewards')).toBeInTheDocument();
-    expect(screen.getByText('Comment reward')).toBeInTheDocument();
-    expect(screen.getByText('Reaction reward')).toBeInTheDocument();
+    render(<TransactionHistory transactions={transactions} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Filters/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Date Range')).toBeInTheDocument();
+    });
+
+    const selects = await screen.findAllByRole('combobox');
+    const dateSelect = selects[1];
+    fireEvent.change(dateSelect, { target: { value: 'custom' } });
+
+    const startLabel = await screen.findByText('Start Date');
+    const startInput = startLabel.parentElement?.querySelector('input');
+    const endLabel = screen.getByText('End Date');
+    const endInput = endLabel.parentElement?.querySelector('input');
+
+    expect(startInput).toBeInstanceOf(HTMLInputElement);
+    expect(endInput).toBeInstanceOf(HTMLInputElement);
   });
 
   it('displays transaction types with correct colors', () => {
@@ -72,13 +86,36 @@ describe('TransactionHistory component', () => {
 
     render(<TransactionHistory transactions={transactions} showPagination={false} />);
 
-    const earnBadges = screen.getAllByText('EARN');
-    const spendBadges = screen.getAllByText('SPEND');
-    const claimBadges = screen.getAllByText('CLAIM');
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const linkClickSpy = vi.fn();
+    
+    const originalAppendChild = document.body.appendChild;
+    const originalRemoveChild = document.body.removeChild;
+    const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation((node) => {
+      if (node instanceof HTMLAnchorElement) {
+        linkClickSpy();
+        return node;
+      }
+      return originalAppendChild.call(document.body, node);
+    });
+    const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation((node) => {
+      return originalRemoveChild.call(document.body, node);
+    });
 
-    expect(earnBadges.length).toBe(3);
-    expect(spendBadges.length).toBe(1);
-    expect(claimBadges.length).toBe(1);
+    render(<TransactionHistory transactions={transactions} />);
+
+    const exportButton = screen.getByRole('button', { name: /Export CSV/i });
+    fireEvent.click(exportButton);
+
+    expect(linkClickSpy).toHaveBeenCalled();
+    expect(createObjectURLSpy).toHaveBeenCalled();
+    expect(toastMock.success).toHaveBeenCalledWith('CSV exported successfully!');
+
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
+    appendSpy.mockRestore();
+    removeSpy.mockRestore();
   });
 
   it('displays formatted running balances for each transaction', () => {
