@@ -721,6 +721,12 @@ export interface StoreState {
   premiumSubscriptions: SubscriptionState;
   walletLoading: boolean;
   walletError: string | null;
+  achievements: Achievement[];
+  achievementProgress: Record<string, { progress: number; total: number; percentage: number }>;
+  currentRank: RankDefinition;
+  nextRank: RankDefinition | null;
+  rankProgressPercentage: number;
+  voiceToNextRank: number;
 
   firstPostAwarded: boolean;
 
@@ -1087,6 +1093,11 @@ export interface StoreState {
   // Special Utilities
   changeStudentId: (newId: string) => boolean;
   downloadDataBackup: () => void;
+
+  // Achievement & Rank
+  getUserRank: () => RankDefinition;
+  checkAchievements: () => Promise<void>;
+  getAchievementProgress: (achievementId: string) => { progress: number; total: number; percentage: number } | null;
 
   // Utility
   saveToLocalStorage: () => void;
@@ -2501,7 +2512,12 @@ export const useStore = create<StoreState>((set, get) => {
   });
 
   rewardEngine.onSubscription(() => {
-    syncRewardState();
+    void syncRewardState();
+  });
+
+  rewardEngine.onAchievementUnlocked((achievement) => {
+    addAchievementToast(achievement);
+    void syncRewardState();
   });
 
   const initialStudentId = typeof window !== 'undefined'
