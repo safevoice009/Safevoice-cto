@@ -36,6 +36,8 @@ import ReportModal from './ReportModal';
 import ShareMenu from './ShareMenu';
 import ConfirmModal from './ConfirmModal';
 import TipModal from './TipModal';
+import RankChip from '../wallet/RankChip';
+import { AchievementService } from '../../lib/tokens/AchievementService';
 
 interface PostCardProps {
   post: Post;
@@ -80,6 +82,8 @@ export default function PostCard({ post }: PostCardProps) {
     highlightPost,
     extendPostLifetime,
     boostToCampuses,
+    currentRank,
+    achievements,
   } = useStore();
 
   const [showBlurredContent, setShowBlurredContent] = useState(false);
@@ -91,6 +95,8 @@ export default function PostCard({ post }: PostCardProps) {
   const shouldBlur = !showBlurredContent && isBlurred;
   const isBookmarked = bookmarkedPosts.includes(post.id);
   const isOwnPost = post.studentId === studentId;
+  const authorRank = isOwnPost ? currentRank : AchievementService.getRank(0);
+  const authorBadges = isOwnPost ? achievements.slice(0, 3) : [];
 
   const canExtend = useMemo(() => {
     if (!isOwnPost || !post.expiresAt || !timeRemainingMs) return false;
@@ -409,19 +415,35 @@ export default function PostCard({ post }: PostCardProps) {
               {post.studentId.slice(-4)}
             </div>
             <div>
-              <p className="font-medium text-white flex items-center space-x-2">
-                <span>{post.studentId}</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-medium text-white">{post.studentId}</p>
+                <RankChip rank={authorRank} size="sm" />
                 {post.isEncrypted && (
                   <span className="flex items-center space-x-1 text-xs text-primary bg-primary/10 px-2 py-1 rounded-full">
                     <Lock className="w-3 h-3" />
                     <span>Encrypted</span>
                   </span>
                 )}
-              </p>
-              <p className="text-xs text-gray-400">
-                {formatTimeAgo(post.createdAt)}
-                {post.isEdited && <span className="ml-1 text-gray-500">(edited)</span>}
-              </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs text-gray-400">
+                  {formatTimeAgo(post.createdAt)}
+                  {post.isEdited && <span className="ml-1 text-gray-500">(edited)</span>}
+                </p>
+                {authorBadges.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    {authorBadges.map((badge) => (
+                      <span
+                        key={badge.id}
+                        className="text-xs"
+                        title={badge.name}
+                      >
+                        {badge.icon}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

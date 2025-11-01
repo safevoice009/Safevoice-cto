@@ -1,20 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore, NFT_BADGE_DEFINITIONS, NFT_BADGE_TIERS } from '../lib/store';
 import { User, Bookmark, MessageSquare, FileText, CheckCircle } from 'lucide-react';
 import PostCard from '../components/feed/PostCard';
 import WalletSection from '../components/wallet/WalletSection';
+import RankChip from '../components/wallet/RankChip';
+import AchievementGrid from '../components/wallet/AchievementGrid';
+import AchievementProgress from '../components/wallet/AchievementProgress';
+import { ACHIEVEMENT_DEFINITIONS } from '../lib/tokens/AchievementService';
 
-type ProfileTab = 'overview' | 'wallet';
+type ProfileTab = 'overview' | 'wallet' | 'achievements';
 
 export default function Profile() {
-  const { studentId, posts, bookmarkedPosts, initializeStore, isPremiumActive, nftBadges } = useStore();
+  const {
+    studentId,
+    posts,
+    bookmarkedPosts,
+    initializeStore,
+    isPremiumActive,
+    nftBadges,
+    achievements,
+    achievementProgress,
+    currentRank,
+    nextRank,
+    rankProgressPercentage,
+    voiceToNextRank,
+    checkAchievements,
+    totalRewardsEarned,
+  } = useStore();
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const hasVerifiedBadge = isPremiumActive('verified_badge');
 
   useEffect(() => {
     initializeStore();
-  }, [initializeStore]);
+    void checkAchievements();
+  }, [initializeStore, checkAchievements]);
 
   const myPosts = posts.filter((post) => post.studentId === studentId);
   const savedPosts = posts.filter((post) => bookmarkedPosts.includes(post.id));
@@ -22,6 +42,17 @@ export default function Profile() {
   const ownedBadgeTiers = NFT_BADGE_TIERS.filter((tier) =>
     nftBadges.some((badge) => badge.tier === tier)
   );
+
+  const progressMap = useMemo(() => {
+    const map = new Map<string, { progress: number; total: number; percentage: number }>();
+    ACHIEVEMENT_DEFINITIONS.forEach((def) => {
+      const progress = achievementProgress[def.id];
+      if (progress) {
+        map.set(def.id, progress);
+      }
+    });
+    return map;
+  }, [achievementProgress]);
 
   return (
     <motion.section
@@ -40,16 +71,35 @@ export default function Profile() {
           </div>
 
           <div>
-            <div className="flex items-center justify-center space-x-2">
-              <h1 className="text-3xl font-bold text-white">{studentId}</h1>
-              {hasVerifiedBadge && (
-                <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs font-semibold">
-                  <CheckCircle className="w-4 h-4" />
-                  <span>Verified</span>
-                </span>
-              )}
+            <div className="flex flex-col items-center space-y-2">
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                <h1 className="text-3xl font-bold text-white">{studentId}</h1>
+                {hasVerifiedBadge && (
+                  <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs font-semibold">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Verified</span>
+                  </span>
+                )}
+                <RankChip rank={currentRank} size="sm" />
+              </div>
+              <p className="text-gray-400">Your anonymous identity</p>
+              <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-gray-400">
+                {nextRank ? (
+                  <>
+                    <span>{voiceToNextRank} VOICE until {nextRank.name}</span>
+                    <div className="w-32 h-2 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-purple-500 to-blue-500"
+                        style={{ width: `${rankProgressPercentage}%` }}
+                      />
+                    </div>
+                    <span>{rankProgressPercentage.toFixed(0)}%</span>
+                  </>
+                ) : (
+                  <span>You&apos;re a Legend! 🌟</span>
+                )}
+              </div>
             </div>
-            <p className="text-gray-400 mt-2">Your anonymous identity</p>
 
             {ownedBadgeTiers.length > 0 && (
               <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
@@ -97,7 +147,7 @@ export default function Profile() {
           </div>
         </div>
 
-        <div className="glass p-4 flex items-center justify-center gap-3">
+        <div className="glass p-4 flex items-center justify-center gap-2 flex-wrap">
           <button
             onClick={() => setActiveTab('overview')}
             className={`px-4 py-2 rounded-lg font-medium transition-all ${
@@ -108,6 +158,17 @@ export default function Profile() {
             type="button"
           >
             Profile Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('achievements')}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              activeTab === 'achievements'
+                ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg'
+                : 'bg-surface/50 text-gray-300 hover:text-white'
+            }`}
+            type="button"
+          >
+            🏆 Achievements
           </button>
           <button
             onClick={() => setActiveTab('wallet')}
@@ -122,7 +183,7 @@ export default function Profile() {
           </button>
         </div>
 
-        {activeTab === 'overview' ? (
+        {activeTab === 'overview' && (
           <div className="glass p-6 space-y-4">
             <h2 className="text-xl font-bold text-white">Bookmarked Posts</h2>
             {savedPosts.length === 0 ? (
@@ -141,9 +202,26 @@ export default function Profile() {
               </div>
             )}
           </div>
-        ) : (
-          <WalletSection />
         )}
+
+        {activeTab === 'achievements' && (
+          <div className="space-y-6">
+            <AchievementProgress
+              totalVoice={totalRewardsEarned}
+              achievementsUnlocked={achievements.length}
+              totalAchievements={ACHIEVEMENT_DEFINITIONS.length}
+            />
+            <div className="glass p-6">
+              <AchievementGrid
+                achievements={achievements}
+                showProgress
+                progressData={progressMap}
+              />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'wallet' && <WalletSection />}
       </div>
     </motion.section>
   );

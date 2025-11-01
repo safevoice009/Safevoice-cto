@@ -7,10 +7,12 @@ import {
   type EarningsBreakdown,
 } from './tokenEconomics';
 import { setSecureItem, getSecureItem, clearSecureItem } from './secureStorage';
-import { RewardEngine, type PremiumFeatureType, type SubscriptionState } from './tokens/RewardEngine';
+import { RewardEngine, type Achievement, type PremiumFeatureType, type SubscriptionState } from './tokens/RewardEngine';
+import { AchievementService, type RankDefinition } from './tokens/AchievementService';
+import { addAchievementToast } from './achievementToastBus';
 
-// Re-export premium types
-export type { PremiumFeatureType, SubscriptionState };
+// Re-export premium types and achievement
+export type { Achievement, PremiumFeatureType, SubscriptionState };
 
 // Types
 export interface Reaction {
@@ -273,6 +275,12 @@ export interface StoreState {
   premiumSubscriptions: SubscriptionState;
   walletLoading: boolean;
   walletError: string | null;
+  achievements: Achievement[];
+  achievementProgress: Record<string, { progress: number; total: number; percentage: number }>;
+  currentRank: RankDefinition;
+  nextRank: RankDefinition | null;
+  rankProgressPercentage: number;
+  voiceToNextRank: number;
 
   firstPostAwarded: boolean;
 
@@ -422,6 +430,11 @@ export interface StoreState {
   // Special Utilities
   changeStudentId: (newId: string) => boolean;
   downloadDataBackup: () => void;
+
+  // Achievement & Rank
+  getUserRank: () => RankDefinition;
+  checkAchievements: () => Promise<void>;
+  getAchievementProgress: (achievementId: string) => { progress: number; total: number; percentage: number } | null;
 
   // Utility
   saveToLocalStorage: () => void;
@@ -872,40 +885,87 @@ const findCommentById = (comments: Comment[], commentId: string): Comment | null
 };
 
 export const useStore = create<StoreState>((set, get) => {
-  const syncRewardState = () => {
+  const syncRewardState = async () => {
     const snapshot = rewardEngine.getWalletSnapshot();
+    const { posts, studentId } = get();
+
+    const userPosts = posts.filter((post) => post.studentId === studentId);
+    const totalReactionsReceived = userPosts.reduce((sum, post) => {
+      const postReactions = Object.values(post.reactions).reduce((acc, value) => acc + value, 0);
+      return sum + postReactions;
+    }, 0);
+    const viralPostCount = userPosts.filter((post) => {
+      const reactionCount = Object.values(post.reactions).reduce((acc, value) => acc + value, 0);
+      return reactionCount >= 100;
+    }).length;
+
+    const achievementContext = {
+      posts: userPosts,
+      totalReactionsReceived,
+      viralPostCount,
+    };
+
+    const newlyUnlocked = await rewardEngine.checkAndUnlockAchievements(achievementContext);
+    const updatedSnapshot = newlyUnlocked.length > 0 ? rewardEngine.getWalletSnapshot() : snapshot;
+
+    const totalVoice = updatedSnapshot.totalEarned;
+    const currentRank = AchievementService.getRank(totalVoice);
+    const { nextRank, currentProgress, voiceNeeded } = AchievementService.getNextRank(totalVoice);
+
+    const achievementProgressEntries = AchievementService.getAllAchievementsWithProgress(updatedSnapshot, achievementContext);
+    const achievementProgressMap = achievementProgressEntries.reduce<Record<string, { progress: number; total: number; percentage: number }>>(
+      (acc, entry) => {
+        if (entry.progress) {
+          acc[entry.definition.id] = entry.progress;
+        }
+        return acc;
+      },
+      {}
+    );
+
     set({
-      voiceBalance: snapshot.balance,
-      pendingRewards: snapshot.pending,
-      totalRewardsEarned: snapshot.totalEarned,
-      claimedRewards: snapshot.claimed,
-      spentRewards: snapshot.spent,
+      voiceBalance: updatedSnapshot.balance,
+      pendingRewards: updatedSnapshot.pending,
+      totalRewardsEarned: updatedSnapshot.totalEarned,
+      claimedRewards: updatedSnapshot.claimed,
+      spentRewards: updatedSnapshot.spent,
       availableBalance: rewardEngine.getAvailableBalance(),
       pendingRewardBreakdown: rewardEngine.getPendingBreakdown(),
-      earningsBreakdown: snapshot.earningsBreakdown,
-      transactionHistory: snapshot.transactions,
-      lastLoginDate: snapshot.lastLogin,
-      loginStreak: snapshot.streakData.currentStreak,
-      lastPostDate: snapshot.streakData.lastPostDate,
-      postingStreak: snapshot.streakData.currentPostStreak,
-      premiumSubscriptions: snapshot.subscriptions,
+      earningsBreakdown: updatedSnapshot.earningsBreakdown,
+      transactionHistory: updatedSnapshot.transactions,
+      lastLoginDate: updatedSnapshot.lastLogin,
+      loginStreak: updatedSnapshot.streakData.currentStreak,
+      lastPostDate: updatedSnapshot.streakData.lastPostDate,
+      postingStreak: updatedSnapshot.streakData.currentPostStreak,
+      premiumSubscriptions: updatedSnapshot.subscriptions,
+      achievements: updatedSnapshot.achievements,
+      achievementProgress: achievementProgressMap,
+      currentRank,
+      nextRank,
+      rankProgressPercentage: Math.min(100, Math.max(0, currentProgress)),
+      voiceToNextRank: Math.max(0, voiceNeeded),
     });
   };
 
   rewardEngine.onReward(() => {
-    syncRewardState();
+    void syncRewardState();
   });
 
   rewardEngine.onSpend(() => {
-    syncRewardState();
+    void syncRewardState();
   });
 
   rewardEngine.onBalanceChange(() => {
-    syncRewardState();
+    void syncRewardState();
   });
 
   rewardEngine.onSubscription(() => {
-    syncRewardState();
+    void syncRewardState();
+  });
+
+  rewardEngine.onAchievementUnlocked((achievement) => {
+    addAchievementToast(achievement);
+    void syncRewardState();
   });
 
   const initialStudentId = typeof window !== 'undefined'
@@ -1018,6 +1078,10 @@ export const useStore = create<StoreState>((set, get) => {
     }
   };
 
+  const initialTotalVoice = rewardEngine.getTotalEarned();
+  const initialRank = AchievementService.getRank(initialTotalVoice);
+  const initialNextRankData = AchievementService.getNextRank(initialTotalVoice);
+
   return {
     studentId: initialStudentId,
     isModerator: initialIsModerator,
@@ -1075,6 +1139,12 @@ export const useStore = create<StoreState>((set, get) => {
     lastPostDate: rewardEngine.getStreakData().lastPostDate,
     postingStreak: rewardEngine.getStreakData().currentPostStreak,
     premiumSubscriptions: rewardEngine.getSubscriptions(),
+    achievements: rewardEngine.getAchievements(),
+    achievementProgress: {},
+    currentRank: initialRank,
+    nextRank: initialNextRankData.nextRank,
+    rankProgressPercentage: initialNextRankData.currentProgress,
+    voiceToNextRank: initialNextRankData.voiceNeeded,
     walletLoading: false,
     walletError: null,
     firstPostAwarded: typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.FIRST_POST_AWARDED) === 'true' : false,
@@ -1082,17 +1152,17 @@ export const useStore = create<StoreState>((set, get) => {
     setShowCrisisModal: (show: boolean) => set({ showCrisisModal: show }),
     setPendingPost: (post: AddPostPayload | null) => set({ pendingPost: post }),
 
-  toggleSaveHelpline: (helplineId: string) => {
-    const current = get().savedHelplines;
-    const updated = current.includes(helplineId)
-      ? current.filter((id) => id !== helplineId)
-      : [...current, helplineId];
-    set({ savedHelplines: updated });
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEYS.SAVED_HELPLINES, JSON.stringify(updated));
-    }
-    toast.success(current.includes(helplineId) ? 'Helpline removed' : 'Helpline saved! 🔖');
-  },
+    toggleSaveHelpline: (helplineId: string) => {
+      const current = get().savedHelplines;
+      const updated = current.includes(helplineId)
+        ? current.filter((id) => id !== helplineId)
+        : [...current, helplineId];
+      set({ savedHelplines: updated });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.SAVED_HELPLINES, JSON.stringify(updated));
+      }
+      toast.success(current.includes(helplineId) ? 'Helpline removed' : 'Helpline saved! 🔖');
+    },
 
   setConnectedAddress: (address: string | null) => {
     set({ connectedAddress: address });
@@ -3610,6 +3680,16 @@ export const useStore = create<StoreState>((set, get) => {
     });
 
     return true;
+  },
+
+  getUserRank: () => get().currentRank,
+
+  checkAchievements: async () => {
+    await syncRewardState();
+  },
+
+  getAchievementProgress: (achievementId: string) => {
+    return get().achievementProgress[achievementId] ?? null;
   },
 
   downloadDataBackup: () => {

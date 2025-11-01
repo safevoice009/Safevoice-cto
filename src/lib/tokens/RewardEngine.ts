@@ -1,5 +1,6 @@
 import toast from 'react-hot-toast';
 import { EARN_RULES, formatVoiceBalance, type EarningsBreakdown } from '../tokenEconomics';
+import { AchievementService, type Achievement as AchievementDef, type AchievementContext } from './AchievementService';
 
 // Extended transaction types with new fields
 export interface VoiceTransaction {
@@ -47,13 +48,7 @@ export interface StreakData {
 }
 
 // Achievement tracking
-export interface Achievement {
-  id: string;
-  type: 'milestone' | 'streak' | 'reputation' | 'special';
-  name: string;
-  earnedAt: number;
-  metadata?: Record<string, unknown>;
-}
+export type Achievement = AchievementDef;
 
 // Post reward calculation breakdown
 export interface PostRewardBreakdown {
@@ -87,6 +82,7 @@ export type RewardEventCallback = (amount: number, reason: string, metadata?: Re
 export type SpendEventCallback = (amount: number, reason: string, metadata?: Record<string, unknown>) => void;
 export type BalanceChangeCallback = (newBalance: number, oldBalance: number) => void;
 export type SubscriptionEventCallback = (feature: PremiumFeatureType, enabled: boolean) => void;
+export type AchievementUnlockedCallback = (achievement: Achievement) => void;
 
 /**
  * RewardEngine: Centralized token management for $VOICE
@@ -120,6 +116,7 @@ export class RewardEngine {
   private onSpendCallbacks: SpendEventCallback[] = [];
   private onBalanceChangeCallbacks: BalanceChangeCallback[] = [];
   private onSubscriptionCallbacks: SubscriptionEventCallback[] = [];
+  private onAchievementCallbacks: AchievementUnlockedCallback[] = [];
 
   constructor() {
     this.snapshot = this.loadOrMigrateSnapshot();
@@ -583,6 +580,9 @@ export class RewardEngine {
 
       // Persist changes
       this.persist();
+
+      // Check achievements triggered by this reward
+      await this.checkAndUnlockAchievements(undefined, { skipLock: true });
 
       // Trigger callbacks
       this.onRewardCallbacks.forEach(cb => cb(amount, reason, metadata));
@@ -1228,11 +1228,66 @@ export class RewardEngine {
     this.onSubscriptionCallbacks.push(callback);
   }
 
+  onAchievementUnlocked(callback: AchievementUnlockedCallback): void {
+    this.onAchievementCallbacks.push(callback);
+  }
+
   // Clear listeners
   clearListeners(): void {
     this.onRewardCallbacks = [];
     this.onSpendCallbacks = [];
     this.onBalanceChangeCallbacks = [];
     this.onSubscriptionCallbacks = [];
+    this.onAchievementCallbacks = [];
+  }
+
+  /**
+   * Check for newly unlocked achievements and award them
+   * Should be called after any reward is earned
+   */
+  async checkAndUnlockAchievements(
+    context?: AchievementContext,
+    options: { skipLock?: boolean } = {}
+  ): Promise<Achievement[]> {
+    const { skipLock = false } = options;
+
+    if (!skipLock) {
+      await this.acquireLock();
+    }
+
+    try {
+      const newlyUnlocked = AchievementService.checkAchievements(this.snapshot, context);
+
+      if (newlyUnlocked.length === 0) {
+        return [];
+      }
+
+      const existingIds = new Set(this.snapshot.achievements.map((a) => a.id));
+      const freshUnlocks = newlyUnlocked.filter((achievement) => !existingIds.has(achievement.id));
+
+      if (freshUnlocks.length === 0) {
+        return [];
+      }
+
+      this.snapshot = {
+        ...this.snapshot,
+        achievements: [...this.snapshot.achievements, ...freshUnlocks],
+      };
+
+      this.persist();
+
+      freshUnlocks.forEach((achievement) => {
+        this.onAchievementCallbacks.forEach((cb) => cb(achievement));
+      });
+
+      return freshUnlocks;
+    } catch (error) {
+      console.error('Failed to unlock achievements:', error);
+      return [];
+    } finally {
+      if (!skipLock) {
+        this.releaseLock();
+      }
+    }
   }
 }
