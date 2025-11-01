@@ -200,6 +200,8 @@ export default function WalletSection() {
 
   const LOW_BALANCE_THRESHOLD = 10;
   const showLowBalanceAlert = availableBalance < LOW_BALANCE_THRESHOLD && availableBalance > 0;
+  const isTransactionLoading = walletLoading && transactionHistory.length === 0;
+  const hasTransactions = transactionHistory.length > 0;
 
   return (
     <div className="space-y-6">
