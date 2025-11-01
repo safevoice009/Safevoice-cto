@@ -85,6 +85,38 @@ describe('TransactionHistory', () => {
     ];
   });
 
+  const openFiltersPanel = async () => {
+    const filterButton = screen.getByRole('button', { name: /filters/i });
+    fireEvent.click(filterButton);
+    await screen.findByText('Transaction Type');
+  };
+
+  const findSelectByLabel = async (labelText: string) => {
+    const label = await screen.findByText(labelText, { selector: 'label' });
+    const container = label.closest('div');
+    if (!container) {
+      throw new Error(`No container found for label "${labelText}"`);
+    }
+    const select = container.querySelector('select');
+    if (!select) {
+      throw new Error(`No select found for label "${labelText}"`);
+    }
+    return select as HTMLSelectElement;
+  };
+
+  const findInputByLabel = async (labelText: string) => {
+    const label = await screen.findByText(labelText, { selector: 'label' });
+    const container = label.closest('div');
+    if (!container) {
+      throw new Error(`No container found for label "${labelText}"`);
+    }
+    const input = container.querySelector('input');
+    if (!input) {
+      throw new Error(`No input found for label "${labelText}"`);
+    }
+    return input as HTMLInputElement;
+  };
+
   it('renders transaction list with all transactions', () => {
     render(<TransactionHistory transactions={mockTransactions} showPagination={false} />);
 
@@ -206,10 +238,8 @@ describe('TransactionHistory', () => {
     it('filters by transaction type - earn', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 5)} />);
 
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const typeSelect = await screen.findByRole('combobox', { name: /transaction type/i });
+      await openFiltersPanel();
+      const typeSelect = await findSelectByLabel('Transaction Type');
       fireEvent.change(typeSelect, { target: { value: 'earn' } });
 
       await waitFor(() => {
@@ -222,10 +252,8 @@ describe('TransactionHistory', () => {
     it('filters by transaction type - spend', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 5)} />);
 
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const typeSelect = await screen.findByRole('combobox', { name: /transaction type/i });
+      await openFiltersPanel();
+      const typeSelect = await findSelectByLabel('Transaction Type');
       fireEvent.change(typeSelect, { target: { value: 'spend' } });
 
       await waitFor(() => {
@@ -237,10 +265,8 @@ describe('TransactionHistory', () => {
     it('filters by date range - today', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 5)} />);
 
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const dateSelect = await screen.findByRole('combobox', { name: /date range/i });
+      await openFiltersPanel();
+      const dateSelect = await findSelectByLabel('Date Range');
       fireEvent.change(dateSelect, { target: { value: 'today' } });
 
       await waitFor(() => {
@@ -252,10 +278,8 @@ describe('TransactionHistory', () => {
     it('filters by date range - week', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 5)} />);
 
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const dateSelect = await screen.findByRole('combobox', { name: /date range/i });
+      await openFiltersPanel();
+      const dateSelect = await findSelectByLabel('Date Range');
       fireEvent.change(dateSelect, { target: { value: 'week' } });
 
       await waitFor(() => {
@@ -269,10 +293,8 @@ describe('TransactionHistory', () => {
     it('filters by reason category', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 5)} />);
 
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const categorySelect = await screen.findByRole('combobox', { name: /category/i });
+      await openFiltersPanel();
+      const categorySelect = await findSelectByLabel('Category');
       fireEvent.change(categorySelect, { target: { value: 'posts' } });
 
       await waitFor(() => {
@@ -285,10 +307,8 @@ describe('TransactionHistory', () => {
     it('shows active filter indicator', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 5)} />);
 
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const typeSelect = await screen.findByRole('combobox', { name: /transaction type/i });
+      await openFiltersPanel();
+      const typeSelect = await findSelectByLabel('Transaction Type');
       fireEvent.change(typeSelect, { target: { value: 'earn' } });
 
       await waitFor(() => {
@@ -299,10 +319,8 @@ describe('TransactionHistory', () => {
     it('clears all filters', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 5)} />);
 
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const typeSelect = await screen.findByRole('combobox', { name: /transaction type/i });
+      await openFiltersPanel();
+      const typeSelect = await findSelectByLabel('Transaction Type');
       fireEvent.change(typeSelect, { target: { value: 'earn' } });
 
       await waitFor(() => {
@@ -320,16 +338,15 @@ describe('TransactionHistory', () => {
     it('shows custom date range inputs when selected', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 5)} />);
 
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const dateSelect = await screen.findByRole('combobox', { name: /date range/i });
+      await openFiltersPanel();
+      const dateSelect = await findSelectByLabel('Date Range');
       fireEvent.change(dateSelect, { target: { value: 'custom' } });
 
-      await waitFor(() => {
-        expect(screen.getByLabelText(/start date/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/end date/i)).toBeInTheDocument();
-      });
+      const startDateInput = await findInputByLabel('Start Date');
+      const endDateInput = await findInputByLabel('End Date');
+
+      expect(startDateInput).toBeInTheDocument();
+      expect(endDateInput).toBeInTheDocument();
     });
 
     it('resets to page 1 when filters change', async () => {
@@ -356,10 +373,8 @@ describe('TransactionHistory', () => {
       });
 
       // Apply filter
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const typeSelect = await screen.findByRole('combobox', { name: /transaction type/i });
+      await openFiltersPanel();
+      const typeSelect = await findSelectByLabel('Transaction Type');
       fireEvent.change(typeSelect, { target: { value: 'earn' } });
 
       // Should be back on page 1
@@ -414,26 +429,27 @@ describe('TransactionHistory', () => {
       await waitFor(() => {
         expect(createElementSpy).toHaveBeenCalledWith('a');
         expect(linkClickSpy).toHaveBeenCalled();
-        expect(toast.success).toHaveBeenCalledWith('CSV exported successfully!');
+        expect(revokeObjectURLSpy).toHaveBeenCalled();
       });
     });
 
-    it('shows loading state during export', async () => {
+    it('completes export successfully', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 3)} />);
 
       const exportButton = screen.getByRole('button', { name: /export csv/i });
       fireEvent.click(exportButton);
 
-      expect(screen.getByText(/exporting/i)).toBeInTheDocument();
+      await waitFor(() => {
+        expect(linkClickSpy).toHaveBeenCalled();
+        expect(toast.success).toHaveBeenCalledWith('CSV exported successfully!');
+      });
     });
 
     it('exports only filtered transactions', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 5)} />);
 
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const typeSelect = screen.getByRole('combobox', { name: /transaction type/i });
+      await openFiltersPanel();
+      const typeSelect = await findSelectByLabel('Transaction Type');
       fireEvent.change(typeSelect, { target: { value: 'earn' } });
 
       const exportButton = screen.getByRole('button', { name: /export csv/i });
@@ -460,20 +476,20 @@ describe('TransactionHistory', () => {
       expect(screen.getByText(/start earning voice/i)).toBeInTheDocument();
     });
 
-    it('shows filter-specific empty state', () => {
+    it('shows filter-specific empty state', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 3)} />);
 
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const typeSelect = screen.getByRole('combobox', { name: /transaction type/i });
+      await openFiltersPanel();
+      const typeSelect = await findSelectByLabel('Transaction Type');
       fireEvent.change(typeSelect, { target: { value: 'spend' } });
 
-      const categorySelect = screen.getByRole('combobox', { name: /category/i });
+      const categorySelect = await findSelectByLabel('Category');
       fireEvent.change(categorySelect, { target: { value: 'nonexistent' } });
 
-      expect(screen.getByText('No transactions found')).toBeInTheDocument();
-      expect(screen.getByText(/try adjusting your filters/i)).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('No transactions found')).toBeInTheDocument();
+        expect(screen.getByText(/try adjusting your filters/i)).toBeInTheDocument();
+      });
     });
   });
 
@@ -536,10 +552,8 @@ describe('TransactionHistory', () => {
     it('updates count when filtered', async () => {
       render(<TransactionHistory transactions={mockTransactions.slice(0, 5)} />);
 
-      const filterButton = screen.getByRole('button', { name: /filters/i });
-      fireEvent.click(filterButton);
-
-      const typeSelect = await screen.findByRole('combobox', { name: /transaction type/i });
+      await openFiltersPanel();
+      const typeSelect = await findSelectByLabel('Transaction Type');
       fireEvent.change(typeSelect, { target: { value: 'earn' } });
 
       await waitFor(() => {

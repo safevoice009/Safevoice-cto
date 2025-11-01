@@ -94,15 +94,23 @@ describe('calculateUserStats', () => {
   });
 
   it('should include comments in engagement score', () => {
+    const comment1 = createMockComment({ studentId: 'Student#2000' });
+    const comment2 = createMockComment({ studentId: 'Student#2000' });
+    const comment3 = createMockComment({ studentId: 'Student#2000' });
+    const comment4 = createMockComment({ studentId: 'Student#2000' });
+    const comment5 = createMockComment({ studentId: 'Student#2000' });
+
     const posts: Post[] = [
       createMockPost({
         studentId: 'Student#1000',
+        comments: [comment1, comment2, comment3, comment4, comment5],
         commentCount: 5,
       }),
     ];
 
     const stats = calculateUserStats(posts, 'all-time');
 
+    // Post owner should get engagement points for receiving comments
     expect(stats.get('Student#1000')?.engagementScore).toBeGreaterThanOrEqual(5);
   });
 
