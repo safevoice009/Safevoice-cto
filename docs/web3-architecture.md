@@ -101,7 +101,7 @@ const selectedChain = onchainEnabled ? pickReachableChain(priorityChains) : null
 
 | Contract | Description | Key Functions | Deploys On |
 |----------|-------------|---------------|------------|
-| `VoiceToken` (ERC-20 + ERC-20Votes) | Canonical $VOICE token with capped supply & mint controls. | `mint`, `burn`, `delegate`, `pause`. | Arbitrum One, mirrored on Polygon/BSC via bridging. |
+| `VoiceToken` (ERC-20 + AccessControl + Permit) | Canonical $VOICE token with 1B cap, roles, permit, and pausable bridge flows. | `mint`, `burnFrom`, `bridgeTransfer`, `emergencyPause`. | Arbitrum One, mirrored on Polygon/BSC via bridging. |
 | `RewardEscrow` | Holds pending rewards. Mints `VoiceToken` upon claim with signed proofs. | `claim(bytes signature)`, `setSigner`, `pause`. | All supported chains. |
 | `SpendRouter` | Burns or redistributes tokens when users spend in-app. | `spend(uint256 amount, bytes32 reason)`. | Arbitrum One (mirrored as needed). |
 | `StakingVault` | Handles locking VOICE for yield and moderation privileges. | `stake`, `unstake`, `claimRewards`. | Arbitrum One primary. |
@@ -115,8 +115,9 @@ const selectedChain = onchainEnabled ? pickReachableChain(priorityChains) : null
 |------|------------|--------------|-----------------|
 | `DEFAULT_ADMIN_ROLE` | Safe multi-sig (3/5) controlled by founders + security lead. | Manage roles, pause contracts, upgrade proxies. | Governance proposal + timelock. |
 | `TREASURY_ROLE` | Treasury wallet (Gnosis Safe). | Withdraw from treasury, top up escrows. | Admin revoke via timelock. |
-| `REWARD_MINTER_ROLE` | RewardBridge relayer + future high-trust backend services. | Call `mint` on `VoiceToken`. | Admin revoke, rotate keys pre-emptively. |
-| `BURNER_ROLE` | `SpendRouter`. | Burn tokens when spend events occur. | Admin revoke. |
+| `MINTER_ROLE` | RewardBridge relayer + future high-trust backend services. | Call `mint` on `VoiceToken` up to supply cap. | Admin revoke, rotate keys pre-emptively. |
+| `BURNER_ROLE` | `SpendRouter` contract. | Call `burnFrom` on `VoiceToken` when spend events occur. | Admin revoke. |
+| `BRIDGE_ROLE` | Cross-chain bridge contracts (e.g., LayerZero, Wormhole). | Execute `bridgeTransfer` and `bridgeReceive` for cross-chain operations. | Admin revoke. |
 | `SIGNER_ROLE` | Off-chain signer service (CloudHSM). | Produce EIP-712 claim proofs recognized by `RewardEscrow`. | Admin rotate + publish new public key to clients. |
 | `PAUSER_ROLE` | Security operations lead. | Emergency pause of RewardEscrow, SpendRouter, StakingVault. | Admin revoke after incident resolution. |
 | `UPGRADER_ROLE` | Proxy upgrade guardian (security + product). | Execute vetted upgrades via UUPS pattern. | Admin revoke. |
