@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SafeVoice | Redirecting...</title>
+    <script>
+      (function () {
+        var redirectPath = window.location.pathname + window.location.search + window.location.hash;
+        try {
+          sessionStorage.setItem('safevoice:redirect', redirectPath);
+        } catch (error) {
+          // If sessionStorage is not available, fall back to hash routing
+          var normalized = redirectPath.replace(/^\/Safevoice-cto\/?/, '');
+          var fallbackUrl = '/Safevoice-cto/' + '#!' + normalized;
+          window.location.replace(fallbackUrl);
+          return;
+        }
+
+        window.location.replace('/Safevoice-cto/');
+      })();
+    </script>
+  </head>
+  <body>
+    <noscript>
+      JavaScript is required to display this page. Please enable JavaScript and reload the page.
+    </noscript>
+  </body>
+</html>
