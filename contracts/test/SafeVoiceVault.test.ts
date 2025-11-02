@@ -1,11 +1,12 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import type { Contract, Signer } from 'ethers';
+import type { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
+import type { SafeVoiceVault } from '../typechain-types';
 
 describe('SafeVoiceVault', function () {
-  let vault: Contract;
-  let owner: Signer;
-  let addr1: Signer;
+  let vault: SafeVoiceVault;
+  let owner: SignerWithAddress;
+  let addr1: SignerWithAddress;
   let ownerAddress: string;
   let addr1Address: string;
 
