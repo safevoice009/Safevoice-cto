@@ -44,11 +44,23 @@ This will create an optimized production build in the `dist` folder.
 
 ## 🚢 Deployment
 
-Deploy to GitHub Pages:
+SafeVoice is deployed automatically to GitHub Pages from the `main` branch.
 
-```bash
-npm run deploy
-```
+- **Production URL**: https://safevoice009.github.io/Safevoice-cto/
+- **Base path**: `/Safevoice-cto/`
+- **Workflow**: [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
+
+### Triggering a Deploy
+
+1. Merge or push changes to the `main` branch.
+2. The GitHub Actions workflow installs dependencies with `npm ci`, runs `npm run build`, and publishes the generated `dist/` output to the GitHub Pages environment.
+3. The published site automatically serves the latest build from the `gh-pages` branch managed by GitHub Pages.
+
+### Local Verification
+
+1. Run `npm run build` to generate the production bundle.
+2. Run `npm run preview` to review the build locally at `http://localhost:4173/Safevoice-cto/`.
+3. Verify that deep links (for example `/feed`, `/marketplace`) work locally. The production deployment includes a `public/404.html` fallback so client-side routes resolve correctly on GitHub Pages.
 
 ## 📁 Project Structure
 

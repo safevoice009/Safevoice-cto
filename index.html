@@ -9,6 +9,19 @@
       content="SafeVoice - India's first decentralized student platform for anonymous stories, crisis support, and safe communities."
     />
     <title>SafeVoice | Your Anonymous Voice Matters</title>
+    <script>
+      (function () {
+        try {
+          var redirectPath = sessionStorage.getItem('safevoice:redirect');
+          if (redirectPath) {
+            sessionStorage.removeItem('safevoice:redirect');
+            window.history.replaceState(null, '', redirectPath);
+          }
+        } catch (error) {
+          // Ignore sessionStorage errors (e.g., private mode)
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
