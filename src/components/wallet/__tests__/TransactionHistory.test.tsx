@@ -54,9 +54,11 @@ describe('TransactionHistory component', () => {
 
     render(<TransactionHistory transactions={transactions} showPagination={false} />);
 
-    render(<TransactionHistory transactions={transactions} />);
+    render(<TransactionHistory transactions={transactions} showPagination={false} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Filters/i }));
+    const earnBadges = screen.getAllByText('EARN');
+    const spendBadges = screen.getAllByText('SPEND');
+    const claimBadges = screen.getAllByText('CLAIM');
 
     await waitFor(() => {
       expect(screen.getByText('Date Range')).toBeInTheDocument();
