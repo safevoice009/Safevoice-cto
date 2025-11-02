@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Hardhat artifacts and reports
+artifacts
+cache
+coverage
+coverage.json
+gas-report.txt
+typechain-types
