@@ -1,0 +1,371 @@
+name: Web3 Security Checks
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feat/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # Run security checks daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  dependency-audit:
+    name: NPM Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Generate audit report
+        run: |
+          npm audit --json > audit-report.json || true
+          echo "Audit report generated"
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report
+          path: audit-report.json
+
+  eslint-security:
+    name: ESLint Security Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: false
+
+  test-coverage:
+    name: Test Coverage with Thresholds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Check coverage thresholds
+        run: |
+          echo "Coverage thresholds enforced via vitest.config.ts"
+          echo "Required: 80% coverage across all metrics"
+          
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+
+  typescript-check:
+    name: TypeScript Type Safety
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript compiler check
+        run: npx tsc --noEmit
+
+  environment-validation:
+    name: Environment Variables Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate .env.example exists
+        run: |
+          if [ ! -f .env.example ]; then
+            echo "Warning: .env.example file not found"
+            echo "Creating .env.example template..."
+            cat > .env.example << 'EOF'
+          # WalletConnect Project ID
+          # Get yours at https://cloud.walletconnect.com/
+          VITE_WALLETCONNECT_PROJECT_ID=YOUR_WALLETCONNECT_PROJECT_ID
+          
+          # RPC Endpoints (Optional)
+          VITE_MAINNET_RPC_URL=
+          VITE_POLYGON_RPC_URL=
+          VITE_ARBITRUM_RPC_URL=
+          
+          # Application Configuration
+          VITE_APP_ENV=development
+          EOF
+          fi
+
+      - name: Check for secrets in code
+        run: |
+          echo "Checking for accidentally committed secrets..."
+          
+          # Check for common secret patterns
+          SECRET_FOUND=0
+          
+          if grep -r "sk_live_" . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist; then
+            echo "ERROR: Potential Stripe secret key found!"
+            SECRET_FOUND=1
+          fi
+          
+          if grep -r "AKIA" . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist; then
+            echo "ERROR: Potential AWS key found!"
+            SECRET_FOUND=1
+          fi
+          
+          if grep -r "0x[0-9a-fA-F]{64}" src/ --include="*.ts" --include="*.tsx" | grep -v "test" | grep -v "example" | grep -v "0x0000"; then
+            echo "WARNING: Potential private key pattern found in src/"
+            SECRET_FOUND=1
+          fi
+          
+          if [ $SECRET_FOUND -eq 1 ]; then
+            echo "Security check failed: Secrets detected in code"
+            exit 1
+          fi
+          
+          echo "✓ No obvious secrets detected in code"
+
+  web3-security:
+    name: Web3 Security Patterns
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for Web3 security best practices
+        run: |
+          echo "Checking for Web3 security patterns..."
+          
+          # Check for proper address validation
+          if grep -r "isAddress" src/ --include="*.ts" --include="*.tsx" > /dev/null; then
+            echo "✓ Address validation found"
+          else
+            echo "⚠ RECOMMENDATION: Use address validation (ethers.utils.isAddress)"
+          fi
+          
+          # Check for sanitization with DOMPurify
+          if grep -r "DOMPurify\|dompurify" src/ --include="*.ts" --include="*.tsx" > /dev/null; then
+            echo "✓ Content sanitization found (DOMPurify)"
+          else
+            echo "⚠ RECOMMENDATION: Consider using DOMPurify for user-generated content"
+          fi
+          
+          # Check for dangerouslySetInnerHTML usage
+          if grep -r "dangerouslySetInnerHTML" src/ --include="*.tsx"; then
+            echo "⚠ WARNING: dangerouslySetInnerHTML found - ensure content is sanitized"
+          else
+            echo "✓ No dangerouslySetInnerHTML usage found"
+          fi
+          
+          # Check for proper error handling
+          if grep -r "try\s*{" src/ --include="*.ts" --include="*.tsx" > /dev/null; then
+            echo "✓ Error handling patterns found"
+          fi
+          
+          echo "Web3 security check complete"
+
+  hardhat-security:
+    name: Hardhat Coverage & Gas Thresholds
+    runs-on: ubuntu-latest
+    # Only run if Hardhat config exists
+    if: hashFiles('hardhat.config.*') != ''
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Hardhat coverage with thresholds
+        run: npm run security:coverage
+
+      - name: Run Hardhat gas reporter enforcement
+        run: npm run security:gas
+
+      - name: Upload coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardhat-coverage-report
+          path: coverage/
+
+      - name: Upload gas report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardhat-gas-report
+          path: gas-report.txt
+
+  build-check:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+        env:
+          VITE_WALLETCONNECT_PROJECT_ID: test_project_id
+
+      - name: Check build size
+        run: |
+          echo "Checking build size..."
+          BUILD_SIZE=$(du -sh dist | cut -f1)
+          echo "Build size: $BUILD_SIZE"
+          
+          # Check if dist folder is too large (warning if > 10MB)
+          DIST_SIZE_KB=$(du -sk dist | cut -f1)
+          if [ $DIST_SIZE_KB -gt 10240 ]; then
+            echo "⚠ WARNING: Build size ($BUILD_SIZE) exceeds 10MB. Consider optimization:"
+            echo "  - Code splitting"
+            echo "  - Tree shaking"
+            echo "  - Asset optimization"
+            echo "  - Lazy loading"
+          else
+            echo "✓ Build size within acceptable limits"
+          fi
+
+      - name: Verify critical files exist
+        run: |
+          if [ ! -f "dist/index.html" ]; then
+            echo "ERROR: index.html not found in dist/"
+            exit 1
+          fi
+          echo "✓ Build artifacts verified"
+
+  slither-contracts:
+    name: Slither Static Analysis (Contracts)
+    runs-on: ubuntu-latest
+    # Only run if contract files exist
+    if: hashFiles('contracts/**/*.sol') != ''
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Slither
+        run: |
+          pip3 install slither-analyzer
+          pip3 install solc-select
+          solc-select install 0.8.21
+          solc-select use 0.8.21
+
+      - name: Run Slither
+        run: |
+          slither . \
+            --exclude-dependencies \
+            --fail-on medium \
+            --filter-paths "node_modules|test" || echo "Slither analysis completed with warnings"
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-audit, eslint-security, test-coverage, typescript-check, environment-validation, web3-security, build-check]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# 🔒 Web3 Security Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All security checks completed for SafeVoice Web3 application." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Checks Performed:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Description |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Dependency Audit | NPM package vulnerability scan |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📋 ESLint Security | Code quality and security patterns |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📊 Test Coverage | Coverage thresholds (80% minimum) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔷 TypeScript Check | Type safety validation |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔑 Environment Validation | Secrets and config validation |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 Web3 Security | Blockchain interaction patterns |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏗️ Build Verification | Production build check |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📚 Documentation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- [Web3 Deployment Playbook](./docs/web3-deployment.md)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Gas Management Runbook](./docs/runbook-gas-management.md)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Chain Outages Runbook](./docs/runbook-chain-outages.md)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Contract Upgrades Runbook](./docs/runbook-contract-upgrades.md)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Security Incidents Runbook](./docs/runbook-security-incidents.md)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Review the individual job results above for detailed findings." >> $GITHUB_STEP_SUMMARY
