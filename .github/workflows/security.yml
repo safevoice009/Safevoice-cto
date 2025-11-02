@@ -227,7 +227,7 @@ jobs:
     name: Hardhat Coverage & Gas Thresholds
     runs-on: ubuntu-latest
     # Only run if Hardhat config exists
-    if: hashFiles('hardhat.config.*') != ''
+    if: ${{ hashFiles('hardhat.config.*') != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -312,7 +312,7 @@ jobs:
     name: Slither Static Analysis (Contracts)
     runs-on: ubuntu-latest
     # Only run if contract files exist
-    if: hashFiles('contracts/**/*.sol') != ''
+    if: ${{ hashFiles('contracts/**/*.sol') != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
