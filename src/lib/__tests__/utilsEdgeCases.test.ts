@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   getRelativeTime,
   formatTimeAgo,
@@ -481,9 +481,6 @@ describe('Utils Edge Cases', () => {
 
   describe('Date Filtering Boundary Conditions', () => {
     const now = Date.now();
-    const today = new Date().setHours(0, 0, 0, 0);
-    const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-    const monthAgo = now - 30 * 24 * 60 * 60 * 1000;
 
     it('handles timestamp at exact day boundary', () => {
       const midnight = new Date().setHours(0, 0, 0, 0);
