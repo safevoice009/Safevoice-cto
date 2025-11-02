@@ -15,8 +15,8 @@ const DEFAULT_PRIVATE_KEY = '0x0000000000000000000000000000000000000000000000000
 const mochaConfig: any = {
   timeout: 200000,
   require: ['ts-node/register'],
-  extension: ['ts', 'js'],
-  spec: './contracts/test/**/*.test.ts',
+  extension: ['ts', 'cjs', 'cts', 'js'],
+  spec: ['./contracts/test/**/*.test.ts', './contracts/test/**/*.test.cjs'],
 };
 
 const config: HardhatUserConfig = {

@@ -1,6 +1,7 @@
 {
   "extends": "solhint:recommended",
   "rules": {
+    "custom-errors": "off",
     "compiler-version": ["error", "^0.8.0"],
     "func-visibility": ["warn", { "ignoreConstructors": true }],
     "not-rely-on-time": "off",
@@ -9,11 +10,11 @@
     "contract-name-camelcase": "error",
     "func-name-mixedcase": "error",
     "var-name-mixedcase": "error",
-    "const-name-snakecase": "error",
+    "const-name-snakecase": "off",
     "modifier-name-mixedcase": "error",
     "event-name-camelcase": "error",
     "max-line-length": ["error", 120],
-    "quotes": ["error", "single"],
+    "quotes": ["error", "double"],
     "reason-string": ["warn", { "maxLength": 64 }],
     "function-max-lines": ["warn", 50],
     "code-complexity": ["warn", 7],
