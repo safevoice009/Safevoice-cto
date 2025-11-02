@@ -181,23 +181,29 @@ npm test -- --watch
 
 ### Hardhat & Smart Contract Tooling
 
-Smart contract tooling is included for static analysis and gas benchmarking:
+Smart contract tooling now lives in the `contracts/` workspace and can be driven from the project root:
 
 ```bash
 # Compile contracts
 npm run hardhat:compile
 
-# Run Hardhat tests
-npm run hardhat:test
+# Run Hardhat unit tests
+npm run test:contracts
+
+# Lint Solidity sources with Solhint
+npm run lint:contracts
 
 # Run coverage with threshold enforcement
-npm run security:coverage
+npm run coverage:contracts
+
+# Deploy tagged deployments (uses hardhat-deploy)
+npm run deploy:voice
 
 # Run gas benchmarking with thresholds
 npm run security:gas
 ```
 
-> **Note:** Hardhat tasks rely on the placeholder `SafeVoiceVault` contract. Replace with production contracts before mainnet deployment and update thresholds accordingly.
+> **Note:** Hardhat tasks rely on the placeholder `SafeVoiceVault` contract. Replace with production contracts before mainnet deployment and update thresholds accordingly. See [`contracts/README.md`](./contracts/README.md) for a detailed walkthrough of the new setup, environment variables, and deployment instructions.
 
 ## 📝 License
 

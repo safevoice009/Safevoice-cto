@@ -7,13 +7,18 @@
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "types": ["node"],
-    "outDir": "./dist"
+    "types": ["node", "mocha"],
+    "outDir": "./dist",
+    "moduleResolution": "node",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
   },
   "include": [
-    "./hardhat.config.ts",
-    "./scripts/**/*.ts",
-    "./test/**/*.ts"
+    "./hardhat-config.cts",
+    "./contracts/deploy/**/*.ts",
+    "./contracts/tasks/**/*.ts",
+    "./contracts/test/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }

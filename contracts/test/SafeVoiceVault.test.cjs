@@ -1,13 +1,12 @@
-import { expect } from 'chai';
-import { ethers } from 'hardhat';
-import type { Contract, Signer } from 'ethers';
+const { expect } = require('chai');
+const { ethers } = require('hardhat');
 
 describe('SafeVoiceVault', function () {
-  let vault: Contract;
-  let owner: Signer;
-  let addr1: Signer;
-  let ownerAddress: string;
-  let addr1Address: string;
+  let vault;
+  let owner;
+  let addr1;
+  let ownerAddress;
+  let addr1Address;
 
   beforeEach(async function () {
     [owner, addr1] = await ethers.getSigners();
@@ -16,7 +15,6 @@ describe('SafeVoiceVault', function () {
 
     const SafeVoiceVault = await ethers.getContractFactory('SafeVoiceVault');
     vault = await SafeVoiceVault.deploy();
-    await vault.deployed();
   });
 
   describe('Deployment', function () {
