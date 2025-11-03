@@ -579,6 +579,13 @@ npm run security:gas
 
 > **Note:** Hardhat tasks rely on the placeholder `SafeVoiceVault` contract. Replace with production contracts before mainnet deployment and update thresholds accordingly. See [`contracts/README.md`](./contracts/README.md) for a detailed walkthrough of the new setup, environment variables, and deployment instructions.
 
+## 📚 Smart Contract Documentation
+
+- [VoiceToken API](./docs/VOICE_TOKEN_API.md) - Complete VoiceToken contract reference
+- [Vesting Module](./docs/VESTING_MODULE.md) - Full VoiceVesting documentation with examples
+- [Vesting Quick Start](./docs/VESTING_QUICK_START.md) - Quick reference for common operations
+- [Web3 Deployment Guide](./docs/web3-deployment.md) - Security best practices and deployment procedures
+
 ## 📝 License
 
 This project is licensed under the terms specified in the LICENSE file.
