@@ -7,13 +7,35 @@ This directory contains the Hardhat-based smart contract workspace for SafeVoice
 ```
 contracts/
 ├── src/           # Solidity smart contracts
+│   ├── VoiceToken.sol        # ERC20 token with supply cap, roles, permit, pausable
+│   └── SafeVoiceVault.sol    # Placeholder vault contract
 ├── test/          # Hardhat tests (using Chai & Waffle)
+│   ├── VoiceToken.test.cjs   # Comprehensive VoiceToken tests (89 tests)
+│   └── SafeVoiceVault.test.cjs
 ├── deploy/        # Deployment scripts (hardhat-deploy)
+│   ├── 001_deploy_vault.ts
+│   └── 002_deploy_voice_token.ts
 ├── tasks/         # Custom Hardhat tasks
 ├── artifacts/     # Compiled contract artifacts (gitignored)
 ├── cache/         # Hardhat cache (gitignored)
 └── deployments/   # Deployment records (gitignored)
 ```
+
+## 📝 Contracts
+
+### VoiceToken
+ERC20 token powering the SafeVoice platform:
+- **Supply Cap**: 1 billion tokens maximum
+- **Access Control**: ADMIN, MINTER, BURNER, BRIDGE roles
+- **EIP-2612**: Gasless approvals via permit
+- **Pausable**: Emergency stop functionality
+- **Bridge Support**: Cross-chain transfer functions
+- **Batch Transfers**: Gas-efficient multi-recipient transfers
+
+See [VOICE_TOKEN_API.md](../docs/VOICE_TOKEN_API.md) for complete API documentation.
+
+### SafeVoiceVault
+Placeholder contract for future vault functionality.
 
 ## 🚀 Quick Start
 
@@ -132,12 +154,28 @@ npx hardhat run scripts/deploy.ts --network sepolia
 ### Mainnet Deployment
 
 ```bash
+# Deploy VoiceToken
 npm run deploy:voice
+# or
+npx hardhat run scripts/deploy-voice-token.ts --network mainnet
+
+# Deploy SafeVoiceVault
+npm run deploy:vault
 # or
 npx hardhat run scripts/deploy.ts --network mainnet
 ```
 
 ⚠️ **WARNING**: Always test on testnets first!
+
+### Export ABIs for Frontend
+
+After deployment, export contract ABIs for frontend integration:
+
+```bash
+npm run export:abis
+```
+
+This generates TypeScript files in `src/lib/contracts/` for easy frontend integration.
 
 ## 🔍 Contract Verification
 

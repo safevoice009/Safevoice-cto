@@ -99,7 +99,21 @@ Every visitor gets a unique `Student#XXXX` ID stored in localStorage, ensuring a
 ### Smooth Animations
 All animations powered by Framer Motion with proper TypeScript typing.
 
-## 🪙 Reward Engine
+## 🪙 Reward Engine & Token Economy
+
+### $VOICE Token (ERC20)
+
+The `VoiceToken` smart contract powers SafeVoice's on-chain token economy:
+
+- **Supply Cap**: 1 billion tokens maximum
+- **Access Control**: Role-based minting, burning, and bridge operations
+- **EIP-2612 Permit**: Gasless approvals for better UX
+- **Emergency Pause**: Admin-controlled pause for security incidents
+- **Cross-Chain Bridge**: Support for multi-chain deployments
+
+See [VOICE_TOKEN_API.md](./docs/VOICE_TOKEN_API.md) for complete contract documentation.
+
+### RewardEngine (Off-Chain)
 
 The `RewardEngine` centralizes all $VOICE token state and lives in [`src/lib/tokens/RewardEngine.ts`](src/lib/tokens/RewardEngine.ts).
 

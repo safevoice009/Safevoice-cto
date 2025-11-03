@@ -18,12 +18,16 @@
     "hardhat:test": "hardhat test",
     "hardhat:coverage": "hardhat coverage",
     "hardhat:deploy": "hardhat deploy",
+    "hardhat:deploy:voice": "hardhat deploy --tags VoiceToken",
     "security:coverage": "npm run hardhat:coverage && node scripts/enforce-hardhat-thresholds.mjs",
     "security:gas": "REPORT_GAS=true npm run hardhat:test && node scripts/enforce-gas-thresholds.mjs",
     "test:contracts": "hardhat test",
-    "deploy:voice": "hardhat deploy --tags SafeVoiceVault --network mainnet",
+    "deploy:voice": "hardhat run scripts/deploy-voice-token.ts --network mainnet",
+    "deploy:voice:local": "hardhat run scripts/deploy-voice-token.ts --network localhost",
+    "deploy:vault": "hardhat deploy --tags SafeVoiceVault --network mainnet",
     "coverage:contracts": "hardhat coverage",
-    "lint:contracts": "solhint 'contracts/src/**/*.sol'"
+    "lint:contracts": "solhint 'contracts/src/**/*.sol'",
+    "export:abis": "npm run hardhat:compile && node scripts/export-abis.mjs"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^1.3.7",
