@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const CONTRACTS_TO_EXPORT = ['VoiceToken', 'SafeVoiceVault'];
+const CONTRACTS_TO_EXPORT = ['VoiceToken', 'SafeVoiceVault', 'VoiceVesting'];
 
 async function exportAbis() {
   console.log('Exporting contract ABIs...\n');
