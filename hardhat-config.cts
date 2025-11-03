@@ -21,8 +21,9 @@ const mochaConfig: any = {
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: '0.8.21',
+    version: '0.8.24',
     settings: {
+      evmVersion: 'cancun',
       optimizer: {
         enabled: true,
         runs: 200,

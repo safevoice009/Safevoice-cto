@@ -132,6 +132,31 @@ Key analytics touchpoints:
 
 Integration teams can pull the ABI via `npm run export:abis` and access full usage guidelines in [VESTING_MODULE.md](./docs/VESTING_MODULE.md).
 
+### Staking & Governance
+
+The on-chain staking and governance system enables VOICE token holders to:
+
+- **Stake VOICE tokens** with configurable lock periods to earn rewards
+- **Participate in on-chain governance** via snapshot-based voting
+- **Delegate voting power** to trusted representatives
+- **Earn staking rewards** with transparent APY calculation
+
+#### Key Contracts
+
+- **VoiceStaking**: Manages stake positions, reward accrual, and emergency withdrawals
+- **VoiceVotingToken** (vVOICE): Non-transferable governance token minted 1:1 on stake
+- **VoiceGovernor**: OpenZeppelin Governor for proposal creation, voting, and execution
+
+#### Staking Features
+
+- **Lock Periods**: 7 days minimum, 365 days maximum (configurable per chain)
+- **Early Unstake Penalty**: 10% default (configurable up to 50%)
+- **Emergency Withdrawal**: 2-day delay mechanism for security
+- **Multi-Chain Support**: Chain-specific parameters and emission schedules
+- **RewardEngine Integration**: Transparent APY calculation surfaced in UI
+
+See [STAKING_GOVERNANCE_DOCS.md](./STAKING_GOVERNANCE_DOCS.md) for complete documentation.
+
 ### RewardEngine (Off-Chain)
 
 The `RewardEngine` centralizes all $VOICE token state and lives in [`src/lib/tokens/RewardEngine.ts`](src/lib/tokens/RewardEngine.ts).
