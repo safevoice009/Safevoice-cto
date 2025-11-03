@@ -113,6 +113,25 @@ The `VoiceToken` smart contract powers SafeVoice's on-chain token economy:
 
 See [VOICE_TOKEN_API.md](./docs/VOICE_TOKEN_API.md) for complete contract documentation.
 
+### VoiceVesting Module
+
+The on-chain vesting coordinator allocates the fixed 1B VOICE supply across four governance-approved tranches with cliff and linear vesting support. A 48-hour timelock guards beneficiary changes and the contract can be paused during incidents.
+
+| Tranche | Allocation | Percent | Vesting Profile |
+| ------- | ---------- | ------- | --------------- |
+| Community Rewards | 400,000,000 VOICE | 40% | Linear release over 24 months (no cliff) |
+| Treasury | 250,000,000 VOICE | 25% | Linear release over 60 months |
+| Team | 200,000,000 VOICE | 20% | 12-month cliff, 48-month linear vesting |
+| Ecosystem | 150,000,000 VOICE | 15% | 6-month cliff, 36-month linear vesting |
+
+Key analytics touchpoints:
+- `VestingScheduleCreated` for newly provisioned allocations and beneficiary onboarding metrics
+- `TokensReleased` to track realized supply circulation and cohort unlocks
+- `VestingRevoked` to monitor clawbacks and compliance-driven actions
+- `BeneficiaryUpdated` for governance-approved handoffs or wallet rotations
+
+Integration teams can pull the ABI via `npm run export:abis` and access full usage guidelines in [VESTING_MODULE.md](./docs/VESTING_MODULE.md).
+
 ### RewardEngine (Off-Chain)
 
 The `RewardEngine` centralizes all $VOICE token state and lives in [`src/lib/tokens/RewardEngine.ts`](src/lib/tokens/RewardEngine.ts).
@@ -218,6 +237,13 @@ npm run security:gas
 ```
 
 > **Note:** Hardhat tasks rely on the placeholder `SafeVoiceVault` contract. Replace with production contracts before mainnet deployment and update thresholds accordingly. See [`contracts/README.md`](./contracts/README.md) for a detailed walkthrough of the new setup, environment variables, and deployment instructions.
+
+## 📚 Smart Contract Documentation
+
+- [VoiceToken API](./docs/VOICE_TOKEN_API.md) - Complete VoiceToken contract reference
+- [Vesting Module](./docs/VESTING_MODULE.md) - Full VoiceVesting documentation with examples
+- [Vesting Quick Start](./docs/VESTING_QUICK_START.md) - Quick reference for common operations
+- [Web3 Deployment Guide](./docs/web3-deployment.md) - Security best practices and deployment procedures
 
 ## 📝 License
 

@@ -34,6 +34,18 @@ ERC20 token powering the SafeVoice platform:
 
 See [VOICE_TOKEN_API.md](../docs/VOICE_TOKEN_API.md) for complete API documentation.
 
+### VoiceVesting
+Token vesting and distribution manager:
+- **Tranche Allocations**: Community (40%), Treasury (25%), Team (20%), Ecosystem (15%)
+- **Linear & Cliff Vesting**: Flexible vesting schedules with optional cliff periods
+- **Timelock Protection**: 48-hour delay for beneficiary changes
+- **Revocation**: Admin can revoke vesting schedules with automatic vested token release
+- **Emergency Pause**: Security incident response capability
+- **Integration**: Mints from VoiceToken respecting supply cap
+- **Test Coverage**: 72 comprehensive tests covering all vesting paths
+
+See [VESTING_MODULE.md](../docs/VESTING_MODULE.md) for complete vesting documentation or [VESTING_QUICK_START.md](../docs/VESTING_QUICK_START.md) for quick reference.
+
 ### SafeVoiceVault
 Placeholder contract for future vault functionality.
 
