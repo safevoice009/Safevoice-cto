@@ -607,6 +607,12 @@ npm run security:gas
 
 ## 📚 Documentation
 
+### Community System
+- [Communities User Guide](./docs/COMMUNITIES_USER_GUIDE.md) - Step-by-step instructions for students
+- [Community Moderation Guide](./docs/COMMUNITY_MODERATION_GUIDE.md) - Policies and workflows for moderators
+- [Communities Technical Overview](./docs/COMMUNITIES_TECH_OVERVIEW.md) - Developer reference for data models, store actions, and APIs
+- [Communities QA Checklist](./docs/COMMUNITIES_QA_CHECKLIST.md) - Manual testing scenarios for end-to-end validation
+
 ### Token Economics & Rewards
 - [Reward Engine](./REWARD_ENGINE_DOCS.md) - Complete reward system documentation
 - [Staking & Governance](./STAKING_GOVERNANCE_DOCS.md) - Staking and on-chain governance guide
