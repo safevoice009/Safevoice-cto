@@ -525,7 +525,7 @@ export class Web3Bridge {
   /**
    * Unstake tokens
    */
-  async unstakeTokens(stakeId: number): Promise<BridgeResult> {
+  async unstakeTokens(amount: number): Promise<BridgeResult> {
     if (!this.config.enabled) {
       return { success: false, error: 'Web3 bridge disabled' };
     }
@@ -540,6 +540,7 @@ export class Web3Bridge {
     }
 
     try {
+      const amountWei = parseEther(amount.toString());
       const contract = createContract(
         this.config.contracts.voiceStaking,
         CONTRACTS.VoiceStaking.abi,
@@ -547,16 +548,12 @@ export class Web3Bridge {
         this.config.rpcUrl,
       );
 
-      // Get stake info to know the amount for optimistic update
-      const stakeInfo = await contract.read.call('getStake', [address, stakeId]);
-      const amount = Number(stakeInfo[0]) / 1e18; // Convert from wei
-
       // Queue transaction with optimistic update
       const txId = this.queueTransaction(
         'unstake',
         {
           type: 'unstake',
-          stakeId,
+          stakeId: 0,
           amount,
         },
         {
@@ -565,7 +562,7 @@ export class Web3Bridge {
       );
 
       // Submit transaction
-      const hash = await contract.write.call('unstake', [stakeId]);
+      const hash = await contract.write.call('unstake', [amountWei]);
 
       this.updateTransaction(txId, {
         status: 'submitted',

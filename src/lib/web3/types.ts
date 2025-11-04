@@ -97,7 +97,7 @@ export interface StakeMetadata {
 
 export interface UnstakeMetadata {
   type: 'unstake';
-  stakeId: number;
+  stakeId?: number;
   amount: number;
 }
 
