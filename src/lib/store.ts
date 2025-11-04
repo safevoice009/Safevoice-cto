@@ -246,6 +246,48 @@ export interface NFTBadge {
   cost: number;
 }
 
+export interface CommunityEvent {
+  id: string;
+  title: string;
+  date: string;
+  location: string;
+  description: string;
+  createdBy: string;
+  createdAt: number;
+  rsvps: string[];
+}
+
+export type TrendingTopicType = 'hashtag' | 'category';
+
+export interface TrendingTopic {
+  label: string;
+  count: number;
+  type: TrendingTopicType;
+}
+
+export interface TopContributor {
+  studentId: string;
+  postCount: number;
+  totalReactions: number;
+  totalHelpfulReceived: number;
+  commentCount: number;
+  score: number;
+}
+
+export type PostSortOption = 'relevant' | 'recent' | 'popular';
+
+export interface PostSearchFilters {
+  query?: string;
+  channel?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  hasMedia?: boolean;
+  minReactions?: number;
+  minComments?: number;
+  authorType?: 'any' | 'me' | 'mentor' | 'peer';
+  sort?: PostSortOption;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -259,6 +301,7 @@ export interface StoreState {
   expiryTimeouts: Record<string, number>;
   boostTimeouts: Record<string, { highlight?: number; crossCampus?: number }>;
   communitySupport: Record<string, number>;
+  communityEvents: CommunityEvent[];
 
   // Wallet & Token state
   connectedAddress: string | null;
@@ -543,6 +586,19 @@ export interface StoreState {
   checkAchievements: () => Promise<void>;
   getAchievementProgress: (achievementId: string) => { progress: number; total: number; percentage: number } | null;
 
+  // Community Discovery
+  getHotPosts: (limit?: number) => Post[];
+  getNewPosts: (limit?: number) => Post[];
+  getMostCommentedPosts: (limit?: number) => Post[];
+  getTrendingTopics: (limit?: number) => TrendingTopic[];
+  getTopContributors: (limit?: number) => TopContributor[];
+  searchPosts: (filters: PostSearchFilters) => Post[];
+
+  // Community Events
+  addCommunityEvent: (title: string, date: string, location: string, description: string) => boolean;
+  toggleEventRsvp: (eventId: string) => void;
+  loadCommunityEvents: () => void;
+
   // Utility
   saveToLocalStorage: () => void;
 }
@@ -575,6 +631,7 @@ const STORAGE_KEYS = {
   REFERRAL_STATE: 'safevoice_referral_state',          // Referral program data
   COMMUNITY_SUPPORT: 'safevoice_community_support',    // Community support tracking
   NFT_BADGES: 'safevoice_nft_badges',                  // Purchased NFT badges
+  COMMUNITY_EVENTS: 'safevoice_community_events',      // Community events and meetups
 };
 
 const rewardEngine = new RewardEngine();
@@ -688,6 +745,94 @@ const persistNFTBadges = (badges: NFTBadge[]): void => {
     localStorage.setItem(STORAGE_KEYS.NFT_BADGES, JSON.stringify(badges));
   } catch (error) {
     console.error('Failed to persist NFT badges', error);
+  }
+};
+
+const toISODate = (timestamp: number): string => new Date(timestamp).toISOString().slice(0, 10);
+
+const createDefaultCommunityEvents = (): CommunityEvent[] => {
+  const now = Date.now();
+  return [
+    {
+      id: crypto.randomUUID(),
+      title: 'Peer Support Walk & Talk',
+      date: toISODate(now + 7 * 24 * 60 * 60 * 1000),
+      location: 'Campus Garden Courtyard',
+      description: 'Join fellow students for a gentle walk focused on mindful conversation and unwinding together.',
+      createdBy: 'CommunityTeam',
+      createdAt: now,
+      rsvps: [],
+    },
+    {
+      id: crypto.randomUUID(),
+      title: 'Study Stress Circle',
+      date: toISODate(now + 14 * 24 * 60 * 60 * 1000),
+      location: 'Wellness Center Room 202',
+      description: 'Facilitated peer circle to share exam stress strategies and uplift each other before finals.',
+      createdBy: 'CommunityTeam',
+      createdAt: now,
+      rsvps: [],
+    },
+  ];
+};
+
+const normalizeCommunityEvent = (event: Partial<CommunityEvent>): CommunityEvent | null => {
+  const title = typeof event.title === 'string' ? event.title.trim() : '';
+  const location = typeof event.location === 'string' ? event.location.trim() : '';
+  const description = typeof event.description === 'string' ? event.description.trim() : '';
+  const date = typeof event.date === 'string' ? event.date : '';
+
+  if (!title || !location || !description || !date) {
+    return null;
+  }
+
+  return {
+    id: typeof event.id === 'string' && event.id ? event.id : crypto.randomUUID(),
+    title,
+    date,
+    location,
+    description,
+    createdBy: typeof event.createdBy === 'string' && event.createdBy ? event.createdBy : 'CommunityMember',
+    createdAt: typeof event.createdAt === 'number' ? event.createdAt : Date.now(),
+    rsvps: Array.isArray(event.rsvps)
+      ? event.rsvps.filter((id): id is string => typeof id === 'string' && id.length > 0)
+      : [],
+  } satisfies CommunityEvent;
+};
+
+const readStoredCommunityEvents = (): CommunityEvent[] => {
+  if (typeof window === 'undefined') return createDefaultCommunityEvents();
+
+  const raw = localStorage.getItem(STORAGE_KEYS.COMMUNITY_EVENTS);
+  if (!raw) {
+    return createDefaultCommunityEvents();
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Array<Partial<CommunityEvent>>;
+    const normalized = parsed
+      .map((event) => normalizeCommunityEvent(event))
+      .filter((event): event is CommunityEvent => event !== null)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    if (normalized.length === 0) {
+      return createDefaultCommunityEvents();
+    }
+
+    return normalized;
+  } catch (error) {
+    console.error('Failed to parse stored community events', error);
+    return createDefaultCommunityEvents();
+  }
+};
+
+const persistCommunityEvents = (events: CommunityEvent[]): void => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.COMMUNITY_EVENTS, JSON.stringify(events));
+  } catch (error) {
+    console.error('Failed to persist community events', error);
   }
 };
 
@@ -1016,6 +1161,29 @@ const findCommentById = (comments: Comment[], commentId: string): Comment | null
   return null;
 };
 
+const getTotalReactions = (post: Post): number =>
+  Object.values(post.reactions).reduce((sum, count) => sum + count, 0);
+
+const extractHashtagsFromContent = (content: string): string[] => {
+  const hashtags = new Set<string>();
+  const hashtagPattern = /(^|\s)#([A-Za-z0-9_]+)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = hashtagPattern.exec(content)) !== null) {
+    const [, , tag] = match;
+    if (tag) {
+      hashtags.add(tag.toLowerCase());
+    }
+  }
+
+  return Array.from(hashtags);
+};
+
+const clampLimit = (limit?: number, fallback = 5): number => {
+  if (!limit || limit <= 0) return fallback;
+  return Math.min(limit, 25);
+};
+
 export const useStore = create<StoreState>((set, get) => {
   const syncRewardState = async () => {
     const snapshot = rewardEngine.getWalletSnapshot();
@@ -1232,6 +1400,7 @@ export const useStore = create<StoreState>((set, get) => {
     savedHelplines: getSavedHelplinesFromStorage(),
     emergencyBannerDismissedUntil: getEmergencyBannerDismissedUntil(),
     memorialTributes: [],
+    communityEvents: typeof window !== 'undefined' ? readStoredCommunityEvents() : createDefaultCommunityEvents(),
     nftBadges: initialNFTBadges,
 
     referralCode: initialReferralState.code,
@@ -1306,9 +1475,98 @@ export const useStore = create<StoreState>((set, get) => {
       toast.success(current.includes(helplineId) ? 'Helpline removed' : 'Helpline saved! 🔖');
     },
 
-  setConnectedAddress: (address: string | null) => {
-    set({ connectedAddress: address });
-  },
+    loadCommunityEvents: () => {
+      const events = readStoredCommunityEvents();
+      set({ communityEvents: events });
+    },
+
+    addCommunityEvent: (title: string, date: string, location: string, description: string) => {
+      const trimmedTitle = title.trim();
+      const trimmedLocation = location.trim();
+      const trimmedDescription = description.trim();
+      const parsedDate = Date.parse(date);
+
+      if (!trimmedTitle || !trimmedLocation || !trimmedDescription) {
+        toast.error('Please provide a title, location, and description for the event.');
+        return false;
+      }
+
+      if (Number.isNaN(parsedDate)) {
+        toast.error('Please provide a valid event date.');
+        return false;
+      }
+
+      const normalizedDate = toISODate(parsedDate);
+      const state = get();
+
+      const duplicate = state.communityEvents.some(
+        (event) => event.title.toLowerCase() === trimmedTitle.toLowerCase() && event.date === normalizedDate
+      );
+
+      if (duplicate) {
+        toast.error('An event with the same title is already scheduled for that day.');
+        return false;
+      }
+
+      const newEvent: CommunityEvent = {
+        id: crypto.randomUUID(),
+        title: trimmedTitle,
+        date: normalizedDate,
+        location: trimmedLocation,
+        description: trimmedDescription,
+        createdBy: state.studentId,
+        createdAt: Date.now(),
+        rsvps: [],
+      };
+
+      let nextEvents: CommunityEvent[] = [];
+      set((current) => {
+        nextEvents = [...current.communityEvents, newEvent].sort((a, b) => a.date.localeCompare(b.date));
+        return { communityEvents: nextEvents };
+      });
+
+      persistCommunityEvents(nextEvents);
+
+      toast.success('Event added! Invite friends and we will handle reminders. 🗓️');
+      return true;
+    },
+
+    toggleEventRsvp: (eventId: string) => {
+      const state = get();
+      const target = state.communityEvents.find((event) => event.id === eventId);
+
+      if (!target) {
+        toast.error('Event not found.');
+        return;
+      }
+
+      const studentId = state.studentId;
+      const isAlreadyGoing = target.rsvps.includes(studentId);
+
+      const updatedEvent: CommunityEvent = {
+        ...target,
+        rsvps: isAlreadyGoing
+          ? target.rsvps.filter((id) => id !== studentId)
+          : [...target.rsvps, studentId],
+      };
+
+      const nextEvents = state.communityEvents
+        .map((event) => (event.id === eventId ? updatedEvent : event))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      set({ communityEvents: nextEvents });
+      persistCommunityEvents(nextEvents);
+
+      if (isAlreadyGoing) {
+        toast('RSVP removed. We hope to see you at another event!', { icon: 'ℹ️' });
+      } else {
+        toast.success('RSVP saved! Looking forward to seeing you there. ✨');
+      }
+    },
+
+    setConnectedAddress: (address: string | null) => {
+      set({ connectedAddress: address });
+    },
 
   setAnonymousWallet: (address: string | null) => {
     if (typeof window !== 'undefined') {
@@ -1866,6 +2124,7 @@ export const useStore = create<StoreState>((set, get) => {
     const rawModActions = storedModActions ? (JSON.parse(storedModActions) as Array<Partial<ModeratorAction>>) : [];
     const notifications = storedNotifications ? JSON.parse(storedNotifications) : [];
     const encryptionKeys = storedEncryptionKeys ? JSON.parse(storedEncryptionKeys) : {};
+    const communityEvents = readStoredCommunityEvents();
 
     const reportCollection = new Map<string, Report>();
     rawReports.forEach((rawReport) => {
@@ -2064,7 +2323,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     const unreadCount = notifications.filter((n: Notification) => !n.read).length;
 
-    set({ posts: validPosts, bookmarkedPosts, reports, moderatorActions, notifications, unreadCount, encryptionKeys, firstPostAwarded });
+    set({ posts: validPosts, bookmarkedPosts, reports, moderatorActions, notifications, unreadCount, encryptionKeys, firstPostAwarded, communityEvents });
 
     // Schedule expiry for posts
     validPosts.forEach((post: Post) => {
@@ -2076,6 +2335,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     get().loadMemorialData();
     get().loadNFTBadges();
+    get().loadCommunityEvents();
   },
 
   saveToLocalStorage: () => {
@@ -2091,6 +2351,7 @@ export const useStore = create<StoreState>((set, get) => {
     localStorage.setItem(STORAGE_KEYS.SAVED_HELPLINES, JSON.stringify(state.savedHelplines));
     localStorage.setItem(STORAGE_KEYS.FIRST_POST_AWARDED, state.firstPostAwarded ? 'true' : 'false');
     localStorage.setItem(STORAGE_KEYS.MEMORIAL_TRIBUTES, JSON.stringify(state.memorialTributes));
+    persistCommunityEvents(state.communityEvents);
     persistNFTBadges(state.nftBadges);
   },
 
@@ -3832,6 +4093,301 @@ export const useStore = create<StoreState>((set, get) => {
 
   getAchievementProgress: (achievementId: string) => {
     return get().achievementProgress[achievementId] ?? null;
+  },
+
+  getHotPosts: (limit?: number) => {
+    const posts = get().posts;
+    if (posts.length === 0) return [];
+
+    const windowStart = Date.now() - 24 * 60 * 60 * 1000;
+    const recent = posts.filter((post) => post.createdAt >= windowStart);
+    const source = recent.length > 0 ? recent : posts;
+    const max = clampLimit(limit);
+
+    return [...source]
+      .sort((a, b) => {
+        const reactionDiff = getTotalReactions(b) - getTotalReactions(a);
+        if (reactionDiff !== 0) return reactionDiff;
+        return b.createdAt - a.createdAt;
+      })
+      .slice(0, max);
+  },
+
+  getNewPosts: (limit?: number) => {
+    const posts = get().posts;
+    if (posts.length === 0) return [];
+    const max = clampLimit(limit);
+
+    return [...posts]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, max);
+  },
+
+  getMostCommentedPosts: (limit?: number) => {
+    const posts = get().posts;
+    if (posts.length === 0) return [];
+    const max = clampLimit(limit);
+
+    return [...posts]
+      .sort((a, b) => {
+        const commentDiff = (b.commentCount ?? 0) - (a.commentCount ?? 0);
+        if (commentDiff !== 0) return commentDiff;
+        const reactionDiff = getTotalReactions(b) - getTotalReactions(a);
+        if (reactionDiff !== 0) return reactionDiff;
+        return b.createdAt - a.createdAt;
+      })
+      .slice(0, max);
+  },
+
+  getTrendingTopics: (limit?: number) => {
+    const posts = get().posts;
+    if (posts.length === 0) return [];
+
+    const topicMap = new Map<string, TrendingTopic>();
+
+    posts.forEach((post) => {
+      if (post.category) {
+        const key = `category:${post.category.toLowerCase()}`;
+        const existing = topicMap.get(key);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          topicMap.set(key, {
+            label: post.category,
+            count: 1,
+            type: 'category',
+          });
+        }
+      }
+
+      if (!post.isEncrypted && post.content) {
+        const hashtags = extractHashtagsFromContent(post.content);
+        hashtags.forEach((tag) => {
+          const key = `hashtag:${tag}`;
+          const existing = topicMap.get(key);
+          if (existing) {
+            existing.count += 1;
+          } else {
+            topicMap.set(key, {
+              label: `#${tag}`,
+              count: 1,
+              type: 'hashtag',
+            });
+          }
+        });
+      }
+    });
+
+    const max = clampLimit(limit, 6);
+
+    return Array.from(topicMap.values())
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.label.localeCompare(b.label);
+      })
+      .slice(0, max);
+  },
+
+  getTopContributors: (limit?: number) => {
+    const posts = get().posts;
+    if (posts.length === 0) return [];
+
+    const metrics = new Map<
+      string,
+      {
+        postCount: number;
+        totalReactions: number;
+        totalHelpfulReceived: number;
+        commentCount: number;
+        lastPostAt: number;
+      }
+    >();
+
+    posts.forEach((post) => {
+      const existing =
+        metrics.get(post.studentId) ??
+        {
+          postCount: 0,
+          totalReactions: 0,
+          totalHelpfulReceived: 0,
+          commentCount: 0,
+          lastPostAt: 0,
+        };
+
+      existing.postCount += 1;
+      existing.totalReactions += getTotalReactions(post);
+      existing.totalHelpfulReceived += post.helpfulCount ?? 0;
+      existing.commentCount += post.commentCount ?? 0;
+      existing.lastPostAt = Math.max(existing.lastPostAt, post.createdAt);
+
+      metrics.set(post.studentId, existing);
+    });
+
+    const max = clampLimit(limit);
+
+    return Array.from(metrics.entries())
+      .map(([studentId, value]) => ({
+        studentId,
+        postCount: value.postCount,
+        totalReactions: value.totalReactions,
+        totalHelpfulReceived: value.totalHelpfulReceived,
+        commentCount: value.commentCount,
+        score:
+          value.postCount * 2 +
+          value.totalReactions * 0.6 +
+          value.totalHelpfulReceived * 1.5 +
+          value.commentCount * 0.8,
+        lastPostAt: value.lastPostAt,
+      }))
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.totalReactions !== a.totalReactions) return b.totalReactions - a.totalReactions;
+        return b.lastPostAt - a.lastPostAt;
+      })
+      .slice(0, max)
+      .map((entry) => ({
+        studentId: entry.studentId,
+        postCount: entry.postCount,
+        totalReactions: entry.totalReactions,
+        totalHelpfulReceived: entry.totalHelpfulReceived,
+        commentCount: entry.commentCount,
+        score: entry.score,
+      }));
+  },
+
+  searchPosts: (filters: PostSearchFilters) => {
+    const state = get();
+    const posts = state.posts;
+    if (posts.length === 0) return [];
+
+    const {
+      query,
+      channel,
+      startDate,
+      endDate,
+      hasMedia,
+      minReactions,
+      minComments,
+      authorType = 'any',
+      sort = 'relevant',
+    } = filters;
+
+    const normalizedQuery = query?.trim().toLowerCase() ?? '';
+    const startTimestamp = startDate ? Date.parse(startDate) : Number.NaN;
+    const endTimestampRaw = endDate ? Date.parse(endDate) : Number.NaN;
+    const endTimestamp = Number.isNaN(endTimestampRaw)
+      ? endTimestampRaw
+      : endTimestampRaw + 24 * 60 * 60 * 1000 - 1;
+    const startValid = !Number.isNaN(startTimestamp);
+    const endValid = !Number.isNaN(endTimestampRaw);
+
+    const targetChannel = channel?.toLowerCase() ?? '';
+    const hashtagQuery =
+      normalizedQuery && normalizedQuery.startsWith('#') ? normalizedQuery.slice(1) : '';
+    const currentStudentId = state.studentId;
+
+    const filtered = posts.filter((post) => {
+      if (startValid && post.createdAt < startTimestamp) {
+        return false;
+      }
+      if (endValid && post.createdAt > endTimestamp) {
+        return false;
+      }
+
+      if (targetChannel && targetChannel !== 'all') {
+        const category = post.category?.toLowerCase() ?? '';
+        if (category !== targetChannel) {
+          return false;
+        }
+      }
+
+      if (hasMedia && !post.imageUrl) {
+        return false;
+      }
+
+      if (typeof minReactions === 'number' && getTotalReactions(post) < minReactions) {
+        return false;
+      }
+
+      if (typeof minComments === 'number' && (post.commentCount ?? 0) < minComments) {
+        return false;
+      }
+
+      if (authorType === 'me' && post.studentId !== currentStudentId) {
+        return false;
+      }
+
+      if (authorType === 'mentor' && !post.isHighlighted) {
+        return false;
+      }
+
+      if (authorType === 'peer' && post.studentId === currentStudentId) {
+        return false;
+      }
+
+      if (normalizedQuery) {
+        const content = post.isEncrypted ? '' : post.content.toLowerCase();
+        const category = post.category?.toLowerCase() ?? '';
+        const studentIdLower = post.studentId.toLowerCase();
+
+        let matches =
+          content.includes(normalizedQuery) ||
+          category.includes(normalizedQuery) ||
+          studentIdLower.includes(normalizedQuery);
+
+        if (!matches && hashtagQuery) {
+          const hashtags = post.isEncrypted ? [] : extractHashtagsFromContent(post.content);
+          matches = hashtags.some((tag) => tag.includes(hashtagQuery));
+        }
+
+        if (!matches) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      return [];
+    }
+
+    const now = Date.now();
+    const sortOption: PostSortOption = sort;
+
+    if (sortOption === 'recent') {
+      return [...filtered].sort((a, b) => b.createdAt - a.createdAt);
+    }
+
+    if (sortOption === 'popular') {
+      return [...filtered].sort((a, b) => {
+        const reactionDiff = getTotalReactions(b) - getTotalReactions(a);
+        if (reactionDiff !== 0) return reactionDiff;
+        const commentDiff = (b.commentCount ?? 0) - (a.commentCount ?? 0);
+        if (commentDiff !== 0) return commentDiff;
+        return b.createdAt - a.createdAt;
+      });
+    }
+
+    return filtered
+      .map((post) => {
+        const ageHours = Math.max(0, (now - post.createdAt) / (60 * 60 * 1000));
+        const freshnessBonus = Math.max(0, 72 - ageHours);
+        const reactionScore = getTotalReactions(post) * 0.6;
+        const commentScore = (post.commentCount ?? 0) * 1.2;
+        const helpfulScore = (post.helpfulCount ?? 0) * 1.5;
+        return {
+          post,
+          score: reactionScore + commentScore + helpfulScore + freshnessBonus,
+        };
+      })
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const reactionDiff = getTotalReactions(b.post) - getTotalReactions(a.post);
+        if (reactionDiff !== 0) return reactionDiff;
+        return b.post.createdAt - a.post.createdAt;
+      })
+      .map((entry) => entry.post);
   },
 
   downloadDataBackup: () => {
