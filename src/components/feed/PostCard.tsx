@@ -16,6 +16,11 @@ import {
   Clock,
   Zap,
   DollarSign,
+  Shield,
+  Ban,
+  VolumeX,
+  Volume2,
+  Megaphone,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Post } from '../../lib/store';
@@ -84,6 +89,12 @@ export default function PostCard({ post }: PostCardProps) {
     boostToCampuses,
     currentRank,
     achievements,
+    isModerator,
+    pinCommunityPost,
+    unpinCommunityPost,
+    deleteCommunityPost,
+    banCommunityMember,
+    warnCommunityMember,
   } = useStore();
 
   const [showBlurredContent, setShowBlurredContent] = useState(false);
@@ -339,7 +350,14 @@ export default function PostCard({ post }: PostCardProps) {
           {post.isPinned && (
             <div className="flex items-center space-x-1 text-xs text-purple-400 bg-purple-500/20 px-2 py-1 rounded-full">
               <Pin className="w-3 h-3" />
-              <span>Pinned</span>
+              <span>Personal</span>
+            </div>
+          )}
+
+          {post.isCommunityPinned && (
+            <div className="flex items-center space-x-1 text-xs text-orange-400 bg-orange-500/20 px-2 py-1 rounded-full">
+              <Pin className="w-3 h-3" />
+              <span>Community</span>
             </div>
           )}
 
@@ -479,6 +497,66 @@ export default function PostCard({ post }: PostCardProps) {
                     post.isPinned ? 'text-purple-400 fill-purple-400' : 'text-gray-400'
                   }`}
                 />
+              </motion.button>
+            </div>
+          )}
+
+          {isModerator && !isOwnPost && (
+            <div className="flex items-center space-x-2">
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => post.isCommunityPinned ? unpinCommunityPost(post.id) : pinCommunityPost(post.id)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                title={post.isCommunityPinned ? 'Unpin from community' : 'Pin to community'}
+              >
+                <Pin
+                  className={`w-4 h-4 ${
+                    post.isCommunityPinned ? 'text-orange-400 fill-orange-400' : 'text-gray-400'
+                  }`}
+                />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => {
+                  const reason = prompt('Reason for deleting this post:');
+                  if (reason) {
+                    deleteCommunityPost(post.id, reason);
+                  }
+                }}
+                className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
+                title="Delete post as moderator"
+              >
+                <Trash2 className="w-4 h-4 text-red-400" />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => {
+                  const reason = prompt('Reason for warning this member:');
+                  if (reason) {
+                    warnCommunityMember(post.studentId, reason);
+                  }
+                }}
+                className="p-2 hover:bg-yellow-500/20 rounded-lg transition-colors"
+                title="Warn member"
+              >
+                <AlertTriangle className="w-4 h-4 text-yellow-400" />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => {
+                  const reason = prompt('Reason for banning this member:');
+                  if (reason) {
+                    banCommunityMember(post.studentId, reason);
+                  }
+                }}
+                className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
+                title="Ban member"
+              >
+                <Ban className="w-4 h-4 text-red-400" />
               </motion.button>
             </div>
           )}

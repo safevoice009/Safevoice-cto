@@ -153,6 +153,9 @@ export interface Post {
   crossCampusBoostedAt?: number | null;
   crossCampusUntil?: number | null;
   crossCampusBoosts?: string[];
+  isCommunityPinned?: boolean;
+  communityPinnedAt?: number | null;
+  communityPinnedBy?: string | null;
 }
 
 export interface Report {
@@ -226,11 +229,60 @@ export interface MemorialTribute {
   milestoneRewardAwarded: boolean;
 }
 
+export interface CommunityAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  createdBy: string;
+  createdAt: number;
+  isPinned: boolean;
+  pinnedAt?: number;
+  expiresAt?: number;
+}
+
+export interface CommunityModerationLog {
+  id: string;
+  moderatorId: string;
+  actionType: 'pin_community_post' | 'unpin_community_post' | 'delete_community_post' | 'ban_member' | 'warn_member' | 'mute_channel' | 'create_announcement';
+  targetId: string; // postId, memberId, or 'channel'
+  description: string;
+  timestamp: number;
+  metadata: {
+    reason?: string;
+    duration?: number; // for mute/ban duration in hours
+    targetName?: string; // for member actions
+    communityImpact?: string;
+  };
+}
+
+export interface MemberStatus {
+  studentId: string;
+  isBanned: boolean;
+  bannedAt?: number;
+  bannedUntil?: number;
+  banReason?: string;
+  warnings: Array<{
+    id: string;
+    reason: string;
+    timestamp: number;
+    issuedBy: string;
+  }>;
+  lastWarningAt?: number;
+}
+
+export interface ChannelMuteStatus {
+  isMuted: boolean;
+  mutedBy?: string;
+  mutedAt?: number;
+  mutedUntil?: number;
+  reason?: string;
+}
+
 export interface ModeratorAction {
   id: string;
   moderatorId: string;
-  actionType: 'blur_post' | 'hide_post' | 'verify_advice' | 'review_report' | 'restore_post';
-  targetId: string; // postId, commentId, or reportId
+  actionType: 'blur_post' | 'hide_post' | 'verify_advice' | 'review_report' | 'restore_post' | 'pin_community_post' | 'unpin_community_post' | 'delete_community_post' | 'ban_member' | 'warn_member' | 'mute_channel' | 'create_announcement';
+  targetId: string; // postId, commentId, reportId, memberId, or 'channel'
   timestamp: number;
   rewardAwarded: boolean;
   metadata?: Record<string, unknown>;
@@ -302,6 +354,12 @@ export interface StoreState {
   boostTimeouts: Record<string, { highlight?: number; crossCampus?: number }>;
   communitySupport: Record<string, number>;
   communityEvents: CommunityEvent[];
+  
+  // Community moderation state
+  communityAnnouncements: CommunityAnnouncement[];
+  communityModerationLogs: CommunityModerationLog[];
+  memberStatuses: MemberStatus[];
+  channelMuteStatus: ChannelMuteStatus;
 
   // Wallet & Token state
   connectedAddress: string | null;
@@ -554,6 +612,61 @@ export interface StoreState {
    */
   toggleModeratorMode: () => void;
 
+  // Community Moderation
+  /**
+   * Pins a post at the community level (different from personal pinning).
+   * Awards +100 VOICE to moderator for community service.
+   */
+  pinCommunityPost: (postId: string, reason?: string) => void;
+  
+  /**
+   * Unpins a community-pinned post.
+   * Awards +100 VOICE to moderator for community service.
+   */
+  unpinCommunityPost: (postId: string, reason?: string) => void;
+  
+  /**
+   * Deletes a post as a moderator (different from user deletion).
+   * Awards +100 VOICE to moderator for community service.
+   */
+  deleteCommunityPost: (postId: string, reason: string) => void;
+  
+  /**
+   * Bans a community member with optional duration.
+   * Awards +100 VOICE to moderator for community service.
+   */
+  banCommunityMember: (memberId: string, reason: string, durationHours?: number) => void;
+  
+  /**
+   * Warns a community member.
+   * Awards +100 VOICE to moderator for community service.
+   */
+  warnCommunityMember: (memberId: string, reason: string) => void;
+  
+  /**
+   * Mutes the entire channel temporarily.
+   * Awards +100 VOICE to moderator for community service.
+   */
+  muteChannel: (reason: string, durationHours: number) => void;
+  
+  /**
+   * Unmutes the channel.
+   * Awards +100 VOICE to moderator for community service.
+   */
+  unmuteChannel: () => void;
+  
+  /**
+   * Creates a community-wide announcement.
+   * Awards +100 VOICE to moderator for community service.
+   */
+  createCommunityAnnouncement: (title: string, content: string, isPinned?: boolean, expiresAt?: number) => void;
+  
+  /**
+   * Logs a moderation action for transparency.
+   * Awards +100 VOICE to moderator for community service.
+   */
+  logModerationAction: (actionType: CommunityModerationLog['actionType'], targetId: string, description: string, metadata: CommunityModerationLog['metadata']) => void;
+
   // Memorial Wall
   memorialTributes: MemorialTribute[];
   createTribute: (personName: string, message: string) => boolean;
@@ -576,6 +689,17 @@ export interface StoreState {
   purchaseNFTBadge: (tier: NFTBadgeTier, cost: number) => boolean;
   hasNFTBadge: (tier: NFTBadgeTier) => boolean;
   loadNFTBadges: () => void;
+
+  // Community Moderation
+  pinCommunityPost: (postId: string, reason?: string) => void;
+  unpinCommunityPost: (postId: string, reason?: string) => void;
+  deleteCommunityPost: (postId: string, reason: string) => void;
+  banCommunityMember: (memberId: string, reason: string, durationHours?: number) => void;
+  warnCommunityMember: (memberId: string, reason: string) => void;
+  muteChannel: (reason: string, durationHours: number) => void;
+  unmuteChannel: () => void;
+  createCommunityAnnouncement: (title: string, content: string, isPinned?: boolean, expiresAt?: number) => void;
+  logModerationAction: (actionType: CommunityModerationLog['actionType'], targetId: string, description: string, metadata: CommunityModerationLog['metadata']) => void;
 
   // Special Utilities
   changeStudentId: (newId: string) => boolean;
@@ -632,6 +756,10 @@ const STORAGE_KEYS = {
   COMMUNITY_SUPPORT: 'safevoice_community_support',    // Community support tracking
   NFT_BADGES: 'safevoice_nft_badges',                  // Purchased NFT badges
   COMMUNITY_EVENTS: 'safevoice_community_events',      // Community events and meetups
+  COMMUNITY_ANNOUNCEMENTS: 'safevoice_announcements',    // Community announcements
+  COMMUNITY_MODERATION_LOGS: 'safevoice_moderation_logs', // Community moderation logs
+  MEMBER_STATUSES: 'safevoice_member_statuses',        // Member ban/warning status
+  CHANNEL_MUTE_STATUS: 'safevoice_channel_mute',       // Channel mute status
 };
 
 const rewardEngine = new RewardEngine();
@@ -848,6 +976,13 @@ const MODERATOR_ACTION_TYPES: ModeratorAction['actionType'][] = [
   'verify_advice',
   'review_report',
   'restore_post',
+  'pin_community_post',
+  'unpin_community_post',
+  'delete_community_post',
+  'ban_member',
+  'warn_member',
+  'mute_channel',
+  'create_announcement',
 ];
 const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = {
   blur_post: 'Sensitive content blurred',
@@ -855,6 +990,13 @@ const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = 
   verify_advice: 'Verified community advice',
   review_report: 'Community report reviewed',
   restore_post: 'Content restored after review',
+  pin_community_post: 'Community post pinned for visibility',
+  unpin_community_post: 'Community post unpinned',
+  delete_community_post: 'Community post removed by moderator',
+  ban_member: 'Community member banned',
+  warn_member: 'Community member warned',
+  mute_channel: 'Channel muted for community safety',
+  create_announcement: 'Community announcement created',
 };
 const VOLUNTEER_MOD_ACTION_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_MODERATOR_ACTIONS = 200;
@@ -976,6 +1118,83 @@ const persistReferralState = (referralState: ReferralStorageState): void => {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+const normalizeCommunityAnnouncement = (raw: Partial<CommunityAnnouncement>): CommunityAnnouncement | null => {
+  if (
+    typeof raw.id !== 'string' ||
+    typeof raw.title !== 'string' ||
+    typeof raw.content !== 'string' ||
+    typeof raw.createdBy !== 'string' ||
+    typeof raw.createdAt !== 'number'
+  ) {
+    return null;
+  }
+
+  return {
+    id: raw.id,
+    title: raw.title.trim(),
+    content: raw.content.trim(),
+    createdBy: raw.createdBy,
+    createdAt: raw.createdAt,
+    isPinned: Boolean(raw.isPinned),
+    pinnedAt: typeof raw.pinnedAt === 'number' ? raw.pinnedAt : undefined,
+    expiresAt: typeof raw.expiresAt === 'number' ? raw.expiresAt : undefined,
+  };
+};
+
+const normalizeCommunityModerationLog = (raw: Partial<CommunityModerationLog>): CommunityModerationLog | null => {
+  if (
+    typeof raw.id !== 'string' ||
+    typeof raw.moderatorId !== 'string' ||
+    typeof raw.actionType !== 'string' ||
+    typeof raw.targetId !== 'string' ||
+    typeof raw.description !== 'string' ||
+    typeof raw.timestamp !== 'number' ||
+    !raw.metadata ||
+    typeof raw.metadata !== 'object'
+  ) {
+    return null;
+  }
+
+  return {
+    id: raw.id,
+    moderatorId: raw.moderatorId,
+    actionType: raw.actionType as CommunityModerationLog['actionType'],
+    targetId: raw.targetId,
+    description: raw.description,
+    timestamp: raw.timestamp,
+    metadata: raw.metadata as CommunityModerationLog['metadata'],
+  };
+};
+
+const normalizeMemberStatus = (raw: Partial<MemberStatus>): MemberStatus | null => {
+  if (
+    typeof raw.studentId !== 'string' ||
+    typeof raw.isBanned !== 'boolean' ||
+    !Array.isArray(raw.warnings)
+  ) {
+    return null;
+  }
+
+  const warnings = Array.isArray(raw.warnings) 
+    ? raw.warnings.filter((w): w is MemberStatus['warnings'][0] => 
+        typeof w.id === 'string' &&
+        typeof w.reason === 'string' &&
+        typeof w.timestamp === 'number' &&
+        typeof w.issuedBy === 'string'
+      ).sort((a, b) => b.timestamp - a.timestamp)
+    : [];
+
+  return {
+    studentId: raw.studentId,
+    isBanned: raw.isBanned,
+    bannedAt: typeof raw.bannedAt === 'number' ? raw.bannedAt : undefined,
+    bannedUntil: typeof raw.bannedUntil === 'number' ? raw.bannedUntil : undefined,
+    banReason: typeof raw.banReason === 'string' ? raw.banReason : undefined,
+    warnings,
+    lastWarningAt: typeof raw.lastWarningAt === 'number' ? raw.lastWarningAt : undefined,
+  };
 };
 
 const normalizeReport = (report: Partial<Report>): Report => {
@@ -1402,6 +1621,14 @@ export const useStore = create<StoreState>((set, get) => {
     memorialTributes: [],
     communityEvents: typeof window !== 'undefined' ? readStoredCommunityEvents() : createDefaultCommunityEvents(),
     nftBadges: initialNFTBadges,
+
+    // Community moderation state
+    communityAnnouncements: [],
+    communityModerationLogs: [],
+    memberStatuses: [],
+    channelMuteStatus: {
+      isMuted: false,
+    },
 
     referralCode: initialReferralState.code,
     referredByCode: initialReferralState.referredByCode,
@@ -2126,6 +2353,33 @@ export const useStore = create<StoreState>((set, get) => {
     const encryptionKeys = storedEncryptionKeys ? JSON.parse(storedEncryptionKeys) : {};
     const communityEvents = readStoredCommunityEvents();
 
+    const storedAnnouncements = localStorage.getItem(STORAGE_KEYS.COMMUNITY_ANNOUNCEMENTS);
+    const storedModerationLogs = localStorage.getItem(STORAGE_KEYS.COMMUNITY_MODERATION_LOGS);
+    const storedMemberStatuses = localStorage.getItem(STORAGE_KEYS.MEMBER_STATUSES);
+    const storedChannelMuteStatus = localStorage.getItem(STORAGE_KEYS.CHANNEL_MUTE_STATUS);
+
+    const rawAnnouncements = storedAnnouncements ? (JSON.parse(storedAnnouncements) as Array<Partial<CommunityAnnouncement>>) : [];
+    const rawModerationLogs = storedModerationLogs ? (JSON.parse(storedModerationLogs) as Array<Partial<CommunityModerationLog>>) : [];
+    const rawMemberStatuses = storedMemberStatuses ? (JSON.parse(storedMemberStatuses) as Array<Partial<MemberStatus>>) : [];
+    const rawChannelMuteStatus = storedChannelMuteStatus ? (JSON.parse(storedChannelMuteStatus) as ChannelMuteStatus) : { isMuted: false };
+
+    const communityAnnouncements = rawAnnouncements
+      .map(normalizeCommunityAnnouncement)
+      .filter((announcement): announcement is CommunityAnnouncement => announcement !== null)
+      .sort((a, b) => b.createdAt - a.createdAt);
+
+    const communityModerationLogs = rawModerationLogs
+      .map(normalizeCommunityModerationLog)
+      .filter((log): log is CommunityModerationLog => log !== null)
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 100);
+
+    const memberStatuses = rawMemberStatuses
+      .map(normalizeMemberStatus)
+      .filter((status): status is MemberStatus => status !== null);
+
+    const channelMuteStatus = rawChannelMuteStatus || { isMuted: false };
+
     const reportCollection = new Map<string, Report>();
     rawReports.forEach((rawReport) => {
       upsertReport(reportCollection, rawReport);
@@ -2323,7 +2577,21 @@ export const useStore = create<StoreState>((set, get) => {
 
     const unreadCount = notifications.filter((n: Notification) => !n.read).length;
 
-    set({ posts: validPosts, bookmarkedPosts, reports, moderatorActions, notifications, unreadCount, encryptionKeys, firstPostAwarded, communityEvents });
+    set({ 
+      posts: validPosts, 
+      bookmarkedPosts, 
+      reports, 
+      moderatorActions, 
+      notifications, 
+      unreadCount, 
+      encryptionKeys, 
+      firstPostAwarded, 
+      communityEvents,
+      communityAnnouncements,
+      communityModerationLogs,
+      memberStatuses,
+      channelMuteStatus,
+    });
 
     // Schedule expiry for posts
     validPosts.forEach((post: Post) => {
@@ -2353,6 +2621,10 @@ export const useStore = create<StoreState>((set, get) => {
     localStorage.setItem(STORAGE_KEYS.MEMORIAL_TRIBUTES, JSON.stringify(state.memorialTributes));
     persistCommunityEvents(state.communityEvents);
     persistNFTBadges(state.nftBadges);
+    localStorage.setItem(STORAGE_KEYS.COMMUNITY_ANNOUNCEMENTS, JSON.stringify(state.communityAnnouncements));
+    localStorage.setItem(STORAGE_KEYS.COMMUNITY_MODERATION_LOGS, JSON.stringify(state.communityModerationLogs));
+    localStorage.setItem(STORAGE_KEYS.MEMBER_STATUSES, JSON.stringify(state.memberStatuses));
+    localStorage.setItem(STORAGE_KEYS.CHANNEL_MUTE_STATUS, JSON.stringify(state.channelMuteStatus));
   },
 
   addPost: (
@@ -4388,6 +4660,414 @@ export const useStore = create<StoreState>((set, get) => {
         return b.post.createdAt - a.post.createdAt;
       })
       .map((entry) => entry.post);
+  },
+
+  // Community Moderation Implementation
+  pinCommunityPost: (postId: string, reason?: string) => {
+    const { isModerator, studentId, posts } = get();
+    
+    if (!isModerator) {
+      toast.error('Moderator access required');
+      return;
+    }
+
+    const post = posts.find(p => p.id === postId);
+    if (!post) {
+      toast.error('Post not found');
+      return;
+    }
+
+    if (post.isCommunityPinned) {
+      toast.error('Post is already community pinned');
+      return;
+    }
+
+    // Update post with community pin
+    set((state) => ({
+      posts: state.posts.map(p =>
+        p.id === postId
+          ? { ...p, isCommunityPinned: true, communityPinnedAt: Date.now(), communityPinnedBy: studentId }
+          : p
+      ),
+    }));
+
+    // Log moderation action
+    get().logModerationAction(
+      'pin_community_post',
+      postId,
+      `Community pinned post: ${post.content.substring(0, 50)}...`,
+      { reason, targetName: post.studentId }
+    );
+
+    // Award moderator
+    get().recordModeratorAction('pin_community_post', postId, { reason });
+    toast.success('Post community pinned! 📌');
+    get().saveToLocalStorage();
+  },
+
+  unpinCommunityPost: (postId: string, reason?: string) => {
+    const { isModerator, posts } = get();
+    
+    if (!isModerator) {
+      toast.error('Moderator access required');
+      return;
+    }
+
+    const post = posts.find(p => p.id === postId);
+    if (!post) {
+      toast.error('Post not found');
+      return;
+    }
+
+    if (!post.isCommunityPinned) {
+      toast.error('Post is not community pinned');
+      return;
+    }
+
+    // Update post to remove community pin
+    set((state) => ({
+      posts: state.posts.map(p =>
+        p.id === postId
+          ? { ...p, isCommunityPinned: false, communityPinnedAt: null, communityPinnedBy: null }
+          : p
+      ),
+    }));
+
+    // Log moderation action
+    get().logModerationAction(
+      'unpin_community_post',
+      postId,
+      `Community unpinned post: ${post.content.substring(0, 50)}...`,
+      { reason, targetName: post.studentId }
+    );
+
+    // Award moderator
+    get().recordModeratorAction('unpin_community_post', postId, { reason });
+    toast.success('Post community unpinned');
+    get().saveToLocalStorage();
+  },
+
+  deleteCommunityPost: (postId: string, reason: string) => {
+    const { isModerator, posts } = get();
+    
+    if (!isModerator) {
+      toast.error('Moderator access required');
+      return;
+    }
+
+    const post = posts.find(p => p.id === postId);
+    if (!post) {
+      toast.error('Post not found');
+      return;
+    }
+
+    if (!reason.trim()) {
+      toast.error('Reason is required for community deletion');
+      return;
+    }
+
+    // Remove post
+    set((state) => ({
+      posts: state.posts.filter(p => p.id !== postId),
+    }));
+
+    // Log moderation action
+    get().logModerationAction(
+      'delete_community_post',
+      postId,
+      `Community deleted post by ${post.studentId}: ${post.content.substring(0, 50)}...`,
+      { reason, targetName: post.studentId }
+    );
+
+    // Award moderator
+    get().recordModeratorAction('delete_community_post', postId, { reason });
+    toast.success('Post deleted by moderator');
+    get().saveToLocalStorage();
+  },
+
+  banCommunityMember: (memberId: string, reason: string, durationHours?: number) => {
+    const { isModerator, studentId, memberStatuses } = get();
+    
+    if (!isModerator) {
+      toast.error('Moderator access required');
+      return;
+    }
+
+    if (!reason.trim()) {
+      toast.error('Reason is required for banning');
+      return;
+    }
+
+    if (memberId === studentId) {
+      toast.error('Cannot ban yourself');
+      return;
+    }
+
+    const now = Date.now();
+    const banDuration = durationHours || 24; // Default 24 hours
+    const bannedUntil = now + (banDuration * 60 * 60 * 1000);
+
+    // Update member status
+    set((state) => ({
+      memberStatuses: state.memberStatuses.map(status =>
+        status.studentId === memberId
+          ? {
+              ...status,
+              isBanned: true,
+              bannedAt: now,
+              bannedUntil,
+              banReason: reason,
+            }
+          : status
+      ).concat(
+        memberStatuses.some(s => s.studentId === memberId)
+          ? []
+          : [{
+              studentId,
+              isBanned: true,
+              bannedAt: now,
+              bannedUntil,
+              banReason: reason,
+              warnings: [],
+            }]
+      ),
+    }));
+
+    // Log moderation action
+    get().logModerationAction(
+      'ban_member',
+      memberId,
+      `Banned member ${memberId} for ${banDuration} hours`,
+      { reason, duration: banDuration, targetName: memberId }
+    );
+
+    // Award moderator
+    get().recordModeratorAction('ban_member', memberId, { reason, duration: banDuration });
+    toast.success(`Member ${memberId} banned for ${banDuration} hours`);
+    get().saveToLocalStorage();
+  },
+
+  warnCommunityMember: (memberId: string, reason: string) => {
+    const { isModerator, studentId, memberStatuses } = get();
+    
+    if (!isModerator) {
+      toast.error('Moderator access required');
+      return;
+    }
+
+    if (!reason.trim()) {
+      toast.error('Reason is required for warning');
+      return;
+    }
+
+    if (memberId === studentId) {
+      toast.error('Cannot warn yourself');
+      return;
+    }
+
+    const now = Date.now();
+    const warningId = crypto.randomUUID();
+
+    // Update member status with new warning
+    set((state) => ({
+      memberStatuses: state.memberStatuses.map(status =>
+        status.studentId === memberId
+          ? {
+              ...status,
+              warnings: [...status.warnings, {
+                id: warningId,
+                reason,
+                timestamp: now,
+                issuedBy: studentId,
+              }],
+              lastWarningAt: now,
+            }
+          : status
+      ).concat(
+        memberStatuses.some(s => s.studentId === memberId)
+          ? []
+          : [{
+              studentId,
+              isBanned: false,
+              warnings: [{
+                id: warningId,
+                reason,
+                timestamp: now,
+                issuedBy: studentId,
+              }],
+              lastWarningAt: now,
+            }]
+      ),
+    }));
+
+    // Log moderation action
+    get().logModerationAction(
+      'warn_member',
+      memberId,
+      `Warned member ${memberId}`,
+      { reason, targetName: memberId }
+    );
+
+    // Award moderator
+    get().recordModeratorAction('warn_member', memberId, { reason });
+    toast.success(`Warning issued to ${memberId}`);
+    get().saveToLocalStorage();
+  },
+
+  muteChannel: (reason: string, durationHours: number) => {
+    const { isModerator, studentId, channelMuteStatus } = get();
+    
+    if (!isModerator) {
+      toast.error('Moderator access required');
+      return;
+    }
+
+    if (!reason.trim()) {
+      toast.error('Reason is required for muting channel');
+      return;
+    }
+
+    if (durationHours < 1 || durationHours > 168) { // Max 1 week
+      toast.error('Duration must be between 1 and 168 hours');
+      return;
+    }
+
+    const now = Date.now();
+    const mutedUntil = now + (durationHours * 60 * 60 * 1000);
+
+    // Update channel mute status
+    set((state) => ({
+      channelMuteStatus: {
+        isMuted: true,
+        mutedBy: studentId,
+        mutedAt: now,
+        mutedUntil,
+        reason,
+      },
+    }));
+
+    // Log moderation action
+    get().logModerationAction(
+      'mute_channel',
+      'channel',
+      `Channel muted for ${durationHours} hours`,
+      { reason, duration: durationHours }
+    );
+
+    // Award moderator
+    get().recordModeratorAction('mute_channel', 'channel', { reason, duration: durationHours });
+    toast.success(`Channel muted for ${durationHours} hours`);
+    get().saveToLocalStorage();
+  },
+
+  unmuteChannel: () => {
+    const { isModerator, channelMuteStatus } = get();
+    
+    if (!isModerator) {
+      toast.error('Moderator access required');
+      return;
+    }
+
+    if (!channelMuteStatus.isMuted) {
+      toast.error('Channel is not muted');
+      return;
+    }
+
+    // Update channel mute status
+    set((state) => ({
+      channelMuteStatus: {
+        isMuted: false,
+      },
+    }));
+
+    // Log moderation action
+    get().logModerationAction(
+      'mute_channel',
+      'channel',
+      'Channel unmuted',
+      { action: 'unmute' }
+    );
+
+    // Award moderator
+    get().recordModeratorAction('mute_channel', 'channel', { action: 'unmute' });
+    toast.success('Channel unmuted');
+    get().saveToLocalStorage();
+  },
+
+  createCommunityAnnouncement: (title: string, content: string, isPinned = false, expiresAt?: number) => {
+    const { isModerator, studentId } = get();
+    
+    if (!isModerator) {
+      toast.error('Moderator access required');
+      return;
+    }
+
+    if (!title.trim() || !content.trim()) {
+      toast.error('Title and content are required');
+      return;
+    }
+
+    const now = Date.now();
+    const announcement: CommunityAnnouncement = {
+      id: crypto.randomUUID(),
+      title: title.trim(),
+      content: content.trim(),
+      createdBy: studentId,
+      createdAt: now,
+      isPinned,
+      pinnedAt: isPinned ? now : undefined,
+      expiresAt: expiresAt || now + (7 * 24 * 60 * 60 * 1000), // Default 7 days
+    };
+
+    // Add announcement
+    set((state) => ({
+      communityAnnouncements: [announcement, ...state.communityAnnouncements],
+    }));
+
+    // Log moderation action
+    get().logModerationAction(
+      'create_announcement',
+      announcement.id,
+      `Created announcement: ${title}`,
+      { title, isPinned, expiresAt: announcement.expiresAt }
+    );
+
+    // Award moderator
+    get().recordModeratorAction('create_announcement', announcement.id, { title, isPinned });
+    toast.success('Community announcement created! 📢');
+    get().saveToLocalStorage();
+  },
+
+  logModerationAction: (actionType, targetId, description, metadata) => {
+    const { isModerator, studentId } = get();
+    
+    if (!isModerator) {
+      return;
+    }
+
+    const logEntry: CommunityModerationLog = {
+      id: crypto.randomUUID(),
+      moderatorId: studentId,
+      actionType,
+      targetId,
+      description,
+      timestamp: Date.now(),
+      metadata,
+    };
+
+    // Add to moderation logs (keep max 100 entries)
+    set((state) => ({
+      communityModerationLogs: [logEntry, ...state.communityModerationLogs].slice(0, 100),
+    }));
+
+    // Award moderator with 100 VOICE
+    get().earnVoice(100, 'community_moderation', 'reporting', {
+      actionType,
+      targetId,
+      logId: logEntry.id,
+    });
+
+    get().saveToLocalStorage();
   },
 
   downloadDataBackup: () => {
