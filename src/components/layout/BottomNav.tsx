@@ -1,10 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, MessageCircle, User, Store, Trophy } from 'lucide-react';
+import { Home, MessageCircle, User, Store, Users, Trophy } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const navItems = [
   { name: 'Home', icon: Home, to: '/' },
   { name: 'Feed', icon: MessageCircle, to: '/feed' },
+  { name: 'Communities', icon: Users, to: '/communities' },
   { name: 'Leaders', icon: Trophy, to: '/leaderboard' },
   { name: 'Shop', icon: Store, to: '/marketplace' },
   { name: 'Profile', icon: User, to: '/profile' },
