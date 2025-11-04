@@ -736,12 +736,12 @@ describe('WalletSection - Quick Actions', () => {
     renderWalletSection();
 
     expect(screen.getByText('Send VOICE')).toBeInTheDocument();
-    expect(screen.getByText('Stake VOICE')).toBeInTheDocument();
+    expect(screen.getByText('View Staking')).toBeInTheDocument();
 
     const sendButton = screen.getByText('Send VOICE').closest('button');
-    const stakeButton = screen.getByText('Stake VOICE').closest('button');
+    const viewStakingButton = screen.getByText('View Staking').closest('button');
 
     expect(sendButton).toBeDisabled();
-    expect(stakeButton).toBeDisabled();
+    expect(viewStakingButton).not.toBeDisabled();
   });
 });
