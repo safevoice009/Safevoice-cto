@@ -512,11 +512,60 @@ export interface NetworkSecurityState {
   showInstitutionBadge: boolean;
 }
 
+export interface CommunityAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  createdBy: string;
+  createdAt: number;
+  isPinned: boolean;
+  pinnedAt?: number;
+  expiresAt?: number;
+}
+
+export interface CommunityModerationLog {
+  id: string;
+  moderatorId: string;
+  actionType: 'pin_community_post' | 'unpin_community_post' | 'delete_community_post' | 'ban_member' | 'warn_member' | 'mute_channel' | 'create_announcement';
+  targetId: string; // postId, memberId, or 'channel'
+  description: string;
+  timestamp: number;
+  metadata: {
+    reason?: string;
+    duration?: number; // for mute/ban duration in hours
+    targetName?: string; // for member actions
+    communityImpact?: string;
+  };
+}
+
+export interface MemberStatus {
+  studentId: string;
+  isBanned: boolean;
+  bannedAt?: number;
+  bannedUntil?: number;
+  banReason?: string;
+  warnings: Array<{
+    id: string;
+    reason: string;
+    timestamp: number;
+    issuedBy: string;
+  }>;
+  lastWarningAt?: number;
+}
+
+export interface ChannelMuteStatus {
+  isMuted: boolean;
+  mutedBy?: string;
+  mutedAt?: number;
+  mutedUntil?: number;
+  reason?: string;
+}
+
 export interface ModeratorAction {
   id: string;
   moderatorId: string;
-  actionType: 'blur_post' | 'hide_post' | 'verify_advice' | 'review_report' | 'restore_post';
-  targetId: string; // postId, commentId, or reportId
+  actionType: 'blur_post' | 'hide_post' | 'verify_advice' | 'review_report' | 'restore_post' | 'pin_community_post' | 'unpin_community_post' | 'delete_community_post' | 'ban_member' | 'warn_member' | 'mute_channel' | 'create_announcement';
+  targetId: string; // postId, commentId, reportId, memberId, or 'channel'
   timestamp: number;
   rewardAwarded: boolean;
   metadata?: Record<string, unknown>;
@@ -1140,6 +1189,17 @@ export interface StoreState {
   purchaseNFTBadge: (tier: NFTBadgeTier, cost: number) => boolean;
   hasNFTBadge: (tier: NFTBadgeTier) => boolean;
   loadNFTBadges: () => void;
+
+  // Community Moderation
+  pinCommunityPost: (postId: string, reason?: string) => void;
+  unpinCommunityPost: (postId: string, reason?: string) => void;
+  deleteCommunityPost: (postId: string, reason: string) => void;
+  banCommunityMember: (memberId: string, reason: string, durationHours?: number) => void;
+  warnCommunityMember: (memberId: string, reason: string) => void;
+  muteChannel: (reason: string, durationHours: number) => void;
+  unmuteChannel: () => void;
+  createCommunityAnnouncement: (title: string, content: string, isPinned?: boolean, expiresAt?: number) => void;
+  logModerationAction: (actionType: CommunityModerationLog['actionType'], targetId: string, description: string, metadata: CommunityModerationLog['metadata']) => void;
 
   // Special Utilities
   changeStudentId: (newId: string) => boolean;
@@ -2046,6 +2106,13 @@ const MODERATOR_ACTION_TYPES: ModeratorAction['actionType'][] = [
   'verify_advice',
   'review_report',
   'restore_post',
+  'pin_community_post',
+  'unpin_community_post',
+  'delete_community_post',
+  'ban_member',
+  'warn_member',
+  'mute_channel',
+  'create_announcement',
 ];
 const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = {
   blur_post: 'Sensitive content blurred',
@@ -2053,6 +2120,13 @@ const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = 
   verify_advice: 'Verified community advice',
   review_report: 'Community report reviewed',
   restore_post: 'Content restored after review',
+  pin_community_post: 'Community post pinned for visibility',
+  unpin_community_post: 'Community post unpinned',
+  delete_community_post: 'Community post removed by moderator',
+  ban_member: 'Community member banned',
+  warn_member: 'Community member warned',
+  mute_channel: 'Channel muted for community safety',
+  create_announcement: 'Community announcement created',
 };
 const VOLUNTEER_MOD_ACTION_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_MODERATOR_ACTIONS = 200;
