@@ -7,6 +7,10 @@ import ModeratorPanel from '../components/feed/ModeratorPanel';
 import CommunityDiscoveryPanel from '../components/community/CommunityDiscoveryPanel';
 import CommunitySearchModal from '../components/community/CommunitySearchModal';
 import CommunityEvents from '../components/community/CommunityEvents';
+import CommunityModerationPanel from '../components/community/CommunityModerationPanel';
+import AnnouncementBanner from '../components/community/AnnouncementBanner';
+import ChannelMuteBanner from '../components/community/ChannelMuteBanner';
+import ModerationLogDisplay from '../components/community/ModerationLogDisplay';
 
 export default function Feed() {
   const { posts, isModerator, initializeStore } = useStore();
@@ -18,8 +22,15 @@ export default function Feed() {
   }, [initializeStore]);
 
   const sortedPosts = [...posts].sort((a, b) => {
+    // Prioritize community pinned posts first
+    if (a.isCommunityPinned && !b.isCommunityPinned) return -1;
+    if (!a.isCommunityPinned && b.isCommunityPinned) return 1;
+    
+    // Then personal pinned posts
     if (a.isPinned && !b.isPinned) return -1;
     if (!a.isPinned && b.isPinned) return 1;
+    
+    // Finally by creation date
     return b.createdAt - a.createdAt;
   });
 
@@ -45,7 +56,12 @@ export default function Feed() {
         >
           <CreatePost />
 
+          {/* Community Banners */}
+          <AnnouncementBanner />
+          <ChannelMuteBanner />
+
           {isModerator && <ModeratorPanel />}
+          {isModerator && <CommunityModerationPanel className="mb-6" />}
 
           {sortedPosts.length === 0 ? (
             <div className="glass p-10 text-center space-y-4">
@@ -66,6 +82,7 @@ export default function Feed() {
         <aside className="hidden space-y-6 lg:block">
           <CommunityDiscoveryPanel onRequestSearch={handleRequestSearch} />
           <CommunityEvents />
+          <ModerationLogDisplay className="mt-6" />
         </aside>
       </div>
 
