@@ -157,15 +157,22 @@ The on-chain staking and governance system enables VOICE token holders to:
 
 See [STAKING_GOVERNANCE_DOCS.md](./STAKING_GOVERNANCE_DOCS.md) for complete documentation.
 
-### RewardEngine (Off-Chain)
+### RewardEngine & Web3 Bridge
 
-The `RewardEngine` centralizes all $VOICE token state and lives in [`src/lib/tokens/RewardEngine.ts`](src/lib/tokens/RewardEngine.ts).
+The `RewardEngine` centralizes all $VOICE token state and lives in [`src/lib/tokens/RewardEngine.ts`](src/lib/tokens/RewardEngine.ts). Beginning with v2.1 the engine can transparently bridge rewards and spending actions to on-chain smart contracts via the `Web3Bridge` service.
 
-- Wallet state (balances, pending rewards, streak data, transactions) is persisted under the `voice_wallet_snapshot` key in `localStorage`.
-- On first run, the engine migrates historical data from legacy `voice*` storage keys without data loss. A `voice_migration_v1` flag guarantees the migration only runs once.
-- Token earnings and spending should always happen through the `RewardEngine` instance exposed via the Zustand store (`earnVoice`, `spendVoice`, `claimRewards`).
-- The engine emits callbacks for reward/spend/balance changes to keep UI consumers in sync and fires toast notifications automatically.
-- Post rewards, daily bonuses, and streak milestones are calculated by the engine ensuring consistent logic across the app.
+#### Core Responsibilities (Offline-First)
+- Persist wallet state (balances, pending rewards, streak data, transactions) under the `voice_wallet_snapshot` key in `localStorage`.
+- Migrate legacy `voice*` keys on first run and guard subsequent migrations with the `voice_migration_v1` flag.
+- Emit callbacks for reward/spend/balance changes and fire toast notifications to keep UI consumers synchronized.
+- Calculate post rewards, daily bonuses, streak milestones, premium subscriptions, and achievement unlocks consistently across the app.
+
+#### Web3 Bridge Integration
+- When `VITE_WEB3_ENABLED=true`, the engine delegates claims, burns, staking deposits, withdrawals, vote submissions, and NFT unlocks to the on-chain contracts exposed via the `Web3Bridge`.
+- Transactions are queued optimistically, immediately updating the UI while a background poller waits for confirmations.
+- Failed on-chain transactions automatically trigger rollbacks that restore pending balances, remove optimistic history entries, and display reconciliation toasts.
+- The bridge tracks pending receipts per chain, supports multi-chain RPC configuration, and persists queued transactions so browser refreshes do not lose state.
+- See [`docs/WEB3_BRIDGE_DOCS.md`](./docs/WEB3_BRIDGE_DOCS.md) for the full API and integration guide.
 
 ### Achievement NFTs (ERC1155)
 
@@ -218,9 +225,22 @@ Create a `.env` file for local development:
 # Required: WalletConnect Project ID
 VITE_WALLETCONNECT_PROJECT_ID=your_project_id
 
-# Optional: Custom RPC endpoints
-VITE_MAINNET_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY
-VITE_POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/YOUR-API-KEY
+# Web3 bridge configuration (optional)
+VITE_WEB3_ENABLED=false
+VITE_CHAIN_ID=31337
+VITE_BRIDGE_SOURCE_CHAIN_ID=0
+VITE_POLLING_INTERVAL=5000
+
+# Optional: Custom RPC endpoints (falls back to public RPCs)
+VITE_RPC_MAINNET=https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY
+VITE_RPC_POLYGON=https://polygon-mainnet.g.alchemy.com/v2/YOUR-API-KEY
+VITE_RPC_LOCALHOST=http://127.0.0.1:8545
+
+# Optional: Contract addresses per chain (only needed when enabling web3)
+VITE_LOCALHOST_VOICE_TOKEN=0x5FbDB2315678afecb367f032d93F642f64180aa3
+VITE_LOCALHOST_VOICE_STAKING=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+VITE_LOCALHOST_VOICE_ACHIEVEMENT_NFT=0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+VITE_LOCALHOST_VOICE_GOVERNOR=0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
 
 # Application configuration
 VITE_APP_ENV=development
@@ -276,12 +296,21 @@ npm run security:gas
 
 > **Note:** Hardhat tasks rely on the placeholder `SafeVoiceVault` contract. Replace with production contracts before mainnet deployment and update thresholds accordingly. See [`contracts/README.md`](./contracts/README.md) for a detailed walkthrough of the new setup, environment variables, and deployment instructions.
 
-## 📚 Smart Contract Documentation
+## 📚 Documentation
 
+### Token Economics & Rewards
+- [Reward Engine](./REWARD_ENGINE_DOCS.md) - Complete reward system documentation
+- [Staking & Governance](./STAKING_GOVERNANCE_DOCS.md) - Staking and on-chain governance guide
+- [NFT Rewards](./docs/NFT_REWARDS_DOCS.md) - Achievement NFT system documentation
+
+### Web3 Integration
+- [Web3 Bridge](./docs/WEB3_BRIDGE_DOCS.md) - **NEW!** Reward Engine ↔ blockchain integration
+- [Web3 Deployment Guide](./docs/web3-deployment.md) - Security best practices and deployment procedures
+
+### Smart Contract Reference
 - [VoiceToken API](./docs/VOICE_TOKEN_API.md) - Complete VoiceToken contract reference
 - [Vesting Module](./docs/VESTING_MODULE.md) - Full VoiceVesting documentation with examples
 - [Vesting Quick Start](./docs/VESTING_QUICK_START.md) - Quick reference for common operations
-- [Web3 Deployment Guide](./docs/web3-deployment.md) - Security best practices and deployment procedures
 
 ## 📝 License
 
