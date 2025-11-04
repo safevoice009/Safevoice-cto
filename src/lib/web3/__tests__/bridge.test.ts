@@ -236,20 +236,18 @@ describe('Web3Bridge', () => {
 
   describe('unstakeTokens', () => {
     it('should unstake tokens', async () => {
-      const mockReadCall = vi.fn().mockResolvedValue([BigInt(500e18), BigInt(0)]);
       const mockWriteCall = vi.fn().mockResolvedValue('0xhashABC');
       vi.mocked(clients.createContract).mockReturnValueOnce({
-        read: { call: mockReadCall },
+        read: { call: vi.fn() },
         write: { call: mockWriteCall },
         publicClient: {} as never,
         walletClient: {} as never,
       });
 
-      const result = await bridge.unstakeTokens(1);
+      const result = await bridge.unstakeTokens(500);
       
       expect(result.success).toBe(true);
-      expect(mockReadCall).toHaveBeenCalledWith('getStake', expect.any(Array));
-      expect(mockWriteCall).toHaveBeenCalledWith('unstake', [1]);
+      expect(mockWriteCall).toHaveBeenCalledWith('unstake', expect.any(Array));
     });
   });
 

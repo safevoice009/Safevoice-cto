@@ -1,4 +1,4 @@
-import { http, createPublicClient, createWalletClient, type Address, type PublicClient, type WalletClient, type Abi } from 'viem';
+import { http, createPublicClient, createWalletClient, type Address, type Hash, type PublicClient, type WalletClient } from 'viem';
 import {
   arbitrum,
   base,
@@ -10,7 +10,6 @@ import {
   polygon,
 } from 'viem/chains';
 import { getAccount, watchAccount } from '@wagmi/core';
-import { wagmiConfig } from '../wagmiConfig';
 import type { ChainConfig, ContractAddresses } from './types';
 
 const isBrowser = typeof window !== 'undefined';
@@ -74,14 +73,8 @@ export function createWallet(chainId: number): WalletClient | null {
     return walletClientCache.get(chainId)!;
   }
 
-  const config = getConfig();
-
-  if (!config) {
-    return null;
-  }
-
-  const account = getAccount(config);
-  if (!account) {
+  const account = getAccount();
+  if (!account || !account.address) {
     return null;
   }
 
@@ -100,8 +93,7 @@ export function createWallet(chainId: number): WalletClient | null {
 
 export function getWeb3Clients(chainId: number, rpcUrl?: string): Web3Clients {
   const publicClient = createClient(chainId, rpcUrl);
-  const config = getConfig() ?? wagmiConfig;
-  const accountInfo = isBrowser ? getAccount(config) : null;
+  const accountInfo = isBrowser ? getAccount() : null;
   const walletClient = isBrowser ? createWallet(chainId) : null;
   return {
     publicClient,
@@ -118,30 +110,45 @@ export function createContract<TAbi extends readonly unknown[] = readonly unknow
   rpcUrl?: string,
 ) {
   const { publicClient, walletClient } = getWeb3Clients(chainId, rpcUrl);
+
+  const readContract = publicClient.readContract as unknown as (params: {
+    address: Address;
+    abi: TAbi;
+    functionName: string;
+    args?: readonly unknown[];
+  }) => Promise<unknown>;
+
+  const writeContract = walletClient?.writeContract as
+    | ((params: {
+        address: Address;
+        abi: TAbi;
+        functionName: string;
+        args?: readonly unknown[];
+      }) => Promise<Hash>)
+    | undefined;
+
   return {
     read: {
-      async call(functionName: string, args: unknown[] = []) {
-        return await publicClient.readContract({
+      async call(functionName: string, args: readonly unknown[] = []) {
+        return await readContract({
           address,
           abi,
-          functionName: functionName as never,
-          args: args as never,
+          functionName,
+          args,
         });
       },
     },
     write: {
-      async call(functionName: string, args: unknown[] = []) {
-        if (!walletClient) {
+      async call(functionName: string, args: readonly unknown[] = []) {
+        if (!writeContract) {
           throw new Error('Wallet not connected');
         }
-        const hash = await walletClient.writeContract({
+        return await writeContract({
           address,
           abi,
-          functionName: functionName as never,
-          args: args as never,
+          functionName,
+          args,
         });
-
-        return hash;
       },
     },
     publicClient,
@@ -158,10 +165,8 @@ export function watchAccountChanges(callback: (account: Address | null) => void)
     return () => {};
   }
 
-  const unwatch = watchAccount(wagmiConfig, {
-    onChange(account) {
-      callback(account.address ? (account.address as Address) : null);
-    },
+  const unwatch = watchAccount((data) => {
+    callback(data.address ? (data.address as Address) : null);
   });
 
   return unwatch;
