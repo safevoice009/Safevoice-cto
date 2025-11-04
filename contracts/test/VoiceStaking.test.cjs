@@ -28,8 +28,25 @@ describe('VoiceStaking', function () {
     await voiceToken.deployed();
 
     const VoiceStakingFactory = await ethers.getContractFactory('VoiceStaking');
-    voiceStaking = await VoiceStakingFactory.deploy(voiceToken.address, admin.address);
+    const minLockDuration = MIN_LOCK_PERIOD;
+    const maxLockDuration = 365 * 24 * 60 * 60; // 1 year
+    const earlyUnstakePenaltyBps = 1000; // 10%
+    voiceStaking = await VoiceStakingFactory.deploy(
+      voiceToken.address,
+      admin.address,
+      minLockDuration,
+      maxLockDuration,
+      earlyUnstakePenaltyBps
+    );
     await voiceStaking.deployed();
+
+    // Deploy VoiceVotingToken
+    const VoiceVotingTokenFactory = await ethers.getContractFactory('VoiceVotingToken');
+    const votingToken = await VoiceVotingTokenFactory.deploy(voiceStaking.address);
+    await votingToken.deployed();
+
+    // Configure voting token
+    await voiceStaking.connect(admin).setVotingToken(votingToken.address);
 
     await voiceToken.connect(admin).grantRole(MINTER_ROLE, admin.address);
     await voiceToken.connect(admin).mint(user1.address, ethers.utils.parseEther('100000'));
@@ -59,15 +76,33 @@ describe('VoiceStaking', function () {
 
     it('Should revert if token address is zero', async function () {
       const VoiceStakingFactory = await ethers.getContractFactory('VoiceStaking');
+      const minLockDuration = MIN_LOCK_PERIOD;
+      const maxLockDuration = 365 * 24 * 60 * 60;
+      const earlyUnstakePenaltyBps = 1000;
       await expect(
-        VoiceStakingFactory.deploy(ethers.constants.AddressZero, admin.address)
+        VoiceStakingFactory.deploy(
+          ethers.constants.AddressZero,
+          admin.address,
+          minLockDuration,
+          maxLockDuration,
+          earlyUnstakePenaltyBps
+        )
       ).to.be.revertedWithCustomError(voiceStaking, 'ZeroAddress');
     });
 
     it('Should revert if admin address is zero', async function () {
       const VoiceStakingFactory = await ethers.getContractFactory('VoiceStaking');
+      const minLockDuration = MIN_LOCK_PERIOD;
+      const maxLockDuration = 365 * 24 * 60 * 60;
+      const earlyUnstakePenaltyBps = 1000;
       await expect(
-        VoiceStakingFactory.deploy(voiceToken.address, ethers.constants.AddressZero)
+        VoiceStakingFactory.deploy(
+          voiceToken.address,
+          ethers.constants.AddressZero,
+          minLockDuration,
+          maxLockDuration,
+          earlyUnstakePenaltyBps
+        )
       ).to.be.revertedWithCustomError(voiceStaking, 'ZeroAddress');
     });
   });
