@@ -344,6 +344,26 @@ export interface StoreState {
   initializeStore: () => void;
 
   // Post actions
+  /**
+   * Creates a new post with automatic rewards and crisis detection.
+   *
+   * Rewards triggered:
+   * - First post: 20 VOICE (one-time bonus)
+   * - Regular post: 10 VOICE
+   * - Post with image: +15 VOICE bonus
+   *
+   * Crisis detection: Automatically scans content for crisis keywords
+   * and triggers support resources if detected.
+   *
+   * @param content - Post content (10 to 1000 characters)
+   * @param category - Optional category (Mental Health, Academic Stress, etc.)
+   * @param lifetime - Post lifetime option (1h, 6h, 24h, 7d, 30d, custom, never)
+   * @param customHours - Custom hours if lifetime is 'custom'
+   * @param isEncrypted - Whether post uses end-to-end encryption
+   * @param encryptedData - Encrypted payload if isEncrypted is true
+   * @param moderationData - Pre-moderation results (issues, blur, crisis flags)
+   * @param imageUrl - Optional image attachment URL
+   */
   addPost: (
     content: string,
     category?: string,
@@ -390,19 +410,80 @@ export interface StoreState {
   getEncryptionKey: (keyId: string) => JsonWebKey | undefined;
 
   // Comment actions
+  /**
+   * Adds a comment or reply to a post.
+   *
+   * Rewards triggered:
+   * - Top-level comment: 3 VOICE
+   * - Reply to comment: 2 VOICE
+   * - Reply received: 2 VOICE (to parent author)
+   * - First crisis responder: 100 VOICE (if post is crisis-flagged)
+   *
+   * @param postId - ID of the post to comment on
+   * @param content - Comment text
+   * @param parentCommentId - Parent comment ID for replies (optional)
+   */
   addComment: (postId: string, content: string, parentCommentId?: string) => void;
   updateComment: (commentId: string, content: string) => void;
   deleteComment: (commentId: string, postId: string) => void;
   addCommentReaction: (postId: string, commentId: string, reactionType: keyof Reaction) => void;
+  /**
+   * Marks a comment as helpful. After 5 helpful votes, the comment author
+   * receives 25 VOICE tokens (one-time reward).
+   *
+   * @param postId - ID of the post containing the comment
+   * @param commentId - ID of the comment to mark as helpful
+   */
   markCommentHelpful: (postId: string, commentId: string) => void;
+  /**
+   * Moderator action: Marks a comment as verified expert advice.
+   *
+   * Rewards: 200 VOICE to comment author (one-time)
+   *
+   * @param postId - ID of the post containing the comment
+   * @param commentId - ID of the comment to verify
+   */
   markCommentAsVerifiedAdvice: (postId: string, commentId: string) => void;
 
   // Bookmark actions
   toggleBookmark: (postId: string) => void;
 
   // Report actions
+  /**
+   * Submits a content report. Automatic actions at thresholds:
+   * - 3 reports: Content blurred, status → under_review
+   * - 5 reports: Post hidden
+   * - 10 reports: Post auto-deleted
+   *
+   * Self-harm reports trigger crisis modal.
+   *
+   * @param report - Report details (postId, commentId, type, description, reporterId)
+   */
   addReport: (report: Omit<Report, 'id' | 'reportedAt' | 'status'>) => void;
+  /**
+   * Moderator action: Reviews a content report.
+   *
+   * Valid report rewards:
+   * - Reporter: +10 VOICE
+   * - Moderator: +30 VOICE (5-minute cooldown)
+   *
+   * Invalid report:
+   * - Reporter: -5 VOICE penalty
+   * - Moderator: +30 VOICE (5-minute cooldown)
+   *
+   * @param reportId - ID of the report to review
+   * @param status - 'valid' or 'invalid'
+   */
   reviewReport: (reportId: string, status: 'valid' | 'invalid') => void;
+  /**
+   * Records a moderator action (blur, hide, verify, restore).
+   *
+   * Rewards: +30 VOICE (5-minute cooldown per moderator)
+   *
+   * @param actionType - Type of moderator action
+   * @param targetId - ID of the affected post/comment
+   * @param metadata - Additional context (optional)
+   */
   recordModeratorAction: (
     actionType: ModeratorAction['actionType'],
     targetId: string,
@@ -410,11 +491,24 @@ export interface StoreState {
   ) => void;
 
   // Notification actions
+  /**
+   * Creates a notification for a user. Auto-triggered by:
+   * - Post reactions, comments, replies
+   * - Helpful marks, tips, gifts
+   * - Report reviews (for moderators)
+   *
+   * @param notification - Notification details (recipientId, type, postId, actorId, message)
+   */
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read'>) => void;
   markAsRead: (notificationId: string) => void;
   markAllAsRead: () => void;
 
   // Moderator
+  /**
+   * Toggles moderator mode for the current user. When enabled, the moderator panel
+   * becomes visible and moderation actions (blur, hide, verify, review reports) are
+   * available. Moderator status is persisted via the `safevoice_is_moderator` key.
+   */
   toggleModeratorMode: () => void;
 
   // Memorial Wall
@@ -453,24 +547,34 @@ export interface StoreState {
   saveToLocalStorage: () => void;
 }
 
+/**
+ * localStorage keys used by the SafeVoice community system.
+ * 
+ * All data is persisted locally in the browser. Key prefixes:
+ * - `safevoice_` - Community and content data
+ * - `anonWallet_` - Anonymous wallet data
+ * - `voice_` - RewardEngine data (managed by RewardEngine.ts)
+ * 
+ * For extending: Add new keys here and update COMMUNITIES_TECH_OVERVIEW.md
+ */
 const STORAGE_KEYS = {
-  STUDENT_ID: 'studentId',
-  POSTS: 'safevoice_posts',
-  BOOKMARKS: 'safevoice_bookmarks',
-  REPORTS: 'safevoice_reports',
-  MODERATOR_ACTIONS: 'safevoice_moderator_actions',
-  NOTIFICATIONS: 'safevoice_notifications',
-  ENCRYPTION_KEYS: 'safevoice_encryption_keys',
-  SAVED_HELPLINES: 'safevoice_saved_helplines',
-  EMERGENCY_BANNER: 'emergencyBannerDismissed',
-  ANON_WALLET_ADDRESS: 'anonWallet_address',
-  ANON_WALLET_ENCRYPTED_KEY: 'anonWallet_encrypted',
-  FIRST_POST_AWARDED: 'safevoice_first_post_awarded',
-  IS_MODERATOR: 'safevoice_is_moderator',
-  MEMORIAL_TRIBUTES: 'safevoice_memorial_tributes',
-  REFERRAL_STATE: 'safevoice_referral_state',
-  COMMUNITY_SUPPORT: 'safevoice_community_support',
-  NFT_BADGES: 'safevoice_nft_badges',
+  STUDENT_ID: 'studentId',                             // Anonymous student identifier (Student#XXXX)
+  POSTS: 'safevoice_posts',                            // All posts (JSON array)
+  BOOKMARKS: 'safevoice_bookmarks',                    // Bookmarked post IDs
+  REPORTS: 'safevoice_reports',                        // Content reports
+  MODERATOR_ACTIONS: 'safevoice_moderator_actions',    // Moderator action log
+  NOTIFICATIONS: 'safevoice_notifications',            // User notifications
+  ENCRYPTION_KEYS: 'safevoice_encryption_keys',        // End-to-end encryption keys
+  SAVED_HELPLINES: 'safevoice_saved_helplines',        // User-saved crisis helplines
+  EMERGENCY_BANNER: 'emergencyBannerDismissed',        // Emergency banner dismissal timestamp
+  ANON_WALLET_ADDRESS: 'anonWallet_address',           // Anonymous wallet address
+  ANON_WALLET_ENCRYPTED_KEY: 'anonWallet_encrypted',   // Encrypted wallet private key
+  FIRST_POST_AWARDED: 'safevoice_first_post_awarded',  // First post bonus flag
+  IS_MODERATOR: 'safevoice_is_moderator',              // Moderator mode toggle
+  MEMORIAL_TRIBUTES: 'safevoice_memorial_tributes',    // Memorial wall tributes
+  REFERRAL_STATE: 'safevoice_referral_state',          // Referral program data
+  COMMUNITY_SUPPORT: 'safevoice_community_support',    // Community support tracking
+  NFT_BADGES: 'safevoice_nft_badges',                  // Purchased NFT badges
 };
 
 const rewardEngine = new RewardEngine();
