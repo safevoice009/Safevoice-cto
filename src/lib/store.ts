@@ -252,6 +252,11 @@ export interface CommunityModerationLog {
     duration?: number; // for mute/ban duration in hours
     targetName?: string; // for member actions
     communityImpact?: string;
+    action?: string; // for unmute actions
+    title?: string; // for announcements
+    isPinned?: boolean; // for announcements
+    expiresAt?: number; // for announcements
+    [key: string]: unknown; // Allow additional properties
   };
 }
 
@@ -665,7 +670,12 @@ export interface StoreState {
    * Logs a moderation action for transparency.
    * Awards +100 VOICE to moderator for community service.
    */
-  logModerationAction: (actionType: CommunityModerationLog['actionType'], targetId: string, description: string, metadata: CommunityModerationLog['metadata']) => void;
+  logModerationAction: (
+    actionType: CommunityModerationLog['actionType'],
+    targetId: string,
+    description: string,
+    metadata?: Partial<CommunityModerationLog['metadata']>
+  ) => void;
 
   // Memorial Wall
   memorialTributes: MemorialTribute[];
@@ -689,17 +699,6 @@ export interface StoreState {
   purchaseNFTBadge: (tier: NFTBadgeTier, cost: number) => boolean;
   hasNFTBadge: (tier: NFTBadgeTier) => boolean;
   loadNFTBadges: () => void;
-
-  // Community Moderation
-  pinCommunityPost: (postId: string, reason?: string) => void;
-  unpinCommunityPost: (postId: string, reason?: string) => void;
-  deleteCommunityPost: (postId: string, reason: string) => void;
-  banCommunityMember: (memberId: string, reason: string, durationHours?: number) => void;
-  warnCommunityMember: (memberId: string, reason: string) => void;
-  muteChannel: (reason: string, durationHours: number) => void;
-  unmuteChannel: () => void;
-  createCommunityAnnouncement: (title: string, content: string, isPinned?: boolean, expiresAt?: number) => void;
-  logModerationAction: (actionType: CommunityModerationLog['actionType'], targetId: string, description: string, metadata: CommunityModerationLog['metadata']) => void;
 
   // Special Utilities
   changeStudentId: (newId: string) => boolean;
@@ -4915,7 +4914,7 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   muteChannel: (reason: string, durationHours: number) => {
-    const { isModerator, studentId, channelMuteStatus } = get();
+    const { isModerator, studentId } = get();
     
     if (!isModerator) {
       toast.error('Moderator access required');
@@ -4936,7 +4935,7 @@ export const useStore = create<StoreState>((set, get) => {
     const mutedUntil = now + (durationHours * 60 * 60 * 1000);
 
     // Update channel mute status
-    set((state) => ({
+    set(() => ({
       channelMuteStatus: {
         isMuted: true,
         mutedBy: studentId,
@@ -4974,7 +4973,7 @@ export const useStore = create<StoreState>((set, get) => {
     }
 
     // Update channel mute status
-    set((state) => ({
+    set(() => ({
       channelMuteStatus: {
         isMuted: false,
       },
@@ -5045,6 +5044,10 @@ export const useStore = create<StoreState>((set, get) => {
       return;
     }
 
+    const metadataPayload: CommunityModerationLog['metadata'] = {
+      ...(metadata ?? {}),
+    };
+
     const logEntry: CommunityModerationLog = {
       id: crypto.randomUUID(),
       moderatorId: studentId,
@@ -5052,7 +5055,7 @@ export const useStore = create<StoreState>((set, get) => {
       targetId,
       description,
       timestamp: Date.now(),
-      metadata,
+      metadata: metadataPayload,
     };
 
     // Add to moderation logs (keep max 100 entries)

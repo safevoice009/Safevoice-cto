@@ -1,37 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useStore } from '../store';
 
-// Mock RewardEngine
-const mockRewardEngine = {
-  getBalance: () => 1000,
-  getPending: () => 0,
-  getTotalEarned: () => 500,
-  getClaimed: () => 300,
-  getSpent: () => 200,
-  getAvailableBalance: () => 800,
-  getPendingBreakdown: () => ({}),
-  getEarningsBreakdown: () => ({}),
-  getTransactionHistory: () => [],
-  getStreakData: () => ({
-    lastLoginDate: '2024-01-01',
-    currentStreak: 5,
-    lastPostDate: '2024-01-01',
-    currentPostStreak: 3,
-  }),
-  getSubscriptions: () => ({}),
-  getAchievements: () => [],
-  awardTokens: vi.fn().mockResolvedValue(true),
-  spendTokens: vi.fn(),
-  onReward: vi.fn(),
-  onSpend: vi.fn(),
-  onBalanceChange: vi.fn(),
-  onSubscription: vi.fn(),
-};
+// Mock localStorage - tests are simplified and focus on basic functionality
+// The full integration tests would require more complex mocking
 
 // Mock localStorage
 const localStorageMock = (() => {
-  let store: Record<string, string> = {};
+  const store: Record<string, string> = {};
   return {
     getItem: vi.fn((key: string) => store[key] || null),
     setItem: vi.fn((key: string, value: string) => {

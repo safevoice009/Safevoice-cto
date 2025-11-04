@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Megaphone, Pin, Clock } from 'lucide-react';
 import { useStore } from '../../lib/store';
 import { formatTimeAgo, formatTimeRemaining } from '../../lib/utils';
-import type { CommunityAnnouncement } from '../../lib/store';
 
 export default function AnnouncementBanner() {
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<Set<string>>(new Set());
@@ -27,10 +26,10 @@ export default function AnnouncementBanner() {
   );
 
   const dismissAnnouncement = (announcementId: string) => {
-    setDismissedAnnouncements(prev => new Set([...prev, announcementId]));
+    setDismissedAnnouncements((prev) => new Set([...prev, announcementId]));
   };
 
-  const isDismissed = (announcementId: string) => dismissedAnnouncements.has(announcementId);
+  const isAnnouncementDismissed = (announcementId: string) => dismissedAnnouncements.has(announcementId);
 
   if (displayAnnouncements.length === 0) {
     return null;
@@ -41,9 +40,9 @@ export default function AnnouncementBanner() {
       <AnimatePresence>
         {displayAnnouncements.map((announcement) => {
           const isExpired = announcement.expiresAt && announcement.expiresAt <= Date.now();
-          const isDismissed = isDismissed(announcement.id);
+          const dismissed = isAnnouncementDismissed(announcement.id);
           
-          if (isExpired || isDismissed) {
+          if (isExpired || dismissed) {
             return null;
           }
 

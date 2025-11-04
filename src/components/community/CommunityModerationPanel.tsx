@@ -6,19 +6,13 @@ import {
   VolumeX,
   Volume2,
   Pin,
-  Trash2,
   AlertTriangle,
   Ban,
-  Users,
-  Clock,
   Eye,
-  Plus,
-  Settings,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useStore } from '../../lib/store';
 import { formatTimeAgo } from '../../lib/utils';
-import type { CommunityAnnouncement, CommunityModerationLog } from '../../lib/store';
 
 interface CommunityModerationPanelProps {
   className?: string;
@@ -31,7 +25,6 @@ export default function CommunityModerationPanel({ className = '' }: CommunityMo
   const [announcementContent, setAnnouncementContent] = useState('');
   const [isPinned, setIsPinned] = useState(false);
   const [muteDuration, setMuteDuration] = useState(1);
-  const [banDuration, setBanDuration] = useState(24);
 
   const {
     isModerator,
@@ -42,8 +35,6 @@ export default function CommunityModerationPanel({ className = '' }: CommunityMo
     createCommunityAnnouncement,
     muteChannel,
     unmuteChannel,
-    banCommunityMember,
-    warnCommunityMember,
   } = useStore();
 
   if (!isModerator) {
