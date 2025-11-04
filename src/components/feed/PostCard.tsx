@@ -17,6 +17,9 @@ import {
   Zap,
   DollarSign,
   Ban,
+  Hash,
+  Building2,
+  Eye,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Post } from '../../lib/store';
@@ -91,6 +94,8 @@ export default function PostCard({ post }: PostCardProps) {
     deleteCommunityPost,
     banCommunityMember,
     warnCommunityMember,
+    communities,
+    communityChannels,
   } = useStore();
 
   const [showBlurredContent, setShowBlurredContent] = useState(false);
@@ -294,6 +299,29 @@ export default function PostCard({ post }: PostCardProps) {
   );
   const extendedHours = post.extendedLifetimeHours ?? 0;
 
+  const postCommunity = useMemo(() => {
+    if (!post.communityId) return null;
+    return communities.find((c) => c.id === post.communityId) ?? null;
+  }, [communities, post.communityId]);
+
+  const postChannel = useMemo(() => {
+    if (!post.channelId) return null;
+    return communityChannels.find((ch) => ch.id === post.channelId) ?? null;
+  }, [communityChannels, post.channelId]);
+
+  const visibilityLabel = useMemo(() => {
+    switch (post.visibility) {
+      case 'campus':
+        return 'Community members only';
+      case 'private':
+        return 'Private';
+      case 'public':
+        return 'Public';
+      default:
+        return null;
+    }
+  }, [post.visibility]);
+
   return (
     <>
       <motion.article
@@ -458,6 +486,34 @@ export default function PostCard({ post }: PostCardProps) {
                   </div>
                 )}
               </div>
+              {/* Community and Channel Badges */}
+              {(postCommunity || postChannel || visibilityLabel || post.isAnonymous) && (
+                <div className="flex items-center gap-2 flex-wrap mt-1">
+                  {postCommunity && (
+                    <span className="flex items-center gap-1 text-xs text-cyan-300 bg-cyan-500/15 px-2 py-0.5 rounded-full">
+                      <Building2 className="w-3 h-3" />
+                      {postCommunity.shortCode}
+                    </span>
+                  )}
+                  {postChannel && (
+                    <span className="flex items-center gap-1 text-xs text-blue-300 bg-blue-500/15 px-2 py-0.5 rounded-full">
+                      <Hash className="w-3 h-3" />
+                      {postChannel.name.toLowerCase()}
+                    </span>
+                  )}
+                  {visibilityLabel && (
+                    <span className="flex items-center gap-1 text-xs text-gray-300 bg-gray-500/15 px-2 py-0.5 rounded-full">
+                      <Eye className="w-3 h-3" />
+                      {visibilityLabel}
+                    </span>
+                  )}
+                  {post.isAnonymous && (
+                    <span className="text-xs text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded-full">
+                      🎭 Anonymous
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

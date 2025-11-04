@@ -66,6 +66,10 @@ export interface AddPostPayload {
   customLifetimeHours?: number | null;
   isEncrypted?: boolean;
   imageUrl?: string;
+  communityId?: string | null;
+  channelId?: string | null;
+  visibility?: PostVisibility;
+  isAnonymous?: boolean;
   encryptionData?: {
     encrypted: string;
     iv: string;
@@ -409,6 +413,9 @@ export interface StoreState {
   // Community post selectors
   getCommunityPosts: (communityId: string, channelId?: string) => Post[];
   getPinnedCommunityPosts: (communityId: string, channelId?: string) => Post[];
+  getArchivedCommunityPosts: (communityId: string, channelId?: string) => Post[];
+  archiveOldCommunityPosts: () => void;
+  isMemberOfCommunity: (communityId: string) => boolean;
 
   // Wallet & Token state
   connectedAddress: string | null;
@@ -513,6 +520,7 @@ export interface StoreState {
    * @param encryptedData - Encrypted payload if isEncrypted is true
    * @param moderationData - Pre-moderation results (issues, blur, crisis flags)
    * @param imageUrl - Optional image attachment URL
+   * @param communityMeta - Optional community context (communityId, channelId, visibility, isAnonymous)
    */
   addPost: (
     content: string,
@@ -529,7 +537,13 @@ export interface StoreState {
       isCrisisFlagged?: boolean;
       crisisLevel?: 'high' | 'critical';
     },
-    imageUrl?: string
+    imageUrl?: string,
+    communityMeta?: {
+      communityId?: string;
+      channelId?: string;
+      visibility?: PostVisibility;
+      isAnonymous?: boolean;
+    }
   ) => void;
   updatePost: (
     postId: string,
@@ -2792,6 +2806,8 @@ export const useStore = create<StoreState>((set, get) => {
       currentChannel: currentChannelId,
     });
 
+    get().archiveOldCommunityPosts();
+
     // Schedule expiry for posts
     validPosts.forEach((post: Post) => {
       if (post.expiresAt) {
@@ -2860,7 +2876,13 @@ export const useStore = create<StoreState>((set, get) => {
       isCrisisFlagged?: boolean;
       crisisLevel?: 'high' | 'critical';
     },
-    imageUrl?: string
+    imageUrl?: string,
+    communityMeta?: {
+      communityId?: string;
+      channelId?: string;
+      visibility?: PostVisibility;
+      isAnonymous?: boolean;
+    }
   ) => {
     const storeState = get();
     const isFirstPost = !storeState.firstPostAwarded;
@@ -2918,6 +2940,12 @@ export const useStore = create<StoreState>((set, get) => {
       supportOffered: moderationData?.isCrisisFlagged ?? false,
       flaggedAt: moderationData?.isCrisisFlagged ? Date.now() : null,
       flaggedForSupport: moderationData?.isCrisisFlagged ?? false,
+      communityId: communityMeta?.communityId ?? null,
+      channelId: communityMeta?.channelId ?? null,
+      visibility: communityMeta?.visibility ?? (communityMeta?.communityId ? 'campus' : undefined),
+      isAnonymous: communityMeta?.isAnonymous ?? false,
+      archived: false,
+      archivedAt: null,
     };
 
     set((state) => ({
@@ -4858,6 +4886,7 @@ export const useStore = create<StoreState>((set, get) => {
       .filter((post) => {
         if (post.communityId !== communityId) return false;
         if (channelId && post.channelId !== channelId) return false;
+        if (post.archived === true) return false;
         return true;
       })
       .sort((a, b) => b.createdAt - a.createdAt);
@@ -4881,6 +4910,40 @@ export const useStore = create<StoreState>((set, get) => {
         if (bPinned) return 1;
         return b.createdAt - a.createdAt;
       });
+  },
+
+  getArchivedCommunityPosts: (communityId: string, channelId?: string) => {
+    const state = get();
+    return state.posts
+      .filter((post) => {
+        if (post.communityId !== communityId) return false;
+        if (channelId && post.channelId !== channelId) return false;
+        return post.archived === true;
+      })
+      .sort((a, b) => (b.archivedAt ?? b.createdAt) - (a.archivedAt ?? a.createdAt));
+  },
+
+  archiveOldCommunityPosts: () => {
+    const now = Date.now();
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+    
+    set((state) => ({
+      posts: state.posts.map((post) => {
+        if (post.communityId && !post.archived && post.createdAt < thirtyDaysAgo) {
+          return { ...post, archived: true, archivedAt: now };
+        }
+        return post;
+      }),
+    }));
+    
+    get().saveToLocalStorage();
+  },
+
+  isMemberOfCommunity: (communityId: string) => {
+    const state = get();
+    return state.communityMemberships.some(
+      (m) => m.communityId === communityId && m.studentId === state.studentId && m.isActive
+    );
   },
 
   changeStudentId: (newId: string) => {

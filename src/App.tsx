@@ -79,7 +79,15 @@ function AnimatedRoutes() {
         pendingPost.isEncrypted,
         pendingPost.encryptionData,
         pendingPost.moderationData,
-        pendingPost.imageUrl
+        pendingPost.imageUrl,
+        pendingPost.communityId
+          ? {
+              communityId: pendingPost.communityId ?? undefined,
+              channelId: pendingPost.channelId ?? undefined,
+              visibility: pendingPost.visibility,
+              isAnonymous: pendingPost.isAnonymous,
+            }
+          : undefined
       );
     }
 
