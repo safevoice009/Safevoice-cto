@@ -728,6 +728,15 @@ export interface StoreState {
   rankProgressPercentage: number;
   voiceToNextRank: number;
 
+  selectedChainId: number;
+  chainBalances: Record<number, ChainBalance>;
+  bridgeStatus: BridgeStatus | null;
+  bridgeTransactions: QueuedTransaction[];
+  stakingPositions: StakingPosition[];
+  governanceProposals: GovernanceProposal[];
+  governanceVotingPower: number;
+  nftAchievements: NFTAchievement[];
+
   firstPostAwarded: boolean;
 
   referralCode: string;
