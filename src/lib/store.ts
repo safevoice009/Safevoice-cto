@@ -14,6 +14,16 @@ import type { BridgeStatus, QueuedTransaction } from './web3/types';
 import { Web3Bridge } from './web3/bridge';
 import { createWeb3Config, getDefaultChainId, isWeb3Enabled } from './web3/config';
 import type { ChainBalance, StakingPosition, GovernanceProposal, NFTAchievement } from './wallet/types';
+import type {
+  Community,
+  CommunityChannel,
+  CommunityMembership,
+  CommunityNotificationSettings,
+  CommunityPostMeta,
+  CommunityActivity,
+  PostVisibility,
+} from './communities/types';
+import { createDefaultCommunities } from './communities/defaults';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -156,6 +166,12 @@ export interface Post {
   isCommunityPinned?: boolean;
   communityPinnedAt?: number | null;
   communityPinnedBy?: string | null;
+  communityId?: string | null;
+  channelId?: string | null;
+  visibility?: PostVisibility;
+  isAnonymous?: boolean;
+  archived?: boolean;
+  archivedAt?: number | null;
 }
 
 export interface Report {
@@ -365,6 +381,34 @@ export interface StoreState {
   communityModerationLogs: CommunityModerationLog[];
   memberStatuses: MemberStatus[];
   channelMuteStatus: ChannelMuteStatus;
+
+  // Community state
+  communities: Community[];
+  communityChannels: CommunityChannel[];
+  communityMemberships: CommunityMembership[];
+  communityNotifications: Record<string, CommunityNotificationSettings>;
+  communityPostsMeta: Record<string, CommunityPostMeta>;
+  communityActivity: CommunityActivity[];
+  communityModerationLog: CommunityModerationLog[];
+  currentCommunity: string | null;
+  currentChannel: string | null;
+
+  // Community actions
+  joinCommunity: (communityId: string) => void;
+  leaveCommunity: (communityId: string) => void;
+  setCurrentCommunity: (communityId: string | null) => void;
+  setCurrentChannel: (channelId: string | null) => void;
+  toggleCommunityNotification: (
+    communityId: string,
+    setting: 'notifyOnPost' | 'notifyOnMention' | 'notifyOnReply' | 'muteAll'
+  ) => void;
+  toggleChannelNotification: (communityId: string, channelId: string) => void;
+  markCommunityRead: (communityId: string) => void;
+  awardCommunityModerationReward: (communityId: string, reason?: string) => void;
+
+  // Community post selectors
+  getCommunityPosts: (communityId: string, channelId?: string) => Post[];
+  getPinnedCommunityPosts: (communityId: string, channelId?: string) => Post[];
 
   // Wallet & Token state
   connectedAddress: string | null;
@@ -759,7 +803,18 @@ const STORAGE_KEYS = {
   COMMUNITY_MODERATION_LOGS: 'safevoice_moderation_logs', // Community moderation logs
   MEMBER_STATUSES: 'safevoice_member_statuses',        // Member ban/warning status
   CHANNEL_MUTE_STATUS: 'safevoice_channel_mute',       // Channel mute status
+  COMMUNITIES: 'safevoice_communities',                // Community definitions
+  COMMUNITY_CHANNELS: 'safevoice_community_channels',  // Community channels
+  COMMUNITY_MEMBERSHIPS: 'safevoice_memberships',      // User memberships
+  COMMUNITY_NOTIFICATIONS: 'safevoice_community_notifications', // Community notification settings
+  COMMUNITY_POSTS_META: 'safevoice_community_posts_meta', // Channel-level metrics
+  COMMUNITY_ACTIVITY: 'safevoice_community_activity',  // Activity tracking for heatmaps
+  COMMUNITY_STATE_VERSION: 'safevoice_community_state_version', // Versioning for community data migrations
+  CURRENT_COMMUNITY: 'safevoice_current_community',     // Last selected community
+  CURRENT_CHANNEL: 'safevoice_current_channel',         // Last selected channel within community
 };
+
+const COMMUNITY_STATE_VERSION = 1;
 
 const rewardEngine = new RewardEngine();
 
@@ -961,6 +1016,52 @@ const persistCommunityEvents = (events: CommunityEvent[]): void => {
   } catch (error) {
     console.error('Failed to persist community events', error);
   }
+};
+
+const createNotificationSettingsForCommunity = (
+  communityId: string,
+  studentId: string
+): CommunityNotificationSettings => ({
+  communityId,
+  studentId,
+  notifyOnPost: false,
+  notifyOnMention: true,
+  notifyOnReply: true,
+  muteAll: false,
+  channelOverrides: {},
+  updatedAt: Date.now(),
+});
+
+const findDefaultChannelId = (channels: CommunityChannel[], communityId: string): string | null => {
+  const defaultChannel = channels.find((channel) => channel.communityId === communityId && channel.isDefault);
+  if (defaultChannel) {
+    return defaultChannel.id;
+  }
+  const fallback = channels.find((channel) => channel.communityId === communityId);
+  return fallback ? fallback.id : null;
+};
+
+const adjustCommunityChannelActiveMembers = (
+  meta: Record<string, CommunityPostMeta>,
+  channels: CommunityChannel[],
+  communityId: string,
+  delta: number
+): Record<string, CommunityPostMeta> => {
+  if (delta === 0) {
+    return meta;
+  }
+  const updated: Record<string, CommunityPostMeta> = { ...meta };
+  channels.forEach((channel) => {
+    if (channel.communityId !== communityId) return;
+    const existing = updated[channel.id];
+    if (existing) {
+      updated[channel.id] = {
+        ...existing,
+        activeMembers: Math.max(0, existing.activeMembers + delta),
+      };
+    }
+  });
+  return updated;
 };
 
 const VIRAL_REACTION_THRESHOLD = 100;
@@ -1498,6 +1599,11 @@ export const useStore = create<StoreState>((set, get) => {
 
   const initialReferralState = readReferralState(initialStudentId);
 
+  const initialCurrentCommunity =
+    typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.CURRENT_COMMUNITY) : null;
+  const initialCurrentChannel =
+    typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.CURRENT_CHANNEL) : null;
+
   const clearBoostTimeout = (postId: string, type: BoostType) => {
     if (typeof window === 'undefined') return;
     const timeoutId = get().boostTimeouts[postId]?.[type];
@@ -1628,6 +1734,17 @@ export const useStore = create<StoreState>((set, get) => {
     channelMuteStatus: {
       isMuted: false,
     },
+
+    // Community state (initialized empty, will be populated in initializeStore)
+    communities: [],
+    communityChannels: [],
+    communityMemberships: [],
+    communityNotifications: {},
+    communityPostsMeta: {},
+    communityActivity: [],
+    communityModerationLog: [],
+    currentCommunity: initialCurrentCommunity,
+    currentChannel: initialCurrentChannel,
 
     referralCode: initialReferralState.code,
     referredByCode: initialReferralState.referredByCode,
@@ -2356,6 +2473,13 @@ export const useStore = create<StoreState>((set, get) => {
     const storedModerationLogs = localStorage.getItem(STORAGE_KEYS.COMMUNITY_MODERATION_LOGS);
     const storedMemberStatuses = localStorage.getItem(STORAGE_KEYS.MEMBER_STATUSES);
     const storedChannelMuteStatus = localStorage.getItem(STORAGE_KEYS.CHANNEL_MUTE_STATUS);
+    const storedCommunities = localStorage.getItem(STORAGE_KEYS.COMMUNITIES);
+    const storedCommunityChannels = localStorage.getItem(STORAGE_KEYS.COMMUNITY_CHANNELS);
+    const storedCommunityMemberships = localStorage.getItem(STORAGE_KEYS.COMMUNITY_MEMBERSHIPS);
+    const storedCommunityNotifications = localStorage.getItem(STORAGE_KEYS.COMMUNITY_NOTIFICATIONS);
+    const storedCommunityPostsMeta = localStorage.getItem(STORAGE_KEYS.COMMUNITY_POSTS_META);
+    const storedCommunityActivity = localStorage.getItem(STORAGE_KEYS.COMMUNITY_ACTIVITY);
+    const storedCommunityVersion = localStorage.getItem(STORAGE_KEYS.COMMUNITY_STATE_VERSION);
 
     const rawAnnouncements = storedAnnouncements ? (JSON.parse(storedAnnouncements) as Array<Partial<CommunityAnnouncement>>) : [];
     const rawModerationLogs = storedModerationLogs ? (JSON.parse(storedModerationLogs) as Array<Partial<CommunityModerationLog>>) : [];
@@ -2379,6 +2503,51 @@ export const useStore = create<StoreState>((set, get) => {
 
     const channelMuteStatus = rawChannelMuteStatus || { isMuted: false };
 
+    const studentId = get().studentId;
+
+    const storedCommunityVersionNumber = storedCommunityVersion ? Number.parseInt(storedCommunityVersion, 10) : 0;
+    const needsCommunitySeeding =
+      !storedCommunities ||
+      !storedCommunityChannels ||
+      Number.isNaN(storedCommunityVersionNumber) ||
+      storedCommunityVersionNumber < COMMUNITY_STATE_VERSION;
+    let communities: Community[] = [];
+    let communityChannels: CommunityChannel[] = [];
+    let communityMemberships: CommunityMembership[] = [];
+    let communityNotifications: Record<string, CommunityNotificationSettings> = {};
+    let communityPostsMeta: Record<string, CommunityPostMeta> = {};
+    let communityActivity: CommunityActivity[] = [];
+
+    if (needsCommunitySeeding) {
+      const seeds = createDefaultCommunities(studentId);
+      communities = seeds.map((s) => s.community);
+      communityChannels = seeds.flatMap((s) => s.channels);
+      communityMemberships = [];
+      communityNotifications = {};
+      seeds.forEach((s) => {
+        communityNotifications[s.community.id] = s.notifications;
+        s.postsMeta.forEach((meta) => {
+          communityPostsMeta[meta.channelId] = meta;
+        });
+      });
+      communityActivity = seeds.flatMap((s) => s.activity);
+
+      localStorage.setItem(STORAGE_KEYS.COMMUNITIES, JSON.stringify(communities));
+      localStorage.setItem(STORAGE_KEYS.COMMUNITY_CHANNELS, JSON.stringify(communityChannels));
+      localStorage.setItem(STORAGE_KEYS.COMMUNITY_MEMBERSHIPS, JSON.stringify(communityMemberships));
+      localStorage.setItem(STORAGE_KEYS.COMMUNITY_NOTIFICATIONS, JSON.stringify(communityNotifications));
+      localStorage.setItem(STORAGE_KEYS.COMMUNITY_POSTS_META, JSON.stringify(communityPostsMeta));
+      localStorage.setItem(STORAGE_KEYS.COMMUNITY_ACTIVITY, JSON.stringify(communityActivity));
+      localStorage.setItem(STORAGE_KEYS.COMMUNITY_STATE_VERSION, String(COMMUNITY_STATE_VERSION));
+    } else {
+      communities = storedCommunities ? (JSON.parse(storedCommunities) as Community[]) : [];
+      communityChannels = storedCommunityChannels ? (JSON.parse(storedCommunityChannels) as CommunityChannel[]) : [];
+      communityMemberships = storedCommunityMemberships ? (JSON.parse(storedCommunityMemberships) as CommunityMembership[]) : [];
+      communityNotifications = storedCommunityNotifications ? (JSON.parse(storedCommunityNotifications) as Record<string, CommunityNotificationSettings>) : {};
+      communityPostsMeta = storedCommunityPostsMeta ? (JSON.parse(storedCommunityPostsMeta) as Record<string, CommunityPostMeta>) : {};
+      communityActivity = storedCommunityActivity ? (JSON.parse(storedCommunityActivity) as CommunityActivity[]) : [];
+    }
+
     const reportCollection = new Map<string, Report>();
     rawReports.forEach((rawReport) => {
       upsertReport(reportCollection, rawReport);
@@ -2389,8 +2558,6 @@ export const useStore = create<StoreState>((set, get) => {
       .filter((action): action is ModeratorAction => action !== null)
       .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, MAX_MODERATOR_ACTIONS);
-
-    const studentId = get().studentId;
 
     let posts: Post[] = rawPosts.map((post) => {
       const normalizedExpiresAt = typeof post.expiresAt === 'number' ? post.expiresAt : null;
@@ -2576,20 +2743,53 @@ export const useStore = create<StoreState>((set, get) => {
 
     const unreadCount = notifications.filter((n: Notification) => !n.read).length;
 
-    set({ 
-      posts: validPosts, 
-      bookmarkedPosts, 
-      reports, 
-      moderatorActions, 
-      notifications, 
-      unreadCount, 
-      encryptionKeys, 
-      firstPostAwarded, 
+    let currentCommunityId = get().currentCommunity;
+    let currentChannelId = get().currentChannel;
+
+    if (!currentCommunityId && communities.length > 0) {
+      currentCommunityId = communities[0]?.id ?? null;
+    }
+
+    if (currentCommunityId && (!currentChannelId || !communityChannels.some((channel) => channel.id === currentChannelId))) {
+      const fallbackChannel =
+        communityChannels.find((channel) => channel.communityId === currentCommunityId && channel.isDefault) ??
+        communityChannels.find((channel) => channel.communityId === currentCommunityId) ??
+        null;
+      currentChannelId = fallbackChannel ? fallbackChannel.id : null;
+    }
+
+    if (typeof window !== 'undefined') {
+      if (currentCommunityId) {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_COMMUNITY, currentCommunityId);
+      }
+      if (currentChannelId) {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_CHANNEL, currentChannelId);
+      }
+    }
+
+    set({
+      posts: validPosts,
+      bookmarkedPosts,
+      reports,
+      moderatorActions,
+      notifications,
+      unreadCount,
+      encryptionKeys,
+      firstPostAwarded,
       communityEvents,
       communityAnnouncements,
       communityModerationLogs,
       memberStatuses,
       channelMuteStatus,
+      communities,
+      communityChannels,
+      communityMemberships,
+      communityNotifications,
+      communityPostsMeta,
+      communityActivity,
+      communityModerationLog: communityModerationLogs,
+      currentCommunity: currentCommunityId,
+      currentChannel: currentChannelId,
     });
 
     // Schedule expiry for posts
@@ -2624,6 +2824,25 @@ export const useStore = create<StoreState>((set, get) => {
     localStorage.setItem(STORAGE_KEYS.COMMUNITY_MODERATION_LOGS, JSON.stringify(state.communityModerationLogs));
     localStorage.setItem(STORAGE_KEYS.MEMBER_STATUSES, JSON.stringify(state.memberStatuses));
     localStorage.setItem(STORAGE_KEYS.CHANNEL_MUTE_STATUS, JSON.stringify(state.channelMuteStatus));
+    localStorage.setItem(STORAGE_KEYS.COMMUNITIES, JSON.stringify(state.communities));
+    localStorage.setItem(STORAGE_KEYS.COMMUNITY_CHANNELS, JSON.stringify(state.communityChannels));
+    localStorage.setItem(STORAGE_KEYS.COMMUNITY_MEMBERSHIPS, JSON.stringify(state.communityMemberships));
+    localStorage.setItem(STORAGE_KEYS.COMMUNITY_NOTIFICATIONS, JSON.stringify(state.communityNotifications));
+    localStorage.setItem(STORAGE_KEYS.COMMUNITY_POSTS_META, JSON.stringify(state.communityPostsMeta));
+    localStorage.setItem(STORAGE_KEYS.COMMUNITY_ACTIVITY, JSON.stringify(state.communityActivity));
+    localStorage.setItem(STORAGE_KEYS.COMMUNITY_STATE_VERSION, String(COMMUNITY_STATE_VERSION));
+
+    if (state.currentCommunity) {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_COMMUNITY, state.currentCommunity);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_COMMUNITY);
+    }
+
+    if (state.currentChannel) {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_CHANNEL, state.currentChannel);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_CHANNEL);
+    }
   },
 
   addPost: (
@@ -4314,6 +4533,356 @@ export const useStore = create<StoreState>((set, get) => {
     }
   },
 
+  joinCommunity: (communityId: string) => {
+    const state = get();
+    const community = state.communities.find((c) => c.id === communityId);
+
+    if (!community) {
+      toast.error('Community not found');
+      return;
+    }
+
+    const existingMembership = state.communityMemberships.find(
+      (m) => m.communityId === communityId && m.studentId === state.studentId
+    );
+
+    if (existingMembership && existingMembership.isActive) {
+      toast('Already a member of this community', { icon: 'ℹ️' });
+      return;
+    }
+
+    const now = Date.now();
+    const role: CommunityMembership['role'] = state.isModerator ? 'moderator' : 'member';
+    const memberDelta = existingMembership ? (existingMembership.isActive ? 0 : 1) : 1;
+
+    const baseMembership: CommunityMembership = existingMembership
+      ? {
+          ...existingMembership,
+          role,
+          isActive: true,
+          isModerator: state.isModerator,
+          lastVisitedAt: now,
+        }
+      : {
+          id: crypto.randomUUID(),
+          communityId,
+          studentId: state.studentId,
+          role,
+          joinedAt: now,
+          lastVisitedAt: now,
+          unreadCount: 0,
+          isMuted: false,
+          isActive: true,
+          isModerator: state.isModerator,
+          notificationPrefs: {
+            posts: false,
+            mentions: true,
+            digest: false,
+          },
+        };
+
+    set((s) => {
+      const updatedMemberships = existingMembership
+        ? s.communityMemberships.map((m) => (m.id === existingMembership.id ? baseMembership : m))
+        : [...s.communityMemberships, baseMembership];
+
+      const updatedCommunities = s.communities.map((c) =>
+        c.id === communityId
+          ? {
+              ...c,
+              memberCount: c.memberCount + memberDelta,
+              lastActivityAt: now,
+            }
+          : c
+      );
+
+      const updatedMeta = memberDelta !== 0
+        ? adjustCommunityChannelActiveMembers(s.communityPostsMeta, s.communityChannels, communityId, memberDelta)
+        : s.communityPostsMeta;
+
+      const activityEntry: CommunityActivity | null = memberDelta > 0
+        ? {
+            id: crypto.randomUUID(),
+            communityId,
+            channelId: null,
+            type: 'join',
+            timestamp: now,
+            count: 1,
+          }
+        : null;
+
+      const updatedActivity = activityEntry
+        ? [activityEntry, ...s.communityActivity].slice(0, 250)
+        : s.communityActivity;
+
+      const defaultChannelId = findDefaultChannelId(s.communityChannels, communityId);
+      const existingSettings = s.communityNotifications[communityId];
+      const nextSettings = existingSettings
+        ? { ...existingSettings, studentId: s.studentId, muteAll: false, updatedAt: now }
+        : createNotificationSettingsForCommunity(communityId, s.studentId);
+
+      return {
+        communityMemberships: updatedMemberships,
+        communities: updatedCommunities,
+        communityPostsMeta: updatedMeta,
+        communityActivity: updatedActivity,
+        communityNotifications: {
+          ...s.communityNotifications,
+          [communityId]: nextSettings,
+        },
+        currentCommunity: communityId,
+        currentChannel: defaultChannelId ?? s.currentChannel,
+      };
+    });
+
+    get().saveToLocalStorage();
+    toast.success(`Joined ${community.name}! 🎉`);
+  },
+
+  leaveCommunity: (communityId: string) => {
+    const state = get();
+    const community = state.communities.find((c) => c.id === communityId);
+
+    if (!community) {
+      toast.error('Community not found');
+      return;
+    }
+
+    const membership = state.communityMemberships.find(
+      (m) => m.communityId === communityId && m.studentId === state.studentId && m.isActive
+    );
+
+    if (!membership) {
+      toast.error('You are not a member of this community');
+      return;
+    }
+
+    const now = Date.now();
+
+    set((s) => {
+      const updatedMemberships = s.communityMemberships.map((m) =>
+        m.id === membership.id ? { ...m, isActive: false, lastVisitedAt: now } : m
+      );
+
+      const updatedCommunities = s.communities.map((c) =>
+        c.id === communityId
+          ? {
+              ...c,
+              memberCount: Math.max(0, c.memberCount - 1),
+              lastActivityAt: now,
+            }
+          : c
+      );
+
+      const updatedMeta = adjustCommunityChannelActiveMembers(
+        s.communityPostsMeta,
+        s.communityChannels,
+        communityId,
+        -1
+      );
+
+      const activityEntry: CommunityActivity = {
+        id: crypto.randomUUID(),
+        communityId,
+        channelId: null,
+        type: 'moderation',
+        timestamp: now,
+        count: 1,
+      };
+
+      const activeMembership = updatedMemberships.find((m) => m.isActive);
+      const nextCommunityId = s.currentCommunity === communityId ? activeMembership?.communityId ?? null : s.currentCommunity;
+      const nextChannelId = nextCommunityId
+        ? findDefaultChannelId(s.communityChannels, nextCommunityId)
+        : s.currentCommunity === communityId
+        ? null
+        : s.currentChannel;
+
+      return {
+        communityMemberships: updatedMemberships,
+        communities: updatedCommunities,
+        communityPostsMeta: updatedMeta,
+        communityActivity: [activityEntry, ...s.communityActivity].slice(0, 250),
+        currentCommunity: nextCommunityId,
+        currentChannel: nextChannelId,
+      };
+    });
+
+    get().saveToLocalStorage();
+    toast.success(`Left ${community.name}`);
+  },
+
+  setCurrentCommunity: (communityId: string | null) => {
+    set({ currentCommunity: communityId });
+
+    if (typeof window !== 'undefined') {
+      if (communityId) {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_COMMUNITY, communityId);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.CURRENT_COMMUNITY);
+      }
+    }
+
+    if (communityId) {
+      const state = get();
+      const defaultChannel = findDefaultChannelId(state.communityChannels, communityId);
+      if (defaultChannel) {
+        get().setCurrentChannel(defaultChannel);
+      }
+      get().markCommunityRead(communityId);
+    } else {
+      get().setCurrentChannel(null);
+    }
+  },
+
+  setCurrentChannel: (channelId: string | null) => {
+    set({ currentChannel: channelId });
+
+    if (typeof window !== 'undefined') {
+      if (channelId) {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_CHANNEL, channelId);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.CURRENT_CHANNEL);
+      }
+    }
+  },
+
+  toggleCommunityNotification: (
+    communityId: string,
+    setting: 'notifyOnPost' | 'notifyOnMention' | 'notifyOnReply' | 'muteAll'
+  ) => {
+    const state = get();
+    const baseSettings = state.communityNotifications[communityId] ??
+      createNotificationSettingsForCommunity(communityId, state.studentId);
+
+    const updatedSettings: CommunityNotificationSettings = {
+      ...baseSettings,
+      studentId: state.studentId,
+      updatedAt: Date.now(),
+      channelOverrides: { ...baseSettings.channelOverrides },
+    };
+
+    if (setting === 'muteAll') {
+      const nextMute = !baseSettings.muteAll;
+      updatedSettings.muteAll = nextMute;
+      if (nextMute) {
+        updatedSettings.notifyOnPost = false;
+        updatedSettings.notifyOnMention = false;
+        updatedSettings.notifyOnReply = false;
+      }
+    } else {
+      const nextValue = !baseSettings[setting];
+      updatedSettings[setting] = nextValue;
+      if (nextValue) {
+        updatedSettings.muteAll = false;
+      }
+    }
+
+    set((s) => ({
+      communityNotifications: {
+        ...s.communityNotifications,
+        [communityId]: updatedSettings,
+      },
+    }));
+
+    get().saveToLocalStorage();
+    toast.success('Notification settings updated');
+  },
+
+  toggleChannelNotification: (communityId: string, channelId: string) => {
+    const state = get();
+    const channel = state.communityChannels.find((c) => c.id === channelId && c.communityId === communityId);
+
+    if (!channel) {
+      toast.error('Channel not found in this community');
+      return;
+    }
+
+    const baseSettings = state.communityNotifications[communityId] ??
+      createNotificationSettingsForCommunity(communityId, state.studentId);
+
+    const currentOverride = baseSettings.channelOverrides[channelId] ?? false;
+    const nextOverride = !currentOverride;
+
+    const updatedSettings: CommunityNotificationSettings = {
+      ...baseSettings,
+      studentId: state.studentId,
+      muteAll: nextOverride ? false : baseSettings.muteAll,
+      updatedAt: Date.now(),
+      channelOverrides: {
+        ...baseSettings.channelOverrides,
+        [channelId]: nextOverride,
+      },
+    };
+
+    set((s) => ({
+      communityNotifications: {
+        ...s.communityNotifications,
+        [communityId]: updatedSettings,
+      },
+    }));
+
+    get().saveToLocalStorage();
+    toast.success(nextOverride ? `Notifications enabled for ${channel.name}` : `Notifications muted for ${channel.name}`);
+  },
+
+  markCommunityRead: (communityId: string) => {
+    const state = get();
+    const membership = state.communityMemberships.find(
+      (m) => m.communityId === communityId && m.studentId === state.studentId && m.isActive
+    );
+
+    if (!membership) {
+      return;
+    }
+
+    set((s) => ({
+      communityMemberships: s.communityMemberships.map((m) =>
+        m.id === membership.id ? { ...m, unreadCount: 0, lastVisitedAt: Date.now() } : m
+      ),
+    }));
+
+    get().saveToLocalStorage();
+  },
+
+  awardCommunityModerationReward: (communityId: string, reason = 'Community moderation action') => {
+    get().earnVoice(100, reason, 'reporting', {
+      communityId,
+      action: 'community_moderation',
+    });
+  },
+
+  getCommunityPosts: (communityId: string, channelId?: string) => {
+    const state = get();
+    return state.posts
+      .filter((post) => {
+        if (post.communityId !== communityId) return false;
+        if (channelId && post.channelId !== channelId) return false;
+        return true;
+      })
+      .sort((a, b) => b.createdAt - a.createdAt);
+  },
+
+  getPinnedCommunityPosts: (communityId: string, channelId?: string) => {
+    const state = get();
+    return state.posts
+      .filter((post) => {
+        if (post.communityId !== communityId) return false;
+        if (channelId && post.channelId !== channelId) return false;
+        return post.isCommunityPinned === true && post.archived !== true;
+      })
+      .sort((a, b) => {
+        const aPinned = a.communityPinnedAt ?? 0;
+        const bPinned = b.communityPinnedAt ?? 0;
+        if (aPinned && bPinned) {
+          return bPinned - aPinned;
+        }
+        if (aPinned) return -1;
+        if (bPinned) return 1;
+        return b.createdAt - a.createdAt;
+      });
+  },
+
   changeStudentId: (newId: string) => {
     const state = get();
     const trimmedId = newId.trim();
@@ -4367,7 +4936,7 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   getHotPosts: (limit?: number) => {
-    const posts = get().posts;
+    const posts = get().posts.filter((post) => !post.communityId);
     if (posts.length === 0) return [];
 
     const windowStart = Date.now() - 24 * 60 * 60 * 1000;
@@ -4385,7 +4954,7 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   getNewPosts: (limit?: number) => {
-    const posts = get().posts;
+    const posts = get().posts.filter((post) => !post.communityId);
     if (posts.length === 0) return [];
     const max = clampLimit(limit);
 
@@ -4395,7 +4964,7 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   getMostCommentedPosts: (limit?: number) => {
-    const posts = get().posts;
+    const posts = get().posts.filter((post) => !post.communityId);
     if (posts.length === 0) return [];
     const max = clampLimit(limit);
 
@@ -4411,7 +4980,7 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   getTrendingTopics: (limit?: number) => {
-    const posts = get().posts;
+    const posts = get().posts.filter((post) => !post.communityId);
     if (posts.length === 0) return [];
 
     const topicMap = new Map<string, TrendingTopic>();
@@ -4460,7 +5029,7 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   getTopContributors: (limit?: number) => {
-    const posts = get().posts;
+    const posts = get().posts.filter((post) => !post.communityId);
     if (posts.length === 0) return [];
 
     const metrics = new Map<
