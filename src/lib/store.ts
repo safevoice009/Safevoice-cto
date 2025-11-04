@@ -10,6 +10,10 @@ import { setSecureItem, getSecureItem, clearSecureItem } from './secureStorage';
 import { RewardEngine, type Achievement, type PremiumFeatureType, type SubscriptionState } from './tokens/RewardEngine';
 import { AchievementService, type RankDefinition } from './tokens/AchievementService';
 import { addAchievementToast } from './achievementToastBus';
+import type { BridgeStatus, QueuedTransaction } from './web3/types';
+import { Web3Bridge } from './web3/bridge';
+import { createWeb3Config, getDefaultChainId, isWeb3Enabled } from './web3/config';
+import type { ChainBalance, StakingPosition, GovernanceProposal, NFTAchievement } from './wallet/types';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -282,6 +286,15 @@ export interface StoreState {
   rankProgressPercentage: number;
   voiceToNextRank: number;
 
+  selectedChainId: number;
+  chainBalances: Record<number, ChainBalance>;
+  bridgeStatus: BridgeStatus | null;
+  bridgeTransactions: QueuedTransaction[];
+  stakingPositions: StakingPosition[];
+  governanceProposals: GovernanceProposal[];
+  governanceVotingPower: number;
+  nftAchievements: NFTAchievement[];
+
   firstPostAwarded: boolean;
 
   referralCode: string;
@@ -461,6 +474,21 @@ const STORAGE_KEYS = {
 };
 
 const rewardEngine = new RewardEngine();
+
+const DEFAULT_CHAIN_ID = getDefaultChainId();
+const WEB3_ENABLED = isWeb3Enabled();
+const WEB3_CONFIG = WEB3_ENABLED ? createWeb3Config(DEFAULT_CHAIN_ID) : null;
+const web3Bridge = WEB3_ENABLED && WEB3_CONFIG ? new Web3Bridge(WEB3_CONFIG) : null;
+
+const INITIAL_CHAIN_BALANCES: Record<number, ChainBalance> = {
+  [DEFAULT_CHAIN_ID]: {
+    balance: rewardEngine.getBalance(),
+    pending: rewardEngine.getPending(),
+    staked: 0,
+    rewards: rewardEngine.getPending(),
+    lastUpdated: Date.now(),
+  },
+};
 
 export const NFT_BADGE_TIERS: NFTBadgeTier[] = ['bronze', 'silver', 'gold', 'lifetime'];
 
@@ -1148,6 +1176,16 @@ export const useStore = create<StoreState>((set, get) => {
     walletLoading: false,
     walletError: null,
     firstPostAwarded: typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.FIRST_POST_AWARDED) === 'true' : false,
+
+    // Web3 bridge state
+    selectedChainId: DEFAULT_CHAIN_ID,
+    chainBalances: INITIAL_CHAIN_BALANCES,
+    bridgeStatus: web3Bridge ? web3Bridge.getStatus() : null,
+    bridgeTransactions: web3Bridge ? web3Bridge.getPendingTransactions() : [],
+    stakingPositions: [],
+    governanceProposals: [],
+    governanceVotingPower: 0,
+    nftAchievements: [],
 
     setShowCrisisModal: (show: boolean) => set({ showCrisisModal: show }),
     setPendingPost: (post: AddPostPayload | null) => set({ pendingPost: post }),
