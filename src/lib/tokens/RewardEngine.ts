@@ -1,6 +1,9 @@
 import toast from 'react-hot-toast';
+import type { Address } from 'viem';
 import { EARN_RULES, formatVoiceBalance, type EarningsBreakdown } from '../tokenEconomics';
 import { AchievementService, type Achievement as AchievementDef, type AchievementContext } from './AchievementService';
+import type { Web3Bridge } from '../web3/bridge';
+import type { QueuedTransaction } from '../web3/types';
 
 // Extended transaction types with new fields
 export interface VoiceTransaction {
@@ -1288,6 +1291,273 @@ export class RewardEngine {
       if (!skipLock) {
         this.releaseLock();
       }
+    }
+  }
+
+  /**
+   * Web3 Bridge Integration Methods
+   * These methods allow integration with on-chain contracts while maintaining
+   * backward compatibility when web3 is disabled
+   */
+
+  // Web3 bridge reference (set externally to maintain optional dependency)
+  private web3Bridge: Web3Bridge | null = null;
+  private bridgeUnsubscribe: (() => void) | null = null;
+  private optimisticRecords: Map<string, { type: 'claim' | 'spend'; amount: number; transactionId?: string }> = new Map();
+
+  /**
+   * Set web3 bridge for blockchain integration
+   * @param bridge Web3Bridge instance or null to disable
+   */
+  setWeb3Bridge(bridge: Web3Bridge | null): void {
+    if (this.bridgeUnsubscribe) {
+      this.bridgeUnsubscribe();
+      this.bridgeUnsubscribe = null;
+    }
+
+    this.web3Bridge = bridge;
+
+    // Listen for transaction confirmations/failures
+    if (bridge) {
+      this.bridgeUnsubscribe = bridge.onTransactionUpdate((tx: QueuedTransaction) => {
+        this.handleTransactionUpdate(tx);
+      });
+    }
+  }
+
+  /**
+   * Get web3 bridge if enabled
+   */
+  getWeb3Bridge(): Web3Bridge | null {
+    return this.web3Bridge;
+  }
+
+  /**
+   * Check if web3 bridge is enabled
+   */
+  isWeb3Enabled(): boolean {
+    return this.web3Bridge !== null;
+  }
+
+  /**
+   * Handle transaction updates from bridge
+   */
+  private async handleTransactionUpdate(tx: QueuedTransaction): Promise<void> {
+    if (tx.status === 'confirmed') {
+      // Transaction confirmed successfully
+      console.log(`Transaction ${tx.id} confirmed:`, tx.hash);
+
+      // Clean up optimistic record
+      this.optimisticRecords.delete(tx.id);
+      
+      // Reconcile with on-chain balance if needed
+      if (tx.type === 'claim' || tx.type === 'burn') {
+        // Schedule reconciliation
+        setTimeout(() => {
+          if (this.web3Bridge) {
+            this.web3Bridge.reconcile().catch(console.error);
+          }
+        }, 5000);
+      }
+    } else if (tx.status === 'failed') {
+      // Transaction failed - rollback optimistic update
+      console.error(`Transaction ${tx.id} failed:`, tx.error);
+      await this.rollbackOptimisticTransaction(tx);
+    }
+  }
+
+  /**
+   * Enhanced claim with optional blockchain transaction
+   * Falls back to local claim if web3 disabled
+   */
+  async claimRewardsWithBridge(userId: string, walletAddress?: string): Promise<{ success: boolean; txId?: string; hash?: string }> {
+    if (!this.isWeb3Enabled() || !this.web3Bridge) {
+      // Fallback to local claim
+      const success = await this.claimRewards(userId, walletAddress);
+      return { success };
+    }
+
+    const pendingAmount = this.snapshot.pending;
+
+    if (pendingAmount <= 0) {
+      const success = await this.claimRewards(userId, walletAddress);
+      return { success };
+    }
+
+    // Web3 bridge is enabled, queue blockchain transaction
+    try {
+      const result = await this.web3Bridge.claimRewards(pendingAmount, walletAddress as Address | undefined);
+
+      if (result.success) {
+        // Apply optimistic update to local state
+        await this.claimRewards(userId, walletAddress);
+        
+        // Record optimistic update for potential rollback
+        if (result.transactionId) {
+          this.optimisticRecords.set(result.transactionId, {
+            type: 'claim',
+            amount: pendingAmount,
+            transactionId: this.snapshot.transactions[0]?.id,
+          });
+        }
+
+        return {
+          success: true,
+          txId: result.transactionId,
+          hash: result.hash,
+        };
+      } else {
+        toast.error(result.error || 'Failed to submit claim transaction');
+        return { success: false };
+      }
+    } catch (error) {
+      console.error('Web3 claim failed, falling back to local:', error);
+      const success = await this.claimRewards(userId, walletAddress);
+      return { success };
+    }
+  }
+
+  /**
+   * Enhanced spend with optional token burning
+   * Falls back to local spend if web3 disabled
+   */
+  async spendTokensWithBridge(
+    userId: string,
+    amount: number,
+    reason: string,
+    metadata: Record<string, unknown> = {}
+  ): Promise<{ success: boolean; txId?: string; hash?: string }> {
+    if (!this.isWeb3Enabled() || !this.web3Bridge) {
+      // Fallback to local spend
+      const success = await this.spendTokens(userId, amount, reason, metadata);
+      return { success };
+    }
+
+    // Web3 bridge is enabled, burn tokens on-chain
+    try {
+      const walletAddress = metadata.address as string | undefined;
+      const result = await this.web3Bridge.burnTokens(amount, walletAddress as Address | undefined, reason);
+
+      if (result.success) {
+        // Apply optimistic update to local state
+        await this.spendTokens(userId, amount, reason, metadata);
+
+        // Record optimistic update for potential rollback
+        if (result.transactionId) {
+          this.optimisticRecords.set(result.transactionId, {
+            type: 'spend',
+            amount,
+            transactionId: this.snapshot.transactions[0]?.id,
+          });
+        }
+
+        return {
+          success: true,
+          txId: result.transactionId,
+          hash: result.hash,
+        };
+      } else {
+        toast.error(result.error || 'Failed to submit burn transaction');
+        return { success: false };
+      }
+    } catch (error) {
+      console.error('Web3 burn failed, falling back to local:', error);
+      const success = await this.spendTokens(userId, amount, reason, metadata);
+      return { success };
+    }
+  }
+
+  /**
+   * Rollback optimistic update if transaction fails
+   * Should be called by the bridge when a transaction fails
+   */
+  async rollbackOptimisticUpdate(
+    type: 'claim' | 'spend',
+    amount: number,
+    transactionId?: string
+  ): Promise<void> {
+    try {
+      await this.acquireLock();
+
+      if (type === 'claim') {
+        // Rollback claim: restore pending, reduce claimed
+        this.snapshot = {
+          ...this.snapshot,
+          pending: this.snapshot.pending + amount,
+          claimed: Math.max(0, this.snapshot.claimed - amount),
+        };
+      } else if (type === 'spend') {
+        const previousBalance = this.snapshot.balance;
+        const newBalance = this.snapshot.balance + amount;
+
+        this.snapshot = {
+          ...this.snapshot,
+          balance: newBalance,
+          spent: Math.max(0, this.snapshot.spent - amount),
+        };
+
+        // Notify balance change
+        this.onBalanceChangeCallbacks.forEach(cb => cb(newBalance, previousBalance));
+      }
+
+      // Remove optimistic transaction from history
+      if (transactionId) {
+        this.snapshot = {
+          ...this.snapshot,
+          transactions: this.snapshot.transactions.filter(tx => tx.id !== transactionId),
+        };
+      }
+
+      this.persist();
+      toast.error(`Transaction failed - ${type} rolled back`);
+    } catch (error) {
+      console.error('Failed to rollback optimistic update:', error);
+    } finally {
+      this.releaseLock();
+    }
+  }
+
+  /**
+   * Rollback optimistic transaction based on transaction data
+   */
+  private async rollbackOptimisticTransaction(tx: QueuedTransaction): Promise<void> {
+    const record = this.optimisticRecords.get(tx.id);
+    if (!record) {
+      console.warn(`No optimistic record found for transaction ${tx.id}`);
+      return;
+    }
+
+    await this.rollbackOptimisticUpdate(record.type, record.amount, record.transactionId);
+    this.optimisticRecords.delete(tx.id);
+  }
+
+  /**
+   * Reconcile local state with on-chain balance
+   * Should be called periodically or after significant transactions
+   */
+  async reconcileWithChain(onChainBalance: number): Promise<void> {
+    try {
+      await this.acquireLock();
+
+      const localBalance = this.snapshot.balance;
+      const difference = onChainBalance - localBalance;
+
+      if (Math.abs(difference) > 0.000001) {
+        console.log(`Reconciling balance: local=${localBalance}, chain=${onChainBalance}, diff=${difference}`);
+        
+        // Adjust balance to match on-chain state
+        this.snapshot = {
+          ...this.snapshot,
+          balance: onChainBalance,
+        };
+
+        this.persist();
+        this.onBalanceChangeCallbacks.forEach(cb => cb(onChainBalance, localBalance));
+      }
+    } catch (error) {
+      console.error('Failed to reconcile with chain:', error);
+    } finally {
+      this.releaseLock();
     }
   }
 }
