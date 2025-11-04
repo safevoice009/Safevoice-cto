@@ -99,6 +99,78 @@ Every visitor gets a unique `Student#XXXX` ID stored in localStorage, ensuring a
 ### Smooth Animations
 All animations powered by Framer Motion with proper TypeScript typing.
 
+## 🎓 College Communities
+
+SafeVoice provides a safe, anonymous space for students to share stories, support each other, and build stronger communities.
+
+### Navigation
+- **Desktop/Tablet**: Click "Feed" in the main navigation bar
+- **Mobile**: Tap the Feed icon in bottom navigation
+- **Quick Access**: All features accessible anonymously, no account required
+
+### Core Capabilities
+
+#### 📝 Content Creation & Sharing
+- **Anonymous posting** - Share stories with your unique Student#XXXX identifier
+- **Post categories** - Mental Health, Academic Stress, Support, Bullying, and more
+- **Post lifetime options** - Control how long content stays visible (1h to permanent)
+- **Media attachments** - Add images to posts for richer storytelling
+- **End-to-end encryption** - Optional AES-GCM-256 encryption for sensitive content
+
+#### 💬 Community Engagement
+- **Comments & Replies** - Threaded discussions with nested replies
+- **6 Reaction Types** - Express support with ❤️, 🔥, 👏, 😢, 😠, 😂
+- **Helpful Content** - Mark valuable posts and comments to recognize contributors
+- **Bookmarking** - Save important posts for later reference
+
+#### 🆘 Crisis Support
+- **Automatic detection** - AI-powered crisis keyword monitoring
+- **Immediate resources** - 24/7 helplines displayed prominently
+- **Priority support** - Crisis posts flagged for community response
+- **Verified advice** - Moderator-approved expert guidance
+- **Reward incentives** - 100 VOICE bonus for first crisis responders
+
+#### 🛡️ Moderation & Safety
+- **Community reporting** - Report inappropriate content with 9 report types
+- **Automated thresholds** - Content blurred/hidden at 3/5 reports
+- **Volunteer moderators** - Student-led content review system
+- **Transparent actions** - All moderation decisions logged and tracked
+- **Reward system** - Moderators earn 30 VOICE per action (with cooldown)
+
+#### 🪙 Token Incentives
+Earn VOICE tokens for positive contributions:
+- **First post**: 20 VOICE (welcome bonus)
+- **Regular posts**: 10 VOICE + 15 bonus with media
+- **Helpful recognition**: 50 VOICE (posts), 25 VOICE (comments at 5 votes)
+- **Crisis support**: 100 VOICE (first helpful responder)
+- **Valid reports**: 10 VOICE
+- **Daily engagement**: 5 VOICE login bonus + streak rewards
+
+#### 🔔 Real-Time Notifications
+Stay connected with instant notifications:
+- Reactions on your posts
+- Comments and replies
+- Helpful content recognition
+- Tip and gift awards
+- Report review outcomes
+
+### Documentation
+
+For comprehensive guides and technical details:
+- **[User Guide](./docs/COMMUNITIES_USER_GUIDE.md)** - Complete guide for students using communities
+- **[Moderation Guide](./docs/COMMUNITY_MODERATION_GUIDE.md)** - Handbook for volunteer moderators
+- **[Technical Overview](./docs/COMMUNITIES_TECH_OVERVIEW.md)** - Developer reference for data models and APIs
+- **[QA Checklist](./docs/COMMUNITIES_QA_CHECKLIST.md)** - Comprehensive testing scenarios
+
+### Safety & Privacy
+
+- ✅ **100% Anonymous** - No personal information collected
+- ✅ **Local-first storage** - All data stays in your browser
+- ✅ **No tracking** - No IP logging or user behavior monitoring
+- ✅ **Content moderation** - Automatic profanity, spam, and personal info detection
+- ✅ **Crisis intervention** - Immediate support resources for mental health emergencies
+- ✅ **Report system** - Community-driven content moderation with transparency
+
 ## 🪙 Reward Engine & Token Economy
 
 ### $VOICE Token (ERC20)
@@ -297,6 +369,12 @@ npm run security:gas
 > **Note:** Hardhat tasks rely on the placeholder `SafeVoiceVault` contract. Replace with production contracts before mainnet deployment and update thresholds accordingly. See [`contracts/README.md`](./contracts/README.md) for a detailed walkthrough of the new setup, environment variables, and deployment instructions.
 
 ## 📚 Documentation
+
+### Community System
+- [Communities User Guide](./docs/COMMUNITIES_USER_GUIDE.md) - Step-by-step instructions for students
+- [Community Moderation Guide](./docs/COMMUNITY_MODERATION_GUIDE.md) - Policies and workflows for moderators
+- [Communities Technical Overview](./docs/COMMUNITIES_TECH_OVERVIEW.md) - Developer reference for data models, store actions, and APIs
+- [Communities QA Checklist](./docs/COMMUNITIES_QA_CHECKLIST.md) - Manual testing scenarios for end-to-end validation
 
 ### Token Economics & Rewards
 - [Reward Engine](./REWARD_ENGINE_DOCS.md) - Complete reward system documentation
