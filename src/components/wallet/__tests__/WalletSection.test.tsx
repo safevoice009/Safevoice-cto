@@ -11,6 +11,20 @@ vi.mock('wagmi', () => ({
   useAccount: vi.fn(),
   useEnsName: vi.fn(),
   useNetwork: vi.fn(),
+  useSwitchNetwork: vi.fn(() => ({
+    switchNetwork: vi.fn(),
+    isLoading: false,
+    pendingChainId: undefined,
+  })),
+}));
+
+vi.mock('wagmi/chains', () => ({
+  mainnet: { id: 1, name: 'Ethereum' },
+  polygon: { id: 137, name: 'Polygon' },
+  bsc: { id: 56, name: 'BSC' },
+  arbitrum: { id: 42161, name: 'Arbitrum' },
+  optimism: { id: 10, name: 'Optimism' },
+  base: { id: 8453, name: 'Base' },
 }));
 
 vi.mock('react-hot-toast', () => {
@@ -553,12 +567,12 @@ describe('WalletSection - Quick Actions', () => {
     renderWalletSection();
 
     expect(screen.getByText('Send VOICE')).toBeInTheDocument();
-    expect(screen.getByText('Stake VOICE')).toBeInTheDocument();
+    expect(screen.getByText('View Staking')).toBeInTheDocument();
 
     const sendButton = screen.getByText('Send VOICE').closest('button');
-    const stakeButton = screen.getByText('Stake VOICE').closest('button');
+    const viewStakingButton = screen.getByText('View Staking').closest('button');
 
     expect(sendButton).toBeDisabled();
-    expect(stakeButton).toBeDisabled();
+    expect(viewStakingButton).not.toBeDisabled();
   });
 });

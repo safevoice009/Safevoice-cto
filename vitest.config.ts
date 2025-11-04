@@ -8,9 +8,27 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/setupTests.ts',
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/cypress/**',
+      '**/.{idea,git,cache,output,temp}/**',
+      '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
+      '**/contracts/**',
+    ],
     coverage: {
       provider: 'istanbul',
       reporter: ['text', 'json-summary', 'html'],
+      exclude: [
+        'coverage/**',
+        'dist/**',
+        '**/node_modules/**',
+        '**/contracts/**',
+        '**/*.d.ts',
+        '**/*.config.*',
+        '**/mockData/**',
+        '**/setupTests.ts',
+      ],
       thresholds: {
         statements: 80,
         branches: 70,
