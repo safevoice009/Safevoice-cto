@@ -535,6 +535,11 @@ export interface CommunityModerationLog {
     duration?: number; // for mute/ban duration in hours
     targetName?: string; // for member actions
     communityImpact?: string;
+    action?: string; // for unmute actions
+    title?: string; // for announcements
+    isPinned?: boolean; // for announcements
+    expiresAt?: number; // for announcements
+    [key: string]: unknown; // Allow additional properties
   };
 }
 
@@ -1189,17 +1194,6 @@ export interface StoreState {
   purchaseNFTBadge: (tier: NFTBadgeTier, cost: number) => boolean;
   hasNFTBadge: (tier: NFTBadgeTier) => boolean;
   loadNFTBadges: () => void;
-
-  // Community Moderation
-  pinCommunityPost: (postId: string, reason?: string) => void;
-  unpinCommunityPost: (postId: string, reason?: string) => void;
-  deleteCommunityPost: (postId: string, reason: string) => void;
-  banCommunityMember: (memberId: string, reason: string, durationHours?: number) => void;
-  warnCommunityMember: (memberId: string, reason: string) => void;
-  muteChannel: (reason: string, durationHours: number) => void;
-  unmuteChannel: () => void;
-  createCommunityAnnouncement: (title: string, content: string, isPinned?: boolean, expiresAt?: number) => void;
-  logModerationAction: (actionType: CommunityModerationLog['actionType'], targetId: string, description: string, metadata: CommunityModerationLog['metadata']) => void;
 
   // Special Utilities
   changeStudentId: (newId: string) => boolean;
