@@ -167,6 +167,19 @@ The `RewardEngine` centralizes all $VOICE token state and lives in [`src/lib/tok
 - The engine emits callbacks for reward/spend/balance changes to keep UI consumers in sync and fires toast notifications automatically.
 - Post rewards, daily bonuses, and streak milestones are calculated by the engine ensuring consistent logic across the app.
 
+### Achievement NFTs (ERC1155)
+
+Milestone achievements and community recognitions are minted through the on-chain [`VoiceAchievementNFT`](./contracts/src/VoiceAchievementNFT.sol) contract. The collection is designed for large-scale reward drops while supporting unique badges and soulbound tiers.
+
+Key capabilities:
+- **Role-Gated Minting** – RewardEngine and bridge adapters operate behind dedicated MINTER and BRIDGE roles
+- **Soulbound Achievements** – Legendary tiers can be locked to wallets while everyday badges remain transferable
+- **Metadata Flexibility** – Hierarchical base URIs with per-chain overrides and token-specific IPFS links
+- **Bridge Hooks** – `bridgeTransfer`/`bridgeReceive` enable cross-chain portability for non-soulbound tiers
+- **Batch Operations** – `mintBatch` and `airdrop` keep gas costs low for large cohorts
+
+Frontend teams can hydrate achievement tiles by calling `uri(tokenId)` and `balanceOfBatch`, then fetching the returned JSON metadata. A full integration cookbook, including tier taxonomy, sample UI components, and notification flows, lives in [docs/NFT_REWARDS_DOCS.md](./docs/NFT_REWARDS_DOCS.md).
+
 ## 🔒 Web3 Security & Deployment
 
 ### Security Documentation
