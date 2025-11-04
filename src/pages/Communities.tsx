@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
 import CommunityListPanel from '../components/communities/CommunityListPanel';
 import CommunityDetailView from '../components/community/CommunityDetailView';
 import { useStore } from '../lib/store';
@@ -22,13 +21,13 @@ export default function Communities() {
     communityChannels,
     communityPostsMeta,
     communityNotifications,
+    communityActivity,
     currentCommunity,
     currentChannel,
     studentId,
     setCurrentCommunity,
     setCurrentChannel,
     initializeStore,
-    getCommunityPosts,
     toggleCommunityNotification,
     leaveCommunity,
   } = useStore();
@@ -71,8 +70,6 @@ export default function Communities() {
     }
   }, [activeCommunity, activeChannels, currentChannel, setCurrentChannel]);
 
-  const communityPosts = currentCommunity && currentChannel ? getCommunityPosts(currentCommunity, currentChannel) : [];
-
   const handleChannelSelect = (channelId: string) => {
     setCurrentChannel(channelId);
   };
@@ -91,10 +88,6 @@ export default function Communities() {
 
   const handleViewGuidelines = () => {
     navigate('/guidelines');
-  };
-
-  const handleCreatePost = () => {
-    toast('Post creation coming in subsequent tickets', { icon: '🚧' });
   };
 
   const showSkeleton = isLoading && communities.length === 0;
@@ -124,13 +117,12 @@ export default function Communities() {
                 channels={activeChannels}
                 postsMeta={communityPostsMeta}
                 notificationSettings={notificationSettings}
+                activity={communityActivity}
                 activeChannelId={currentChannel}
                 onSelectChannel={handleChannelSelect}
                 onToggleNotification={handleToggleNotification}
                 onLeaveCommunity={handleLeaveCommunity}
                 onViewGuidelines={handleViewGuidelines}
-                onCreatePost={handleCreatePost}
-                postCount={communityPosts.length}
               />
             ) : (
               <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-12 text-center">

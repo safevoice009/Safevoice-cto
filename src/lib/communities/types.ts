@@ -48,6 +48,8 @@ export interface CommunityChannel {
   isDefault: boolean;
   isLocked: boolean;
   createdAt: number;
+  rules: string[];
+  guidelines?: string;
 }
 
 export interface CommunityMembership {

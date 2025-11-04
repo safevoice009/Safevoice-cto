@@ -25,6 +25,7 @@ interface ChannelDefinition {
   order: number;
   isDefault: boolean;
   isLocked: boolean;
+  rules: string[];
 }
 
 const CHANNEL_DEFINITIONS: ChannelDefinition[] = [
@@ -36,6 +37,11 @@ const CHANNEL_DEFINITIONS: ChannelDefinition[] = [
     order: 1,
     isDefault: true,
     isLocked: false,
+    rules: [
+      'Keep conversations inclusive and welcoming',
+      'Avoid sharing personal identifying information',
+      'Report concerning behaviour to moderators promptly',
+    ],
   },
   {
     kind: 'announcements',
@@ -45,6 +51,11 @@ const CHANNEL_DEFINITIONS: ChannelDefinition[] = [
     order: 2,
     isDefault: false,
     isLocked: true,
+    rules: [
+      'Only staff and verified moderators may post new announcements',
+      'Ensure information is accurate before posting',
+      'Use clear titles and include relevant links or resources',
+    ],
   },
   {
     kind: 'academics',
@@ -54,6 +65,11 @@ const CHANNEL_DEFINITIONS: ChannelDefinition[] = [
     order: 3,
     isDefault: false,
     isLocked: false,
+    rules: [
+      'Be respectful when discussing professors or classmates',
+      'Mark spoilers for exams or assignments clearly',
+      'Share legitimate resources—no piracy or paid material leaks',
+    ],
   },
   {
     kind: 'mental_health',
@@ -63,6 +79,11 @@ const CHANNEL_DEFINITIONS: ChannelDefinition[] = [
     order: 4,
     isDefault: false,
     isLocked: false,
+    rules: [
+      'Offer empathy and avoid judgmental language',
+      'Use trigger warnings for sensitive topics when possible',
+      'Encourage professional help when conversations escalate',
+    ],
   },
   {
     kind: 'events',
@@ -72,6 +93,11 @@ const CHANNEL_DEFINITIONS: ChannelDefinition[] = [
     order: 5,
     isDefault: false,
     isLocked: false,
+    rules: [
+      'Include date, time, and location in every event post',
+      'Clearly mention if registration or fees are required',
+      'Ensure events align with community safety guidelines',
+    ],
   },
   {
     kind: 'career',
@@ -81,6 +107,11 @@ const CHANNEL_DEFINITIONS: ChannelDefinition[] = [
     order: 6,
     isDefault: false,
     isLocked: false,
+    rules: [
+      'Share verified opportunities with credible sources',
+      'Avoid soliciting paid services or referrals',
+      'Offer constructive feedback and respect confidentiality',
+    ],
   },
   {
     kind: 'memes',
@@ -90,6 +121,11 @@ const CHANNEL_DEFINITIONS: ChannelDefinition[] = [
     order: 7,
     isDefault: false,
     isLocked: false,
+    rules: [
+      'Keep memes kind and avoid targeting individuals',
+      'No hate speech or discriminatory content',
+      'Mark NSFW content as sensitive before posting',
+    ],
   },
   {
     kind: 'resources',
@@ -99,6 +135,11 @@ const CHANNEL_DEFINITIONS: ChannelDefinition[] = [
     order: 8,
     isDefault: false,
     isLocked: false,
+    rules: [
+      'Verify that shared material is allowed to be distributed',
+      'Organize resources with clear titles and tags',
+      'Provide attribution to original authors when applicable',
+    ],
   },
   {
     kind: 'support',
@@ -108,6 +149,11 @@ const CHANNEL_DEFINITIONS: ChannelDefinition[] = [
     order: 9,
     isDefault: false,
     isLocked: false,
+    rules: [
+      'Listen actively and avoid dismissing experiences',
+      'Report urgent safety concerns to moderators immediately',
+      'Do not share private conversations without consent',
+    ],
   },
 ];
 
@@ -364,6 +410,7 @@ const createCommunityChannels = (communityCode: string, communityId: string, now
     isDefault: def.isDefault,
     isLocked: def.isLocked,
     createdAt: now - randomInt(86400000 * 30, 86400000 * 180),
+    rules: def.rules,
   }));
 };
 
