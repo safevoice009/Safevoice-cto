@@ -25,6 +25,11 @@ import PremiumSettings from './PremiumSettings';
 import NFTBadgeStore from './NFTBadgeStore';
 import UtilitiesSection from './UtilitiesSection';
 import TransactionHistory from './TransactionHistory';
+import NetworkSelector from './NetworkSelector';
+import TransactionStatusPanel from './TransactionStatusPanel';
+import StakingPanel from './StakingPanel';
+import GovernancePanel from './GovernancePanel';
+import NFTPanel from './NFTPanel';
 
 interface AnimatedCounterProps {
   value: number;
@@ -535,11 +540,99 @@ export default function WalletSection() {
         </div>
       </motion.div>
 
+      {/* Transaction Status */}
+      {isConnected && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.1 }}
+        >
+          <TransactionStatusPanel transactions={[]} />
+        </motion.div>
+      )}
+
+      {/* Multi-Network Section */}
+      {isConnected && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.2 }}
+          className="glass p-6 space-y-4"
+        >
+          <h2 className="text-xl font-bold text-white">Network & Bridging</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-300">Current Network</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Switch networks to access different features
+              </p>
+            </div>
+            <NetworkSelector />
+          </div>
+        </motion.div>
+      )}
+
+      {/* Staking Panel */}
+      {isConnected && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.3 }}
+        >
+          <StakingPanel
+            availableBalance={availableBalance}
+            positions={[]}
+            onStake={async (amount, lockPeriod) => {
+              toast.success(`Staking ${amount} VOICE for ${lockPeriod} days`);
+            }}
+            onUnstake={async (stakeId) => {
+              toast.success(`Unstaking position ${stakeId}`);
+            }}
+            onClaimRewards={async (stakeId) => {
+              toast.success(`Claiming rewards for position ${stakeId}`);
+            }}
+          />
+        </motion.div>
+      )}
+
+      {/* Governance Panel */}
+      {isConnected && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.4 }}
+        >
+          <GovernancePanel
+            votingPower={voiceBalance}
+            proposals={[]}
+            onVote={async (proposalId) => {
+              toast.success(`Vote submitted for proposal ${proposalId}`);
+            }}
+          />
+        </motion.div>
+      )}
+
+      {/* NFT Panel */}
+      {isConnected && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.5 }}
+        >
+          <NFTPanel
+            achievements={[]}
+            onMintNFT={async (tokenId) => {
+              toast.success(`Minting NFT ${tokenId}`);
+            }}
+          />
+        </motion.div>
+      )}
+
       {/* Action Buttons */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1.1 }}
+        transition={{ delay: 1.6 }}
         className="glass p-6 space-y-4"
       >
         <h2 className="text-xl font-bold text-white">Quick Actions</h2>
@@ -555,14 +648,11 @@ export default function WalletSection() {
             </span>
           </button>
           <button
-            disabled
-            className="flex items-center justify-center space-x-2 px-4 py-3 bg-surface/50 rounded-lg text-gray-400 cursor-not-allowed relative overflow-hidden"
+            onClick={() => toast('Staking features available above!', { icon: '⬆️' })}
+            className="flex items-center justify-center space-x-2 px-4 py-3 bg-primary/20 hover:bg-primary/30 rounded-lg text-primary transition-all"
           >
             <Lock className="w-5 h-5" />
-            <span>Stake VOICE</span>
-            <span className="absolute top-1 right-1 text-[10px] bg-primary px-2 py-0.5 rounded-full">
-              Soon
-            </span>
+            <span>View Staking</span>
           </button>
         </div>
       </motion.div>
