@@ -46,6 +46,15 @@ Token vesting and distribution manager:
 
 See [VESTING_MODULE.md](../docs/VESTING_MODULE.md) for complete vesting documentation or [VESTING_QUICK_START.md](../docs/VESTING_QUICK_START.md) for quick reference.
 
+### VoiceAchievementNFT
+ERC1155 collection powering milestone and community reward NFTs:
+- **Role-Gated Minting**: RewardEngine and bridge integrations use dedicated MINTER and BRIDGE roles
+- **Soulbound Support**: Toggle non-transferable status per achievement tier
+- **Cross-Chain Metadata**: Per-chain base URIs and token overrides for decentralized hosting
+- **Batch Operations**: Efficient batch minting and airdrops across many recipients
+
+See [NFT_REWARDS_DOCS.md](../docs/NFT_REWARDS_DOCS.md) for full integration guidance, UI patterns, and metadata standards.
+
 ### SafeVoiceVault
 Placeholder contract for future vault functionality.
 
