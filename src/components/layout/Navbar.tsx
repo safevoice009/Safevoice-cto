@@ -14,12 +14,12 @@ type NavLink = {
 
 const navLinks: NavLink[] = [
   { name: 'Feed', value: '/feed', type: 'route' },
+  { name: 'Communities', value: '/communities', type: 'route' },
   { name: 'Leaderboard', value: '/leaderboard', type: 'route' },
   { name: 'Marketplace', value: '/marketplace', type: 'route' },
   { name: 'Helplines', value: '/helplines', type: 'route' },
   { name: 'Guidelines', value: '/guidelines', type: 'route' },
   { name: 'Memorial', value: '/memorial', type: 'route' },
-  { name: 'Communities', value: 'features', type: 'scroll' },
 ];
 
 export default function Navbar() {
@@ -84,16 +84,22 @@ export default function Navbar() {
           </Link>
 
           <div className="hidden md:flex items-center space-x-8">
-            {navLinks.map((link) => (
-              <button
-                key={link.name}
-                onClick={() => handleNavClick(link)}
-                className="nav-link"
-                type="button"
-              >
-                {link.name}
-              </button>
-            ))}
+            {navLinks.map((link) => {
+              const isActive =
+                link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
+              return (
+                <button
+                  key={link.name}
+                  onClick={() => handleNavClick(link)}
+                  className={`nav-link relative ${isActive ? 'text-primary font-semibold' : ''}`}
+                  type="button"
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {link.name}
+                  {isActive && <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-primary rounded-full" />}
+                </button>
+              );
+            })}
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
@@ -144,16 +150,21 @@ export default function Navbar() {
             className="md:hidden bg-surface/95 backdrop-blur-xl border-t border-white/10"
           >
             <div className="px-4 py-4 space-y-3">
-              {navLinks.map((link) => (
-                <button
-                  key={link.name}
-                  onClick={() => handleNavClick(link)}
-                  className="block w-full text-left nav-link py-2"
-                  type="button"
-                >
-                  {link.name}
-                </button>
-              ))}
+              {navLinks.map((link) => {
+                const isActive =
+                  link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
+                return (
+                  <button
+                    key={link.name}
+                    onClick={() => handleNavClick(link)}
+                    className={`block w-full text-left nav-link py-2 ${isActive ? 'text-primary font-semibold' : ''}`}
+                    type="button"
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    {link.name}
+                  </button>
+                );
+              })}
               <motion.button
                 onClick={() => {
                   setShowCrisisModal(true);

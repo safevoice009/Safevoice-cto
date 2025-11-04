@@ -21,6 +21,7 @@ import MemorialWallPage from './pages/MemorialWall';
 import TokenMarketplace from './pages/TokenMarketplace';
 import LeaderboardPage from './pages/Leaderboard';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
+import CommunitiesPage from './pages/Communities';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
 import AchievementToastContainer from './components/wallet/AchievementToastContainer';
 import { useStore } from './lib/store';
@@ -94,6 +95,7 @@ function AnimatedRoutes() {
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<Landing />} />
             <Route path="/feed" element={<Feed />} />
+            <Route path="/communities" element={<CommunitiesPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/post/:postId" element={<PostDetail />} />
             <Route path="/helplines" element={<HelplinesPage />} />
