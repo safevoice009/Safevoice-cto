@@ -532,6 +532,48 @@ export interface NFTBadge {
   cost: number;
 }
 
+export interface CommunityEvent {
+  id: string;
+  title: string;
+  date: string;
+  location: string;
+  description: string;
+  createdBy: string;
+  createdAt: number;
+  rsvps: string[];
+}
+
+export type TrendingTopicType = 'hashtag' | 'category';
+
+export interface TrendingTopic {
+  label: string;
+  count: number;
+  type: TrendingTopicType;
+}
+
+export interface TopContributor {
+  studentId: string;
+  postCount: number;
+  totalReactions: number;
+  totalHelpfulReceived: number;
+  commentCount: number;
+  score: number;
+}
+
+export type PostSortOption = 'relevant' | 'recent' | 'popular';
+
+export interface PostSearchFilters {
+  query?: string;
+  channel?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  hasMedia?: boolean;
+  minReactions?: number;
+  minComments?: number;
+  authorType?: 'any' | 'me' | 'mentor' | 'peer';
+  sort?: PostSortOption;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -1107,6 +1149,19 @@ export interface StoreState {
   getUserRank: () => RankDefinition;
   checkAchievements: () => Promise<void>;
   getAchievementProgress: (achievementId: string) => { progress: number; total: number; percentage: number } | null;
+
+  // Community Discovery
+  getHotPosts: (limit?: number) => Post[];
+  getNewPosts: (limit?: number) => Post[];
+  getMostCommentedPosts: (limit?: number) => Post[];
+  getTrendingTopics: (limit?: number) => TrendingTopic[];
+  getTopContributors: (limit?: number) => TopContributor[];
+  searchPosts: (filters: PostSearchFilters) => Post[];
+
+  // Community Events
+  addCommunityEvent: (title: string, date: string, location: string, description: string) => boolean;
+  toggleEventRsvp: (eventId: string) => void;
+  loadCommunityEvents: () => void;
 
   // Utility
   saveToLocalStorage: () => void;
