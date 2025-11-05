@@ -252,6 +252,8 @@ SafeVoice is built with zero-tracking guarantees and hardened privacy defaults:
 - Run automated privacy checks with `npm run test:privacy` (existing suite) and unit coverage in `src/lib/__tests__/privacyMiddleware.test.ts`.
 - Manual review steps are documented in [Privacy Audit Checklist](./docs/PRIVACY_AUDIT_CHECKLIST.md), including browser extension tooling and remediation tips.
 
+**Privacy Testing**: SafeVoice includes comprehensive automated privacy tests and manual audit checklists. See [Privacy Audit Checklist](./docs/PRIVACY_AUDIT_CHECKLIST.md) for testing procedures and browser extension tools.
+
 ## 🪙 Reward Engine & Token Economy
 
 ### $VOICE Token (ERC20)
