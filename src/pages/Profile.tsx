@@ -8,8 +8,9 @@ import RankChip from '../components/wallet/RankChip';
 import AchievementGrid from '../components/wallet/AchievementGrid';
 import AchievementProgress from '../components/wallet/AchievementProgress';
 import { ACHIEVEMENT_DEFINITIONS } from '../lib/tokens/AchievementService';
+import ZKProofSettings from '../components/profile/ZKProofSettings';
 
-type ProfileTab = 'overview' | 'wallet' | 'achievements';
+type ProfileTab = 'overview' | 'wallet' | 'achievements' | 'verification';
 
 export default function Profile() {
   const {
@@ -27,9 +28,10 @@ export default function Profile() {
     voiceToNextRank,
     checkAchievements,
     totalRewardsEarned,
+    zkProofVerificationBadge,
   } = useStore();
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
-  const hasVerifiedBadge = isPremiumActive('verified_badge');
+  const hasVerifiedBadge = isPremiumActive('verified_badge') || zkProofVerificationBadge;
 
   useEffect(() => {
     initializeStore();
@@ -171,58 +173,71 @@ export default function Profile() {
             🏆 Achievements
           </button>
           <button
-            onClick={() => setActiveTab('wallet')}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              activeTab === 'wallet'
-                ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
-                : 'bg-surface/50 text-gray-300 hover:text-white'
-            }`}
-            type="button"
-          >
-            💰 Wallet
-          </button>
-        </div>
-
-        {activeTab === 'overview' && (
-          <div className="glass p-6 space-y-4">
-            <h2 className="text-xl font-bold text-white">Bookmarked Posts</h2>
-            {savedPosts.length === 0 ? (
-              <div className="text-center py-10 text-gray-400 space-y-2">
-                <Bookmark className="w-8 h-8 mx-auto" />
-                <p className="text-sm">No bookmarked posts yet</p>
-                <p className="text-xs">Save posts you find helpful or inspiring</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <AnimatePresence mode="popLayout">
-                  {savedPosts.map((post) => (
-                    <PostCard key={post.id} post={post} />
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
+             onClick={() => setActiveTab('wallet')}
+             className={`px-4 py-2 rounded-lg font-medium transition-all ${
+               activeTab === 'wallet'
+                 ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
+                 : 'bg-surface/50 text-gray-300 hover:text-white'
+             }`}
+             type="button"
+           >
+             💰 Wallet
+           </button>
+           <button
+             onClick={() => setActiveTab('verification')}
+             className={`px-4 py-2 rounded-lg font-medium transition-all ${
+               activeTab === 'verification'
+                 ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg'
+                 : 'bg-surface/50 text-gray-300 hover:text-white'
+             }`}
+             type="button"
+           >
+             🛡️ Verification
+           </button>
           </div>
-        )}
 
-        {activeTab === 'achievements' && (
-          <div className="space-y-6">
-            <AchievementProgress
-              totalVoice={totalRewardsEarned}
-              achievementsUnlocked={achievements.length}
-              totalAchievements={ACHIEVEMENT_DEFINITIONS.length}
-            />
-            <div className="glass p-6">
-              <AchievementGrid
-                achievements={achievements}
-                showProgress
-                progressData={progressMap}
-              />
-            </div>
+          {activeTab === 'overview' && (
+           <div className="glass p-6 space-y-4">
+             <h2 className="text-xl font-bold text-white">Bookmarked Posts</h2>
+             {savedPosts.length === 0 ? (
+               <div className="text-center py-10 text-gray-400 space-y-2">
+                 <Bookmark className="w-8 h-8 mx-auto" />
+                 <p className="text-sm">No bookmarked posts yet</p>
+                 <p className="text-xs">Save posts you find helpful or inspiring</p>
+               </div>
+             ) : (
+               <div className="space-y-4">
+                 <AnimatePresence mode="popLayout">
+                   {savedPosts.map((post) => (
+                     <PostCard key={post.id} post={post} />
+                   ))}
+                 </AnimatePresence>
+               </div>
+             )}
+           </div>
+          )}
+
+          {activeTab === 'achievements' && (
+           <div className="space-y-6">
+             <AchievementProgress
+               totalVoice={totalRewardsEarned}
+               achievementsUnlocked={achievements.length}
+               totalAchievements={ACHIEVEMENT_DEFINITIONS.length}
+             />
+             <div className="glass p-6">
+               <AchievementGrid
+                 achievements={achievements}
+                 showProgress
+                 progressData={progressMap}
+               />
+             </div>
+           </div>
+          )}
+
+          {activeTab === 'wallet' && <WalletSection />}
+
+          {activeTab === 'verification' && <ZKProofSettings />}
           </div>
-        )}
-
-        {activeTab === 'wallet' && <WalletSection />}
-      </div>
-    </motion.section>
-  );
-}
+          </motion.section>
+          );
+          }

@@ -24,6 +24,8 @@ import type {
   PostVisibility,
 } from './communities/types';
 import { createDefaultCommunities } from './communities/defaults';
+import type { ZKProofCommitment, ZKProofResult } from './zkProof';
+import { hashStudentCredential, createZKCommitment, revokeZKCommitment, verifyZKProof, isCommitmentValid } from './zkProof';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -396,6 +398,17 @@ export interface StoreState {
   communityModerationLog: CommunityModerationLog[];
   currentCommunity: string | null;
   currentChannel: string | null;
+
+  // ZK Proof state
+  zkProofCommitment: ZKProofCommitment | null;
+  zkProofPayload: ZKProofResult | null;
+  zkProofVerificationBadge: boolean;
+
+  // ZK Proof actions
+  generateZKProofCommitment: (studentId: string, institutionId: string, enrollmentYear: string) => Promise<boolean>;
+  verifyZKProofCommitment: () => Promise<boolean>;
+  revokeZKProofCommitment: () => void;
+  clearZKProofCommitment: () => void;
 
   // Community actions
   joinCommunity: (communityId: string) => void;
@@ -826,6 +839,8 @@ const STORAGE_KEYS = {
   COMMUNITY_STATE_VERSION: 'safevoice_community_state_version', // Versioning for community data migrations
   CURRENT_COMMUNITY: 'safevoice_current_community',     // Last selected community
   CURRENT_CHANNEL: 'safevoice_current_channel',         // Last selected channel within community
+  ZK_PROOF_COMMITMENT: 'safevoice_zk_proof_commitment', // ZK proof commitment data
+  ZK_PROOF_BADGE: 'safevoice_zk_proof_badge',           // ZK proof badge state
 };
 
 const COMMUNITY_STATE_VERSION = 1;
@@ -1760,6 +1775,22 @@ export const useStore = create<StoreState>((set, get) => {
     currentCommunity: initialCurrentCommunity,
     currentChannel: initialCurrentChannel,
 
+    // ZK Proof state
+    zkProofCommitment: typeof window !== 'undefined' 
+      ? (() => {
+          try {
+            const stored = localStorage.getItem(STORAGE_KEYS.ZK_PROOF_COMMITMENT);
+            return stored ? JSON.parse(stored) : null;
+          } catch {
+            return null;
+          }
+        })()
+      : null,
+    zkProofPayload: null,
+    zkProofVerificationBadge: typeof window !== 'undefined'
+      ? localStorage.getItem(STORAGE_KEYS.ZK_PROOF_BADGE) === 'true'
+      : false,
+
     referralCode: initialReferralState.code,
     referredByCode: initialReferralState.referredByCode,
     referredFriends: initialReferralState.friends,
@@ -1830,6 +1861,118 @@ export const useStore = create<StoreState>((set, get) => {
         localStorage.setItem(STORAGE_KEYS.SAVED_HELPLINES, JSON.stringify(updated));
       }
       toast.success(current.includes(helplineId) ? 'Helpline removed' : 'Helpline saved! 🔖');
+    },
+
+    generateZKProofCommitment: async (studentId: string, institutionId: string, enrollmentYear: string): Promise<boolean> => {
+      try {
+        toast.loading('Generating ZK proof...', { id: 'zk-proof-gen' });
+        
+        const credentialHash = await hashStudentCredential(studentId, institutionId, enrollmentYear);
+        const { commitment, proofResult } = await createZKCommitment(credentialHash);
+        const verification = await verifyZKProof(proofResult.proof, proofResult.publicSignals);
+
+        if (!verification.isValid || verification.commitment !== commitment.commitment) {
+          throw new Error('Proof verification failed');
+        }
+        
+        set({
+          zkProofCommitment: commitment,
+          zkProofPayload: proofResult,
+          zkProofVerificationBadge: true,
+        });
+        
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEYS.ZK_PROOF_COMMITMENT, JSON.stringify(commitment));
+          localStorage.setItem(STORAGE_KEYS.ZK_PROOF_BADGE, 'true');
+        }
+        
+        toast.success('✓ Student status verified anonymously!', { id: 'zk-proof-gen' });
+        return true;
+      } catch (error) {
+        console.error('Failed to generate ZK proof:', error);
+        toast.error('Failed to generate proof. Please try again.', { id: 'zk-proof-gen' });
+        return false;
+      }
+    },
+
+    verifyZKProofCommitment: async (): Promise<boolean> => {
+      const { zkProofCommitment, zkProofPayload } = get();
+      
+      if (!zkProofCommitment || !zkProofPayload) {
+        toast.error('No proof to verify');
+        return false;
+      }
+      
+      if (!isCommitmentValid(zkProofCommitment)) {
+        toast.error('Proof has expired or been revoked');
+        set({ zkProofVerificationBadge: false });
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEYS.ZK_PROOF_BADGE, 'false');
+        }
+        return false;
+      }
+      
+      try {
+        const result = await verifyZKProof(zkProofPayload.proof, zkProofPayload.publicSignals);
+        
+        if (result.isValid) {
+          set({ zkProofVerificationBadge: true });
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEYS.ZK_PROOF_BADGE, 'true');
+          }
+          toast.success('Verification successful! ✓');
+          return true;
+        } else {
+          set({ zkProofVerificationBadge: false });
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEYS.ZK_PROOF_BADGE, 'false');
+          }
+          toast.error('Verification failed');
+          return false;
+        }
+      } catch (error) {
+        console.error('Verification error:', error);
+        toast.error('Verification failed');
+        return false;
+      }
+    },
+
+    revokeZKProofCommitment: () => {
+      const { zkProofCommitment } = get();
+      
+      if (!zkProofCommitment) {
+        toast.error('No proof to revoke');
+        return;
+      }
+      
+      const revokedCommitment = revokeZKCommitment(zkProofCommitment);
+      
+      set({
+        zkProofCommitment: revokedCommitment,
+        zkProofVerificationBadge: false,
+      });
+      
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.ZK_PROOF_COMMITMENT, JSON.stringify(revokedCommitment));
+        localStorage.setItem(STORAGE_KEYS.ZK_PROOF_BADGE, 'false');
+      }
+      
+      toast.success('Verification revoked');
+    },
+
+    clearZKProofCommitment: () => {
+      set({
+        zkProofCommitment: null,
+        zkProofPayload: null,
+        zkProofVerificationBadge: false,
+      });
+      
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(STORAGE_KEYS.ZK_PROOF_COMMITMENT);
+        localStorage.removeItem(STORAGE_KEYS.ZK_PROOF_BADGE);
+      }
+      
+      toast.success('Verification data cleared');
     },
 
     loadCommunityEvents: () => {
@@ -2859,6 +3002,13 @@ export const useStore = create<StoreState>((set, get) => {
     } else {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_CHANNEL);
     }
+
+    if (state.zkProofCommitment) {
+      localStorage.setItem(STORAGE_KEYS.ZK_PROOF_COMMITMENT, JSON.stringify(state.zkProofCommitment));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.ZK_PROOF_COMMITMENT);
+    }
+    localStorage.setItem(STORAGE_KEYS.ZK_PROOF_BADGE, state.zkProofVerificationBadge ? 'true' : 'false');
   },
 
   addPost: (
