@@ -24,6 +24,25 @@ import type {
   PostVisibility,
 } from './communities/types';
 import { createDefaultCommunities } from './communities/defaults';
+import {
+  AVAILABILITY_TIME_SLOTS,
+  DAYS_OF_WEEK,
+  DEFAULT_MATCHING_WEIGHTS,
+  MENTORSHIP_TOPICS,
+  type AvailabilitySchedule,
+  type DayOfWeek,
+  type MatchExplanation,
+  type MatchingWeights,
+  type MentorMatch,
+  type MentorProfile,
+  type MentorshipTopic,
+  type MenteeRequest,
+  type TimeSlot,
+  createMentorMatch,
+  findBestMentorMatch,
+  normalizeWeights,
+  shouldCleanupMatch,
+} from './mentorship';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -780,6 +799,51 @@ export interface StoreState {
   toggleEventRsvp: (eventId: string) => void;
   loadCommunityEvents: () => void;
 
+  // Mentorship state & actions
+  mentorshipTopics: MentorshipTopic[];
+  mentorProfiles: MentorProfile[];
+  menteeRequests: MenteeRequest[];
+  mentorshipMatches: MentorMatch[];
+  mentorshipWeights: MatchingWeights;
+  mentorshipCleanupTimer: number | null;
+  upsertMentorProfile: (profile: MentorProfile) => void;
+  markMentorActive: (mentorId: string, isActive: boolean) => void;
+  updateMentorReputation: (
+    mentorId: string,
+    updates: {
+      karmaDelta?: number;
+      streakDelta?: number;
+      rating?: number;
+      totalSessionsDelta?: number;
+      lastActiveAt?: number;
+    }
+  ) => void;
+  submitMenteeRequest: (
+    request: Omit<MenteeRequest, 'status' | 'createdAt'> & {
+      status?: MenteeRequest['status'];
+      createdAt?: number;
+    }
+  ) => MenteeRequest;
+  assignMentorToRequest: (
+    requestId: string,
+    weightsOverride?: Partial<MatchingWeights>
+  ) => MentorMatch | null;
+  completeMentorshipMatch: (
+    matchId: string,
+    outcome?: {
+      rating?: number;
+      feedback?: string;
+      karmaDelta?: number;
+    }
+  ) => void;
+  cancelMentorshipMatch: (matchId: string) => void;
+  recordMentorshipInteraction: (matchId: string) => void;
+  cleanupInactiveMentorshipMatches: () => void;
+  scheduleMentorshipCleanup: () => void;
+  setMentorshipWeights: (weights: Partial<MatchingWeights>) => void;
+  getPendingMenteeRequests: () => MenteeRequest[];
+  getActiveMentorshipMatches: () => MentorMatch[];
+
   // Utility
   saveToLocalStorage: () => void;
 }
@@ -826,6 +890,10 @@ const STORAGE_KEYS = {
   COMMUNITY_STATE_VERSION: 'safevoice_community_state_version', // Versioning for community data migrations
   CURRENT_COMMUNITY: 'safevoice_current_community',     // Last selected community
   CURRENT_CHANNEL: 'safevoice_current_channel',         // Last selected channel within community
+  MENTOR_PROFILES: 'safevoice_mentor_profiles',         // Mentor profiles
+  MENTEE_REQUESTS: 'safevoice_mentee_requests',         // Mentee requests
+  MENTORSHIP_MATCHES: 'safevoice_mentorship_matches',   // Active/past matches
+  MENTORSHIP_WEIGHTS: 'safevoice_mentorship_weights',   // Custom matching weights
 };
 
 const COMMUNITY_STATE_VERSION = 1;
@@ -1384,6 +1452,245 @@ const normalizeModeratorAction = (action: Partial<ModeratorAction>): ModeratorAc
   } satisfies ModeratorAction;
 };
 
+const MENTORSHIP_TOPIC_SET = new Set<MentorshipTopic>(MENTORSHIP_TOPICS);
+const MENTORSHIP_DAY_SET = new Set<DayOfWeek>(DAYS_OF_WEEK);
+const MENTORSHIP_SLOT_SET = new Set<TimeSlot>(AVAILABILITY_TIME_SLOTS);
+const MENTORSHIP_REQUEST_STATUS_SET: ReadonlySet<MenteeRequest['status']> = new Set([
+  'pending',
+  'matched',
+  'expired',
+]);
+
+const toFiniteNumber = (value: unknown, fallback = 0): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+
+const sanitizeMentorshipTopics = (topics: unknown): MentorshipTopic[] => {
+  if (!Array.isArray(topics)) return [];
+  const unique: MentorshipTopic[] = [];
+  topics.forEach((topic) => {
+    if (typeof topic !== 'string') return;
+    const normalized = topic.toLowerCase().trim() as MentorshipTopic;
+    if (MENTORSHIP_TOPIC_SET.has(normalized) && !unique.includes(normalized)) {
+      unique.push(normalized);
+    }
+  });
+  return unique;
+};
+
+const sanitizeAvailabilitySchedule = (raw: unknown): AvailabilitySchedule => {
+  if (!raw || typeof raw !== 'object') return {};
+  const schedule: AvailabilitySchedule = {};
+  Object.entries(raw as Record<string, unknown>).forEach(([day, slots]) => {
+    if (typeof day !== 'string' || !Array.isArray(slots)) return;
+    const normalizedDay = day.toLowerCase().trim() as DayOfWeek;
+    if (!MENTORSHIP_DAY_SET.has(normalizedDay)) return;
+    const uniqueSlots: TimeSlot[] = [];
+    slots.forEach((slot) => {
+      if (typeof slot !== 'string') return;
+      const normalizedSlot = slot.toLowerCase().trim() as TimeSlot;
+      if (MENTORSHIP_SLOT_SET.has(normalizedSlot) && !uniqueSlots.includes(normalizedSlot)) {
+        uniqueSlots.push(normalizedSlot);
+      }
+    });
+    if (uniqueSlots.length > 0) {
+      schedule[normalizedDay] = uniqueSlots;
+    }
+  });
+  return schedule;
+};
+
+const sanitizeMentorProfile = (profile: MentorProfile): MentorProfile => {
+  const topics = sanitizeMentorshipTopics(profile.topics);
+  const availability = sanitizeAvailabilitySchedule(profile.availability);
+  const currentMentees = Array.isArray(profile.currentMentees)
+    ? Array.from(
+        new Set(
+          profile.currentMentees.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+        )
+      )
+    : [];
+
+  const rating = Math.min(Math.max(toFiniteNumber(profile.rating, 0), 0), 5);
+  const karma = Math.max(0, toFiniteNumber(profile.karma, 0));
+  const streak = Math.max(0, Math.round(toFiniteNumber(profile.streak, 0)));
+  const totalSessions = Math.max(0, Math.round(toFiniteNumber(profile.totalSessions, 0)));
+  const maxMentees = Math.max(1, Math.round(toFiniteNumber(profile.maxMentees, 5)));
+  const createdAt = typeof profile.createdAt === 'number' ? profile.createdAt : Date.now();
+  const lastActiveAt = typeof profile.lastActiveAt === 'number' ? profile.lastActiveAt : createdAt;
+
+  return {
+    ...profile,
+    college: profile.college.trim(),
+    topics,
+    availability,
+    currentMentees,
+    rating,
+    karma,
+    streak,
+    totalSessions,
+    maxMentees,
+    createdAt,
+    lastActiveAt,
+    isActive: profile.isActive !== false,
+    displayName: typeof profile.displayName === 'string' ? profile.displayName : undefined,
+    bio: typeof profile.bio === 'string' ? profile.bio : undefined,
+  } satisfies MentorProfile;
+};
+
+const normalizeMentorProfileRecord = (raw: Partial<MentorProfile>): MentorProfile | null => {
+  if (
+    typeof raw?.id !== 'string' ||
+    typeof raw.studentId !== 'string' ||
+    typeof raw.college !== 'string'
+  ) {
+    return null;
+  }
+
+  const candidate: MentorProfile = {
+    id: raw.id,
+    studentId: raw.studentId,
+    displayName: typeof raw.displayName === 'string' ? raw.displayName : undefined,
+    college: raw.college,
+    topics: Array.isArray(raw.topics) ? (raw.topics as MentorshipTopic[]) : [],
+    availability: isRecord(raw.availability) ? (raw.availability as AvailabilitySchedule) : {},
+    karma: toFiniteNumber(raw.karma, 0),
+    streak: toFiniteNumber(raw.streak, 0),
+    totalSessions: toFiniteNumber(raw.totalSessions, 0),
+    rating: toFiniteNumber(raw.rating, 0),
+    bio: typeof raw.bio === 'string' ? raw.bio : undefined,
+    createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+    lastActiveAt: typeof raw.lastActiveAt === 'number' ? raw.lastActiveAt : Date.now(),
+    isActive: raw.isActive !== false,
+    maxMentees: toFiniteNumber(raw.maxMentees, 5),
+    currentMentees: Array.isArray(raw.currentMentees)
+      ? (raw.currentMentees as string[])
+      : [],
+  };
+
+  return sanitizeMentorProfile(candidate);
+};
+
+const sanitizeMenteeRequest = (request: MenteeRequest): MenteeRequest => {
+  const topics = sanitizeMentorshipTopics(request.topics);
+  const preferredAvailability = sanitizeAvailabilitySchedule(request.preferredAvailability);
+  const status = MENTORSHIP_REQUEST_STATUS_SET.has(request.status) ? request.status : 'pending';
+  const urgency: MenteeRequest['urgency'] =
+    request.urgency === 'high' || request.urgency === 'low' ? request.urgency : 'medium';
+  const createdAt = typeof request.createdAt === 'number' ? request.createdAt : Date.now();
+
+  return {
+    ...request,
+    college: request.college.trim(),
+    topics,
+    preferredAvailability,
+    urgency,
+    status,
+    description: typeof request.description === 'string' ? request.description : undefined,
+    createdAt,
+  } satisfies MenteeRequest;
+};
+
+const normalizeMenteeRequestRecord = (raw: Partial<MenteeRequest>): MenteeRequest | null => {
+  if (
+    typeof raw?.id !== 'string' ||
+    typeof raw.studentId !== 'string' ||
+    typeof raw.college !== 'string'
+  ) {
+    return null;
+  }
+
+  const candidate: MenteeRequest = {
+    id: raw.id,
+    studentId: raw.studentId,
+    college: raw.college,
+    topics: Array.isArray(raw.topics) ? (raw.topics as MentorshipTopic[]) : [],
+    preferredAvailability: isRecord(raw.preferredAvailability)
+      ? (raw.preferredAvailability as AvailabilitySchedule)
+      : {},
+    urgency: (raw.urgency as MenteeRequest['urgency']) ?? 'medium',
+    description: typeof raw.description === 'string' ? raw.description : undefined,
+    createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+    status: (raw.status as MenteeRequest['status']) ?? 'pending',
+  };
+
+  return sanitizeMenteeRequest(candidate);
+};
+
+const normalizeMatchExplanation = (raw: Partial<MatchExplanation>): MatchExplanation | null => {
+  if (!raw) return null;
+  const weights = resolveMentorshipWeights(raw.weights);
+  const toStringOrEmpty = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+  return {
+    topicOverlapScore: toFiniteNumber(raw.topicOverlapScore, 0),
+    topicOverlapReason: toStringOrEmpty(raw.topicOverlapReason),
+    collegeScore: toFiniteNumber(raw.collegeScore, 0),
+    collegeReason: toStringOrEmpty(raw.collegeReason),
+    availabilityScore: toFiniteNumber(raw.availabilityScore, 0),
+    availabilityReason: toStringOrEmpty(raw.availabilityReason),
+    reputationScore: toFiniteNumber(raw.reputationScore, 0),
+    reputationReason: toStringOrEmpty(raw.reputationReason),
+    totalScore: toFiniteNumber(raw.totalScore, 0),
+    strengths: Array.isArray(raw.strengths)
+      ? raw.strengths.filter((item): item is string => typeof item === 'string')
+      : [],
+    considerations: Array.isArray(raw.considerations)
+      ? raw.considerations.filter((item): item is string => typeof item === 'string')
+      : [],
+    weights,
+  } satisfies MatchExplanation;
+};
+
+const normalizeMentorshipMatchRecord = (raw: Partial<MentorMatch>): MentorMatch | null => {
+  if (
+    typeof raw?.mentorId !== 'string' ||
+    typeof raw.menteeId !== 'string' ||
+    typeof raw.requestId !== 'string'
+  ) {
+    return null;
+  }
+
+  const explanation = normalizeMatchExplanation(raw.explanation as Partial<MatchExplanation>);
+  if (!explanation) {
+    return null;
+  }
+
+  const score = Math.min(100, Math.max(0, toFiniteNumber(raw.score, 0)));
+  const status: MentorMatch['status'] =
+    raw.status === 'completed' || raw.status === 'cancelled' || raw.status === 'expired' ? raw.status : 'active';
+
+  return {
+    id: typeof raw.id === 'string' ? raw.id : crypto.randomUUID(),
+    requestId: raw.requestId,
+    mentorId: raw.mentorId,
+    menteeId: raw.menteeId,
+    score: Number(score.toFixed(2)),
+    explanation,
+    matchedAt: typeof raw.matchedAt === 'number' ? raw.matchedAt : Date.now(),
+    status,
+    sessionStartedAt: typeof raw.sessionStartedAt === 'number' ? raw.sessionStartedAt : undefined,
+    lastInteractionAt: typeof raw.lastInteractionAt === 'number' ? raw.lastInteractionAt : undefined,
+    expiresAt: typeof raw.expiresAt === 'number' ? raw.expiresAt : undefined,
+  } satisfies MentorMatch;
+};
+
+const resolveMentorshipWeights = (raw: unknown): MatchingWeights => {
+  if (!raw || typeof raw !== 'object') {
+    return normalizeWeights(DEFAULT_MATCHING_WEIGHTS);
+  }
+
+  const candidate = raw as Partial<MatchingWeights>;
+  return normalizeWeights({
+    topicOverlap: toFiniteNumber(candidate.topicOverlap, DEFAULT_MATCHING_WEIGHTS.topicOverlap),
+    collegeSimilarity: toFiniteNumber(
+      candidate.collegeSimilarity,
+      DEFAULT_MATCHING_WEIGHTS.collegeSimilarity
+    ),
+    availability: toFiniteNumber(candidate.availability, DEFAULT_MATCHING_WEIGHTS.availability),
+    reputation: toFiniteNumber(candidate.reputation, DEFAULT_MATCHING_WEIGHTS.reputation),
+  });
+};
+
 // Helpers removed - now handled by RewardEngine
 
 // Helper to find and update a comment recursively
@@ -1759,6 +2066,13 @@ export const useStore = create<StoreState>((set, get) => {
     communityModerationLog: [],
     currentCommunity: initialCurrentCommunity,
     currentChannel: initialCurrentChannel,
+
+    mentorshipTopics: [...MENTORSHIP_TOPICS],
+    mentorProfiles: [],
+    menteeRequests: [],
+    mentorshipMatches: [],
+    mentorshipWeights: normalizeWeights(DEFAULT_MATCHING_WEIGHTS),
+    mentorshipCleanupTimer: null,
 
     referralCode: initialReferralState.code,
     referredByCode: initialReferralState.referredByCode,
@@ -2494,11 +2808,21 @@ export const useStore = create<StoreState>((set, get) => {
     const storedCommunityPostsMeta = localStorage.getItem(STORAGE_KEYS.COMMUNITY_POSTS_META);
     const storedCommunityActivity = localStorage.getItem(STORAGE_KEYS.COMMUNITY_ACTIVITY);
     const storedCommunityVersion = localStorage.getItem(STORAGE_KEYS.COMMUNITY_STATE_VERSION);
+    const storedMentorProfiles = localStorage.getItem(STORAGE_KEYS.MENTOR_PROFILES);
+    const storedMenteeRequests = localStorage.getItem(STORAGE_KEYS.MENTEE_REQUESTS);
+    const storedMentorshipMatches = localStorage.getItem(STORAGE_KEYS.MENTORSHIP_MATCHES);
+    const storedMentorshipWeights = localStorage.getItem(STORAGE_KEYS.MENTORSHIP_WEIGHTS);
 
     const rawAnnouncements = storedAnnouncements ? (JSON.parse(storedAnnouncements) as Array<Partial<CommunityAnnouncement>>) : [];
     const rawModerationLogs = storedModerationLogs ? (JSON.parse(storedModerationLogs) as Array<Partial<CommunityModerationLog>>) : [];
     const rawMemberStatuses = storedMemberStatuses ? (JSON.parse(storedMemberStatuses) as Array<Partial<MemberStatus>>) : [];
     const rawChannelMuteStatus = storedChannelMuteStatus ? (JSON.parse(storedChannelMuteStatus) as ChannelMuteStatus) : { isMuted: false };
+    const rawMentorProfiles = storedMentorProfiles ? (JSON.parse(storedMentorProfiles) as Array<Partial<MentorProfile>>) : [];
+    const rawMenteeRequests = storedMenteeRequests ? (JSON.parse(storedMenteeRequests) as Array<Partial<MenteeRequest>>) : [];
+    const rawMentorshipMatches = storedMentorshipMatches ? (JSON.parse(storedMentorshipMatches) as Array<Partial<MentorMatch>>) : [];
+    const mentorshipWeights = storedMentorshipWeights
+      ? resolveMentorshipWeights(JSON.parse(storedMentorshipWeights))
+      : normalizeWeights(DEFAULT_MATCHING_WEIGHTS);
 
     const communityAnnouncements = rawAnnouncements
       .map(normalizeCommunityAnnouncement)
@@ -2561,6 +2885,20 @@ export const useStore = create<StoreState>((set, get) => {
       communityPostsMeta = storedCommunityPostsMeta ? (JSON.parse(storedCommunityPostsMeta) as Record<string, CommunityPostMeta>) : {};
       communityActivity = storedCommunityActivity ? (JSON.parse(storedCommunityActivity) as CommunityActivity[]) : [];
     }
+
+    const mentorProfiles = rawMentorProfiles
+      .map(normalizeMentorProfileRecord)
+      .filter((profile): profile is MentorProfile => profile !== null);
+
+    const menteeRequests = rawMenteeRequests
+      .map(normalizeMenteeRequestRecord)
+      .filter((request): request is MenteeRequest => request !== null)
+      .sort((a, b) => a.createdAt - b.createdAt);
+
+    const mentorshipMatches = rawMentorshipMatches
+      .map(normalizeMentorshipMatchRecord)
+      .filter((match): match is MentorMatch => match !== null)
+      .sort((a, b) => a.matchedAt - b.matchedAt);
 
     const reportCollection = new Map<string, Report>();
     rawReports.forEach((rawReport) => {
@@ -2804,6 +3142,10 @@ export const useStore = create<StoreState>((set, get) => {
       communityModerationLog: communityModerationLogs,
       currentCommunity: currentCommunityId,
       currentChannel: currentChannelId,
+      mentorProfiles,
+      menteeRequests,
+      mentorshipMatches,
+      mentorshipWeights,
     });
 
     get().archiveOldCommunityPosts();
@@ -2847,6 +3189,10 @@ export const useStore = create<StoreState>((set, get) => {
     localStorage.setItem(STORAGE_KEYS.COMMUNITY_POSTS_META, JSON.stringify(state.communityPostsMeta));
     localStorage.setItem(STORAGE_KEYS.COMMUNITY_ACTIVITY, JSON.stringify(state.communityActivity));
     localStorage.setItem(STORAGE_KEYS.COMMUNITY_STATE_VERSION, String(COMMUNITY_STATE_VERSION));
+    localStorage.setItem(STORAGE_KEYS.MENTOR_PROFILES, JSON.stringify(state.mentorProfiles));
+    localStorage.setItem(STORAGE_KEYS.MENTEE_REQUESTS, JSON.stringify(state.menteeRequests));
+    localStorage.setItem(STORAGE_KEYS.MENTORSHIP_MATCHES, JSON.stringify(state.mentorshipMatches));
+    localStorage.setItem(STORAGE_KEYS.MENTORSHIP_WEIGHTS, JSON.stringify(state.mentorshipWeights));
 
     if (state.currentCommunity) {
       localStorage.setItem(STORAGE_KEYS.CURRENT_COMMUNITY, state.currentCommunity);
@@ -5754,6 +6100,260 @@ export const useStore = create<StoreState>((set, get) => {
     });
 
     get().saveToLocalStorage();
+  },
+
+  // Mentorship actions
+  upsertMentorProfile: (profile: MentorProfile) => {
+    set((state) => {
+      const existing = state.mentorProfiles.find((p) => p.id === profile.id);
+      if (existing) {
+        return {
+          mentorProfiles: state.mentorProfiles.map((p) => (p.id === profile.id ? profile : p)),
+        };
+      }
+      return {
+        mentorProfiles: [...state.mentorProfiles, profile],
+      };
+    });
+    get().saveToLocalStorage();
+    toast.success('Mentor profile updated! 🎓');
+  },
+
+  markMentorActive: (mentorId: string, isActive: boolean) => {
+    set((state) => ({
+      mentorProfiles: state.mentorProfiles.map((p) =>
+        p.id === mentorId ? { ...p, isActive, lastActiveAt: Date.now() } : p
+      ),
+    }));
+    get().saveToLocalStorage();
+  },
+
+  updateMentorReputation: (mentorId: string, updates) => {
+    set((state) => ({
+      mentorProfiles: state.mentorProfiles.map((p) => {
+        if (p.id !== mentorId) return p;
+        return {
+          ...p,
+          karma: updates.karmaDelta !== undefined ? p.karma + updates.karmaDelta : p.karma,
+          streak: updates.streakDelta !== undefined ? p.streak + updates.streakDelta : p.streak,
+          rating: updates.rating !== undefined ? updates.rating : p.rating,
+          totalSessions:
+            updates.totalSessionsDelta !== undefined
+              ? p.totalSessions + updates.totalSessionsDelta
+              : p.totalSessions,
+          lastActiveAt: updates.lastActiveAt !== undefined ? updates.lastActiveAt : p.lastActiveAt,
+        };
+      }),
+    }));
+    get().saveToLocalStorage();
+  },
+
+  submitMenteeRequest: (request) => {
+    const fullRequest: MenteeRequest = {
+      ...request,
+      status: request.status || 'pending',
+      createdAt: request.createdAt || Date.now(),
+    };
+    set((state) => ({
+      menteeRequests: [...state.menteeRequests, fullRequest],
+    }));
+    get().saveToLocalStorage();
+    toast.success('Mentorship request submitted! 🤝');
+    return fullRequest;
+  },
+
+  assignMentorToRequest: (requestId, weightsOverride) => {
+    const state = get();
+    const request = state.menteeRequests.find((r) => r.id === requestId && r.status === 'pending');
+    
+    if (!request) {
+      toast.error('Request not found or already matched');
+      return null;
+    }
+
+    const weights = weightsOverride
+      ? normalizeWeights({ ...state.mentorshipWeights, ...weightsOverride })
+      : state.mentorshipWeights;
+
+    const matchResult = findBestMentorMatch(request, state.mentorProfiles, weights);
+
+    if (!matchResult) {
+      toast.error('No available mentors found for this request');
+      return null;
+    }
+
+    const match = createMentorMatch(
+      request.id,
+      matchResult.mentor.id,
+      request.studentId,
+      matchResult.score,
+      matchResult.explanation
+    );
+
+    set((currentState) => ({
+      menteeRequests: currentState.menteeRequests.map((r) =>
+        r.id === requestId ? { ...r, status: 'matched' as const } : r
+      ),
+      mentorshipMatches: [...currentState.mentorshipMatches, match],
+      mentorProfiles: currentState.mentorProfiles.map((p) =>
+        p.id === matchResult.mentor.id
+          ? { ...p, currentMentees: [...p.currentMentees, request.studentId] }
+          : p
+      ),
+    }));
+
+    get().saveToLocalStorage();
+    toast.success(`Matched with mentor! Score: ${match.score}/100 🎯`);
+    return match;
+  },
+
+  completeMentorshipMatch: (matchId, outcome) => {
+    const state = get();
+    const match = state.mentorshipMatches.find((m) => m.id === matchId);
+    
+    if (!match || match.status !== 'active') {
+      toast.error('Match not found or already completed');
+      return;
+    }
+
+    set((currentState) => ({
+      mentorshipMatches: currentState.mentorshipMatches.map((m) =>
+        m.id === matchId ? { ...m, status: 'completed' as const } : m
+      ),
+      mentorProfiles: currentState.mentorProfiles.map((p) => {
+        if (p.id !== match.mentorId) return p;
+        return {
+          ...p,
+          currentMentees: p.currentMentees.filter((id) => id !== match.menteeId),
+          totalSessions: p.totalSessions + 1,
+          karma: outcome?.karmaDelta ? p.karma + outcome.karmaDelta : p.karma + 50,
+          rating: outcome?.rating !== undefined ? outcome.rating : p.rating,
+        };
+      }),
+    }));
+
+    if (outcome?.karmaDelta && outcome.karmaDelta > 0) {
+      get().earnVoice(outcome.karmaDelta, 'Mentorship session reward', 'bonuses', {
+        matchId,
+        action: 'complete_mentorship',
+      });
+    }
+
+    get().saveToLocalStorage();
+    toast.success('Mentorship session completed! 🎉');
+  },
+
+  cancelMentorshipMatch: (matchId) => {
+    const state = get();
+    const match = state.mentorshipMatches.find((m) => m.id === matchId);
+    
+    if (!match) {
+      toast.error('Match not found');
+      return;
+    }
+
+    set((currentState) => ({
+      mentorshipMatches: currentState.mentorshipMatches.map((m) =>
+        m.id === matchId ? { ...m, status: 'cancelled' as const } : m
+      ),
+      mentorProfiles: currentState.mentorProfiles.map((p) => {
+        if (p.id !== match.mentorId) return p;
+        return {
+          ...p,
+          currentMentees: p.currentMentees.filter((id) => id !== match.menteeId),
+        };
+      }),
+    }));
+
+    get().saveToLocalStorage();
+    toast('Mentorship match cancelled');
+  },
+
+  recordMentorshipInteraction: (matchId) => {
+    set((state) => ({
+      mentorshipMatches: state.mentorshipMatches.map((m) =>
+        m.id === matchId
+          ? {
+              ...m,
+              lastInteractionAt: Date.now(),
+              expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000),
+            }
+          : m
+      ),
+    }));
+    get().saveToLocalStorage();
+  },
+
+  cleanupInactiveMentorshipMatches: () => {
+    const state = get();
+    const now = Date.now();
+    const activeMatches: MentorMatch[] = [];
+    const expiredMatchIds: string[] = [];
+
+    for (const match of state.mentorshipMatches) {
+      if (shouldCleanupMatch(match, now)) {
+        expiredMatchIds.push(match.id);
+      } else {
+        activeMatches.push(match);
+      }
+    }
+
+    if (expiredMatchIds.length > 0) {
+      const expiredMentorIds = state.mentorshipMatches
+        .filter((m) => expiredMatchIds.includes(m.id))
+        .map((m) => ({ mentorId: m.mentorId, menteeId: m.menteeId }));
+
+      set((currentState) => ({
+        mentorshipMatches: currentState.mentorshipMatches.map((m) =>
+          expiredMatchIds.includes(m.id) ? { ...m, status: 'expired' as const } : m
+        ),
+        mentorProfiles: currentState.mentorProfiles.map((p) => {
+          const expiredMentees = expiredMentorIds
+            .filter((e) => e.mentorId === p.id)
+            .map((e) => e.menteeId);
+          if (expiredMentees.length === 0) return p;
+          return {
+            ...p,
+            currentMentees: p.currentMentees.filter((id) => !expiredMentees.includes(id)),
+          };
+        }),
+      }));
+
+      get().saveToLocalStorage();
+      toast(`Cleaned up ${expiredMatchIds.length} inactive mentorship session(s)`, { icon: '🧹' });
+    }
+  },
+
+  scheduleMentorshipCleanup: () => {
+    const state = get();
+    if (state.mentorshipCleanupTimer) {
+      clearInterval(state.mentorshipCleanupTimer);
+    }
+
+    const timer = setInterval(
+      () => {
+        get().cleanupInactiveMentorshipMatches();
+      },
+      24 * 60 * 60 * 1000
+    ) as unknown as number;
+
+    set({ mentorshipCleanupTimer: timer });
+  },
+
+  setMentorshipWeights: (weights) => {
+    set((state) => ({
+      mentorshipWeights: normalizeWeights({ ...state.mentorshipWeights, ...weights }),
+    }));
+    get().saveToLocalStorage();
+    toast.success('Matching preferences updated! ⚖️');
+  },
+
+  getPendingMenteeRequests: () => {
+    return get().menteeRequests.filter((r) => r.status === 'pending');
+  },
+
+  getActiveMentorshipMatches: () => {
+    return get().mentorshipMatches.filter((m) => m.status === 'active');
   },
 
   downloadDataBackup: () => {
