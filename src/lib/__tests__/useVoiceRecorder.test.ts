@@ -10,6 +10,7 @@ import {
 } from 'vitest';
 
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 class MockSpeechRecognition {
@@ -677,6 +678,7 @@ describe('useVoiceRecorder', () => {
 
     await startPromise;
 
-    expect(abortSignal?.aborted).toBe(true);
+    expect(abortSignal).not.toBeNull();
+    expect(abortSignal!.aborted).toBe(true);
   });
 });
