@@ -183,7 +183,7 @@ export default function Profile() {
             }`}
             type="button"
           >
-            🏆 Achievements
+            🏆 {t('profile.achievements', 'Achievements')}
           </button>
           <button
             onClick={() => setActiveTab('wallet')}

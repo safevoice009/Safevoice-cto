@@ -248,7 +248,7 @@ function AnimatedRoutes() {
 
   const handleCrisisAcknowledge = (action: 'call_helpline' | 'continue') => {
     if (action === 'call_helpline') {
-      toast.success('Thank you for reaching out 💙');
+      toast.success(t('crisis.thankYou'));
     }
 
     if (pendingPost && pendingPost.moderationData) {
