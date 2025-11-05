@@ -301,6 +301,67 @@ export default function Communities() {
     [studentId, loginStreak, postingStreak, lastLoginDate, lastPostDate, memberMetrics, membershipByStudent]
   );
 
+  const memberMetrics = useMemo(() => {
+    return buildMemberMetrics(
+      posts,
+      studentId,
+      voiceBalance,
+      loginStreak,
+      postingStreak,
+      lastLoginDate,
+      lastPostDate
+    );
+  }, [posts, studentId, voiceBalance, loginStreak, postingStreak, lastLoginDate, lastPostDate]);
+
+  const membershipByStudent = useMemo(() => {
+    const map = new Map<string, CommunityMembership>();
+    communityMemberships.forEach((membership) => {
+      map.set(membership.studentId, membership);
+    });
+    return map;
+  }, [communityMemberships]);
+
+  const getVoiceBalance = useCallback(
+    (userId: string) => {
+      if (userId === studentId) {
+        return voiceBalance;
+      }
+      const cached = memberMetrics.get(userId);
+      if (cached) {
+        return cached.voiceBalance;
+      }
+      const membership = membershipByStudent.get(userId);
+      return fallbackVoiceBalance(userId, membership);
+    },
+    [studentId, voiceBalance, memberMetrics, membershipByStudent]
+  );
+
+  const getStreakData = useCallback(
+    (userId: string): StreakData => {
+      if (userId === studentId) {
+        return {
+          currentStreak: loginStreak,
+          longestStreak: Math.max(loginStreak, postingStreak),
+          lastLoginDate,
+          streakBroken: loginStreak === 0,
+          lastStreakResetDate: null,
+          currentPostStreak: postingStreak,
+          longestPostStreak: Math.max(postingStreak, loginStreak),
+          lastPostDate,
+          postStreakBroken: postingStreak === 0,
+          lastPostStreakResetDate: null,
+        };
+      }
+      const cached = memberMetrics.get(userId);
+      if (cached) {
+        return cached.streakData;
+      }
+      const membership = membershipByStudent.get(userId);
+      return fallbackStreakData(userId, membership);
+    },
+    [studentId, loginStreak, postingStreak, lastLoginDate, lastPostDate, memberMetrics, membershipByStudent]
+  );
+
   useEffect(() => {
     initializeStore();
   }, [initializeStore]);
