@@ -128,6 +128,7 @@ export interface AddPostPayload {
   channelId?: string | null;
   visibility?: PostVisibility;
   isAnonymous?: boolean;
+  ipfsCid?: string | null;
   encryptionData?: {
     encrypted: string;
     iv: string;
@@ -249,6 +250,7 @@ export interface Post {
   archived?: boolean;
   archivedAt?: number | null;
   emotionAnalysis?: PostEmotionMetadata;
+  ipfsCid?: string | null;
 }
 
 export interface Report {
@@ -5567,6 +5569,7 @@ export const useStore = create<StoreState>((set, get) => {
       archived: false,
       archivedAt: null,
       emotionAnalysis: normalizedEmotionAnalysis,
+      ipfsCid: ipfsCid ?? null,
     };
 
     set((state) => {

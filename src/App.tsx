@@ -268,7 +268,8 @@ function AnimatedRoutes() {
               visibility: pendingPost.visibility,
               isAnonymous: pendingPost.isAnonymous,
             }
-          : undefined
+          : undefined,
+        pendingPost.ipfsCid ?? undefined
       );
     }
 
