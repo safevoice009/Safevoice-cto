@@ -24,6 +24,7 @@ import type {
   PostVisibility,
 } from './communities/types';
 import { createDefaultCommunities } from './communities/defaults';
+import { getCrisisQueueService, type CrisisRequest, type CrisisAuditEntry, type CrisisQueueEvent } from './crisisQueue';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -495,6 +496,21 @@ export interface StoreState {
   emergencyBannerDismissedUntil: number | null;
   dismissEmergencyBanner: () => void;
   checkEmergencyBannerStatus: () => void;
+
+  // Crisis Queue
+  crisisRequests: CrisisRequest[];
+  crisisAuditLog: CrisisAuditEntry[];
+  crisisSessionExpiresAt: number | null;
+  isCrisisQueueLive: boolean;
+  createCrisisRequest: (crisisLevel: 'high' | 'critical', postId?: string) => Promise<CrisisRequest>;
+  updateCrisisRequest: (requestId: string, updates: Partial<Pick<CrisisRequest, 'status' | 'volunteerId' | 'metadata'>>) => Promise<void>;
+  deleteCrisisRequest: (requestId: string) => Promise<void>;
+  getCrisisRequestById: (requestId: string) => CrisisRequest | undefined;
+  getActiveCrisisRequests: () => CrisisRequest[];
+  subscribeToQueue: () => void;
+  unsubscribeFromQueue: () => void;
+  addCrisisAuditEntry: (entry: Omit<CrisisAuditEntry, 'id' | 'timestamp'>) => void;
+  cleanupExpiredAuditEntries: () => void;
 
   // Initialization
   initStudentId: () => void;
@@ -1720,6 +1736,95 @@ export const useStore = create<StoreState>((set, get) => {
   const initialRank = AchievementService.getRank(initialTotalVoice);
   const initialNextRankData = AchievementService.getNextRank(initialTotalVoice);
 
+  const CRISIS_AUDIT_MAX = 50;
+  const CRISIS_AUDIT_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+  let crisisQueueServiceInstance: ReturnType<typeof getCrisisQueueService> | null = null;
+  let crisisQueueUnsubscribe: (() => void) | null = null;
+  let crisisQueueErrorUnsubscribe: (() => void) | null = null;
+
+  const generateCrisisAuditId = (): string => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `audit_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+  };
+
+  const updateStateFromEvent = (event: CrisisQueueEvent) => {
+    if (event.type === 'upsert') {
+      set((state) => {
+        const existingIndex = state.crisisRequests.findIndex((req) => req.id === event.request.id);
+        const nextRequests = existingIndex >= 0
+          ? state.crisisRequests.map((req) => (req.id === event.request.id ? event.request : req))
+          : [...state.crisisRequests, event.request];
+
+        nextRequests.sort((a, b) => a.timestamp - b.timestamp);
+
+        let nextSessionExpiresAt = state.crisisSessionExpiresAt;
+        if (event.request.studentId === state.studentId) {
+          nextSessionExpiresAt =
+            event.request.status === 'resolved' || event.request.status === 'expired'
+              ? null
+              : event.request.expiresAt;
+        }
+
+        return {
+          crisisRequests: nextRequests,
+          crisisSessionExpiresAt: nextSessionExpiresAt,
+        };
+      });
+    } else if (event.type === 'delete') {
+      set((state) => {
+        const removed = state.crisisRequests.find((req) => req.id === event.requestId);
+        const nextRequests = state.crisisRequests.filter((req) => req.id !== event.requestId);
+        const nextSessionExpiresAt =
+          removed && removed.studentId === state.studentId ? null : state.crisisSessionExpiresAt;
+
+        return {
+          crisisRequests: nextRequests,
+          crisisSessionExpiresAt: nextSessionExpiresAt,
+        };
+      });
+    }
+  };
+
+  const ensureCrisisQueue = () => {
+    if (!crisisQueueServiceInstance) {
+      const service = getCrisisQueueService();
+      crisisQueueServiceInstance = service;
+
+      const snapshot = service.getSnapshot();
+      set((state) => {
+        const ownRequest = snapshot.find(
+          (req) => req.studentId === state.studentId && req.status !== 'resolved' && req.status !== 'expired'
+        );
+
+        return {
+          crisisRequests: snapshot,
+          crisisSessionExpiresAt: ownRequest ? ownRequest.expiresAt : state.crisisSessionExpiresAt,
+          isCrisisQueueLive: service.isSupabaseAvailable() || service.isBroadcastChannelAvailable(),
+        };
+      });
+
+      crisisQueueUnsubscribe = service.subscribe('store', (event) => {
+        updateStateFromEvent(event);
+      });
+
+      crisisQueueErrorUnsubscribe = service.onError(() => {
+        set({ isCrisisQueueLive: false });
+      });
+    }
+
+    return crisisQueueServiceInstance!;
+  };
+
+  const teardownCrisisQueue = () => {
+    crisisQueueUnsubscribe?.();
+    crisisQueueErrorUnsubscribe?.();
+    crisisQueueUnsubscribe = null;
+    crisisQueueErrorUnsubscribe = null;
+  };
+
   return {
     studentId: initialStudentId,
     isModerator: initialIsModerator,
@@ -1740,6 +1845,12 @@ export const useStore = create<StoreState>((set, get) => {
     memorialTributes: [],
     communityEvents: typeof window !== 'undefined' ? readStoredCommunityEvents() : createDefaultCommunityEvents(),
     nftBadges: initialNFTBadges,
+
+    // Crisis Queue state
+    crisisRequests: [],
+    crisisAuditLog: [],
+    crisisSessionExpiresAt: null,
+    isCrisisQueueLive: false,
 
     // Community moderation state
     communityAnnouncements: [],
@@ -1886,6 +1997,138 @@ export const useStore = create<StoreState>((set, get) => {
 
       toast.success('Event added! Invite friends and we will handle reminders. 🗓️');
       return true;
+    },
+
+    // Crisis Queue Actions
+    createCrisisRequest: async (crisisLevel: 'high' | 'critical', postId?: string): Promise<CrisisRequest> => {
+      const state = get();
+      const queue = ensureCrisisQueue();
+
+      try {
+        const request = await queue.createRequest(state.studentId, crisisLevel, { postId });
+
+        updateStateFromEvent({ type: 'upsert', request });
+        
+        get().addCrisisAuditEntry({
+          requestId: request.id,
+          action: 'created',
+          actorId: state.studentId,
+          metadata: { crisisLevel, postId },
+        });
+
+        toast.success('Crisis support request sent! Help is on the way. 💙');
+        return request;
+      } catch (error) {
+        toast.error('Failed to send crisis support request');
+        throw error;
+      }
+    },
+
+    updateCrisisRequest: async (requestId: string, updates: Partial<Pick<CrisisRequest, 'status' | 'volunteerId' | 'metadata'>>): Promise<void> => {
+      const state = get();
+      const queue = ensureCrisisQueue();
+      
+      try {
+        const updatedRequest = await queue.updateRequest(requestId, updates);
+
+        updateStateFromEvent({ type: 'upsert', request: updatedRequest });
+
+        const action: CrisisAuditEntry['action'] = updates.status === 'assigned'
+          ? 'assigned'
+          : updates.status === 'resolved'
+            ? 'resolved'
+            : updates.status === 'expired'
+              ? 'expired'
+              : 'updated';
+
+        get().addCrisisAuditEntry({
+          requestId,
+          action,
+          actorId: updates.volunteerId ?? state.studentId,
+          metadata: updates,
+        });
+
+        if (updates.status === 'assigned' && updates.volunteerId) {
+          toast.success('Crisis request assigned to volunteer');
+        } else if (updates.status === 'resolved') {
+          toast.success('Crisis request resolved');
+        } else if (updates.status === 'expired') {
+          toast('Crisis request expired', { icon: '⏱️' });
+        }
+      } catch (error) {
+        toast.error('Failed to update crisis request');
+        throw error;
+      }
+    },
+
+    deleteCrisisRequest: async (requestId: string): Promise<void> => {
+      const state = get();
+      const queue = ensureCrisisQueue();
+
+      try {
+        await queue.deleteRequest(requestId);
+
+        updateStateFromEvent({ type: 'delete', requestId });
+        
+        get().addCrisisAuditEntry({
+          requestId,
+          action: 'deleted',
+          actorId: state.studentId,
+        });
+
+        toast('Crisis request deleted', { icon: 'ℹ️' });
+      } catch (error) {
+        toast.error('Failed to delete crisis request');
+        throw error;
+      }
+    },
+
+    getCrisisRequestById: (requestId: string): CrisisRequest | undefined => {
+      const state = get();
+      return state.crisisRequests.find((req) => req.id === requestId);
+    },
+
+    getActiveCrisisRequests: (): CrisisRequest[] => {
+      const state = get();
+      return state.crisisRequests.filter(
+        (req) => req.status === 'pending' || req.status === 'assigned'
+      );
+    },
+
+    subscribeToQueue: (): void => {
+      ensureCrisisQueue();
+    },
+
+    unsubscribeFromQueue: (): void => {
+      teardownCrisisQueue();
+      set({ isCrisisQueueLive: false });
+    },
+
+    addCrisisAuditEntry: (entry: Omit<CrisisAuditEntry, 'id' | 'timestamp'>): void => {
+      const newEntry: CrisisAuditEntry = {
+        ...entry,
+        id: generateCrisisAuditId(),
+        timestamp: Date.now(),
+      };
+
+      set((state) => {
+        const nextLog = [newEntry, ...state.crisisAuditLog];
+        if (nextLog.length > CRISIS_AUDIT_MAX) {
+          nextLog.splice(CRISIS_AUDIT_MAX);
+        }
+        return { crisisAuditLog: nextLog };
+      });
+    },
+
+    cleanupExpiredAuditEntries: (): void => {
+      const now = Date.now();
+      const retentionCutoff = now - CRISIS_AUDIT_RETENTION_MS;
+
+      set((state) => ({
+        crisisAuditLog: state.crisisAuditLog.filter(
+          (entry) => entry.timestamp > retentionCutoff
+        ),
+      }));
     },
 
     toggleEventRsvp: (eventId: string) => {
