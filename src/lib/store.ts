@@ -73,7 +73,7 @@ import { runZeroLogAudit as runAudit, haltOperations, unlockSystem as unlockSyst
 import type { ZeroLogAuditReport } from './audit/ZeroLogAuditor';
 import { TributeService } from './memorial/TributeService';
 
-// Re-export premium types and achievement
+// Re-export premium types, achievement, and emotion types
 export type { Achievement, PremiumFeatureType, SubscriptionState };
 export type { MediaAsset, StorageStats, EncryptionStats, MediaAttachment };
 export type { Message, Thread, OfflineEnvelope, MentionSuggestion };
@@ -86,6 +86,10 @@ export interface Reaction {
   sad: number;
   angry: number;
   laugh: number;
+}
+
+export interface PostEmotionMetadata extends EmotionAnalysisResult {
+  detectedAt: number;
 }
 
 export type TipEventType = 'tip' | 'gift';
@@ -244,6 +248,7 @@ export interface Post {
   isAnonymous?: boolean;
   archived?: boolean;
   archivedAt?: number | null;
+  emotionAnalysis?: PostEmotionMetadata;
 }
 
 export interface Report {
@@ -5508,6 +5513,10 @@ export const useStore = create<StoreState>((set, get) => {
     const duration = lifetimeMap[lifetime];
     const expiresAt = duration !== null ? Date.now() + duration : null;
 
+    const normalizedEmotionAnalysis = emotionAnalysis
+      ? { ...emotionAnalysis, detectedAt: emotionAnalysis.detectedAt ?? Date.now() }
+      : undefined;
+
     const newPost: Post = {
       id: crypto.randomUUID(),
       studentId: storeState.studentId,
@@ -5557,6 +5566,7 @@ export const useStore = create<StoreState>((set, get) => {
       isAnonymous: communityMeta?.isAnonymous ?? false,
       archived: false,
       archivedAt: null,
+      emotionAnalysis: normalizedEmotionAnalysis,
     };
 
     set((state) => {
