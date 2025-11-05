@@ -1,0 +1,17 @@
+export const CAMPUS_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  'IIT-B': { lat: 19.1334, lng: 72.9133 },
+  'IIT-D': { lat: 28.545, lng: 77.192 },
+  'IIT-M': { lat: 12.9916, lng: 80.2336 },
+  'IIT-K': { lat: 26.5123, lng: 80.2329 },
+  'IIT-KGP': { lat: 22.3149, lng: 87.3105 },
+  'BITS-P': { lat: 28.3636, lng: 75.5857 },
+  'AIIMS-D': { lat: 28.5672, lng: 77.21 },
+  DU: { lat: 28.6863, lng: 77.2065 },
+  JNU: { lat: 28.5403, lng: 77.1662 },
+  BHU: { lat: 25.2677, lng: 82.9913 },
+  TISS: { lat: 19.0438, lng: 72.83 },
+  'NIT-T': { lat: 10.7604, lng: 78.815 },
+  JAMI: { lat: 28.5615, lng: 77.2827 },
+  'PUNE-U': { lat: 18.5476, lng: 73.8263 },
+  AMU: { lat: 27.8974, lng: 78.088 },
+};

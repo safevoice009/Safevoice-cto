@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Hero from '../components/landing/Hero';
+import Globe from '../components/landing/Globe';
 import Features from '../components/landing/Features';
 import Helplines from '../components/landing/Helplines';
 import Memorial from '../components/landing/Memorial';
@@ -32,6 +33,7 @@ export default function Landing() {
       transition={{ duration: 0.6 }}
     >
       <Hero />
+      <Globe />
       <Features />
       <Helplines />
       <Memorial />
