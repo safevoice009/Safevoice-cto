@@ -5,9 +5,9 @@ import userEvent from '@testing-library/user-event';
 import type { HTMLAttributes, ButtonHTMLAttributes } from 'react';
 import type { StoreState } from '../../../lib/store';
 import type { IPFSUploadResult } from '../../../lib/ipfs';
+import * as ipfs from '../../../lib/ipfs';
 import CreatePost from '../CreatePost';
 import { useStore } from '../../../lib/store';
-import * as ipfs from '../../../lib/ipfs';
 
 // Mock supporting modules
 vi.mock('../../../lib/encryption', () => ({
@@ -36,13 +36,11 @@ vi.mock('../../../lib/ipfs', () => ({
   uploadToIPFS: vi.fn(),
 }));
 
-const toast = Object.assign(() => undefined, {
-  success: vi.fn(),
-  error: vi.fn(),
-});
-
 vi.mock('react-hot-toast', () => ({
-  default: toast,
+  default: Object.assign(() => undefined, {
+    success: vi.fn(),
+    error: vi.fn(),
+  }),
 }));
 
 vi.mock('framer-motion', () => ({

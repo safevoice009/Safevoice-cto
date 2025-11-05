@@ -9,18 +9,16 @@ import type { StoreState } from '../../../lib/store';
 import type { Post } from '../../../lib/store';
 import { getIPFSGatewayUrl, verifyIPFSContent } from '../../../lib/ipfs';
 
+vi.mock('react-hot-toast', () => ({
+  default: Object.assign(() => undefined, {
+    success: vi.fn(),
+    error: vi.fn(),
+  }),
+}));
+
 vi.mock('../../../lib/ipfs', () => ({
   getIPFSGatewayUrl: (cid: string) => `https://ipfs.io/ipfs/${cid}`,
   verifyIPFSContent: vi.fn(() => Promise.resolve(true)),
-}));
-
-const toast = Object.assign(() => undefined, {
-  success: vi.fn(),
-  error: vi.fn(),
-});
-
-vi.mock('react-hot-toast', () => ({
-  default: toast,
 }));
 
 vi.mock('framer-motion', () => ({
@@ -30,6 +28,34 @@ vi.mock('framer-motion', () => ({
     button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button>,
   },
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('../ReactionBar', () => ({
+  default: () => <div>ReactionBar Mock</div>,
+}));
+
+vi.mock('../CommentSection', () => ({
+  default: () => <div>CommentSection Mock</div>,
+}));
+
+vi.mock('../ReportModal', () => ({
+  default: () => <div>ReportModal Mock</div>,
+}));
+
+vi.mock('../ShareMenu', () => ({
+  default: () => <div>ShareMenu Mock</div>,
+}));
+
+vi.mock('../ConfirmModal', () => ({
+  default: () => <div>ConfirmModal Mock</div>,
+}));
+
+vi.mock('../TipModal', () => ({
+  default: () => <div>TipModal Mock</div>,
+}));
+
+vi.mock('../../wallet/RankChip', () => ({
+  default: () => <div>RankChip Mock</div>,
 }));
 
 const verifyIPFSMock = verifyIPFSContent as MockedFunction<
