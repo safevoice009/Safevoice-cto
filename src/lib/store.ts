@@ -43,9 +43,11 @@ import {
   normalizeWeights,
   shouldCleanupMatch,
 } from './mentorship';
+import type { EmotionAnalysisResult, EmotionType } from './emotionAnalysis';
 
-// Re-export premium types and achievement
+// Re-export premium types, achievement, and emotion types
 export type { Achievement, PremiumFeatureType, SubscriptionState };
+export type { EmotionType, EmotionAnalysisResult };
 
 // Types
 export interface Reaction {
@@ -55,6 +57,10 @@ export interface Reaction {
   sad: number;
   angry: number;
   laugh: number;
+}
+
+export interface PostEmotionMetadata extends EmotionAnalysisResult {
+  detectedAt: number;
 }
 
 export type TipEventType = 'tip' | 'gift';
@@ -102,6 +108,7 @@ export interface AddPostPayload {
     isCrisisFlagged?: boolean;
     crisisLevel?: 'high' | 'critical';
   };
+  emotionAnalysis?: PostEmotionMetadata;
 }
 
 export interface UpdatePostOptions {
@@ -195,6 +202,7 @@ export interface Post {
   isAnonymous?: boolean;
   archived?: boolean;
   archivedAt?: number | null;
+  emotionAnalysis?: PostEmotionMetadata;
 }
 
 export interface Report {
@@ -562,7 +570,8 @@ export interface StoreState {
       channelId?: string;
       visibility?: PostVisibility;
       isAnonymous?: boolean;
-    }
+    },
+    emotionAnalysis?: PostEmotionMetadata | null
   ) => void;
   updatePost: (
     postId: string,
@@ -3228,7 +3237,8 @@ export const useStore = create<StoreState>((set, get) => {
       channelId?: string;
       visibility?: PostVisibility;
       isAnonymous?: boolean;
-    }
+    },
+    emotionAnalysis?: PostEmotionMetadata | null
   ) => {
     const storeState = get();
     const isFirstPost = !storeState.firstPostAwarded;
@@ -3246,6 +3256,10 @@ export const useStore = create<StoreState>((set, get) => {
 
     const duration = lifetimeMap[lifetime];
     const expiresAt = duration !== null ? Date.now() + duration : null;
+
+    const normalizedEmotionAnalysis = emotionAnalysis
+      ? { ...emotionAnalysis, detectedAt: emotionAnalysis.detectedAt ?? Date.now() }
+      : undefined;
 
     const newPost: Post = {
       id: crypto.randomUUID(),
@@ -3292,6 +3306,7 @@ export const useStore = create<StoreState>((set, get) => {
       isAnonymous: communityMeta?.isAnonymous ?? false,
       archived: false,
       archivedAt: null,
+      emotionAnalysis: normalizedEmotionAnalysis,
     };
 
     set((state) => {
