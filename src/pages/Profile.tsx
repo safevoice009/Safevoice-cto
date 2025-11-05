@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useStore, NFT_BADGE_DEFINITIONS, NFT_BADGE_TIERS } from '../lib/store';
 import { User, Bookmark, MessageSquare, FileText, CheckCircle } from 'lucide-react';
 import PostCard from '../components/feed/PostCard';
@@ -7,9 +8,10 @@ import WalletSection from '../components/wallet/WalletSection';
 import RankChip from '../components/wallet/RankChip';
 import AchievementGrid from '../components/wallet/AchievementGrid';
 import AchievementProgress from '../components/wallet/AchievementProgress';
+import LanguageSettings from '../components/settings/LanguageSettings';
 import { ACHIEVEMENT_DEFINITIONS } from '../lib/tokens/AchievementService';
 
-type ProfileTab = 'overview' | 'wallet' | 'achievements';
+type ProfileTab = 'overview' | 'wallet' | 'achievements' | 'settings';
 
 export default function Profile() {
   const {
@@ -30,6 +32,7 @@ export default function Profile() {
   } = useStore();
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const hasVerifiedBadge = isPremiumActive('verified_badge');
+  const { t } = useTranslation();
 
   useEffect(() => {
     initializeStore();
@@ -126,7 +129,7 @@ export default function Profile() {
                 <FileText className="w-5 h-5 text-primary" />
                 <p className="text-2xl font-bold text-white">{myPosts.length}</p>
               </div>
-              <p className="text-sm text-gray-400">Posts</p>
+              <p className="text-sm text-gray-400">{t('profile.posts', 'Posts')}</p>
             </div>
 
             <div className="text-center">
@@ -134,7 +137,7 @@ export default function Profile() {
                 <MessageSquare className="w-5 h-5 text-primary" />
                 <p className="text-2xl font-bold text-white">{totalComments}</p>
               </div>
-              <p className="text-sm text-gray-400">Comments</p>
+              <p className="text-sm text-gray-400">{t('profile.comments', 'Comments')}</p>
             </div>
 
             <div className="text-center">
@@ -142,7 +145,7 @@ export default function Profile() {
                 <Bookmark className="w-5 h-5 text-primary" />
                 <p className="text-2xl font-bold text-white">{savedPosts.length}</p>
               </div>
-              <p className="text-sm text-gray-400">Saved</p>
+              <p className="text-sm text-gray-400">{t('profile.saved', 'Saved')}</p>
             </div>
           </div>
         </div>
@@ -157,7 +160,7 @@ export default function Profile() {
             }`}
             type="button"
           >
-            Profile Overview
+            {t('profile.profileOverview', 'Profile Overview')}
           </button>
           <button
             onClick={() => setActiveTab('achievements')}
@@ -168,7 +171,7 @@ export default function Profile() {
             }`}
             type="button"
           >
-            🏆 Achievements
+            🏆 {t('profile.achievements', 'Achievements')}
           </button>
           <button
             onClick={() => setActiveTab('wallet')}
@@ -179,7 +182,18 @@ export default function Profile() {
             }`}
             type="button"
           >
-            💰 Wallet
+            💰 {t('profile.wallet', 'Wallet')}
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              activeTab === 'settings'
+                ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                : 'bg-surface/50 text-gray-300 hover:text-white'
+            }`}
+            type="button"
+          >
+            ⚙️ {t('settings.title', 'Settings')}
           </button>
         </div>
 
@@ -222,6 +236,8 @@ export default function Profile() {
         )}
 
         {activeTab === 'wallet' && <WalletSection />}
+
+        {activeTab === 'settings' && <LanguageSettings />}
       </div>
     </motion.section>
   );

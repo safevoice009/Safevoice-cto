@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import '@rainbow-me/rainbowkit/styles.css';
 import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiConfig } from 'wagmi';
@@ -41,6 +42,7 @@ function AnimatedRoutes() {
   const loadWalletData = useStore((state) => state.loadWalletData);
   const grantDailyLoginBonus = useStore((state) => state.grantDailyLoginBonus);
   const lifecycleManagerRef = useRef<PostLifecycleManager | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const storedId = typeof window !== 'undefined' ? localStorage.getItem('studentId') : null;
@@ -67,7 +69,7 @@ function AnimatedRoutes() {
 
   const handleCrisisAcknowledge = (action: 'call_helpline' | 'continue') => {
     if (action === 'call_helpline') {
-      toast.success('Thank you for reaching out 💙');
+      toast.success(t('crisis.thankYou'));
     }
 
     if (pendingPost && pendingPost.moderationData) {
