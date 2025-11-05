@@ -63,6 +63,8 @@ export interface CommunityMembership {
   isMuted: boolean;
   isActive: boolean;
   isModerator: boolean;
+  channelUnreadCounts: Record<string, number>;
+  channelLastVisitedAt: Record<string, number>;
   bannedUntil?: number | null;
   banReason?: string | null;
   notificationPrefs: {

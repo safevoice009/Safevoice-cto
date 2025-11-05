@@ -25,10 +25,13 @@ export default function Communities() {
     currentCommunity,
     currentChannel,
     studentId,
+    posts,
+    communityMemberships,
     setCurrentCommunity,
     setCurrentChannel,
     initializeStore,
     toggleCommunityNotification,
+    toggleChannelNotification,
     leaveCommunity,
   } = useStore();
 
@@ -80,6 +83,12 @@ export default function Communities() {
     }
   };
 
+  const handleToggleChannelNotification = (channelId: string) => {
+    if (currentCommunity) {
+      toggleChannelNotification(currentCommunity, channelId);
+    }
+  };
+
   const handleLeaveCommunity = () => {
     if (currentCommunity) {
       leaveCommunity(currentCommunity);
@@ -89,6 +98,33 @@ export default function Communities() {
   const handleViewGuidelines = () => {
     navigate('/guidelines');
   };
+
+  // Compute channel unread counts based on posts
+  const channelUnreadCounts = activeCommunity
+    ? activeChannels.reduce((acc, channel) => {
+        // Count posts in this channel that the user hasn't seen (using a simple heuristic)
+        const membership = communityMemberships.find(
+          (m) => m.communityId === activeCommunity.id && m.studentId === studentId && m.isActive
+        );
+        
+        if (!membership) {
+          acc[channel.id] = 0;
+          return acc;
+        }
+
+        // Count posts created after last visit that aren't from current user
+        const channelPosts = posts.filter(
+          (p) =>
+            p.communityId === activeCommunity.id &&
+            p.channelId === channel.id &&
+            p.studentId !== studentId &&
+            p.createdAt > membership.lastVisitedAt
+        );
+
+        acc[channel.id] = channelPosts.length;
+        return acc;
+      }, {} as Record<string, number>)
+    : {};
 
   const showSkeleton = isLoading && communities.length === 0;
 
@@ -121,6 +157,8 @@ export default function Communities() {
                 activeChannelId={currentChannel}
                 onSelectChannel={handleChannelSelect}
                 onToggleNotification={handleToggleNotification}
+                onToggleChannelNotification={handleToggleChannelNotification}
+                channelUnreadCounts={channelUnreadCounts}
                 onLeaveCommunity={handleLeaveCommunity}
                 onViewGuidelines={handleViewGuidelines}
               />

@@ -2948,9 +2948,56 @@ export const useStore = create<StoreState>((set, get) => {
       archivedAt: null,
     };
 
-    set((state) => ({
-      posts: [newPost, ...state.posts],
-    }));
+    set((state) => {
+      const updatedPosts = [newPost, ...state.posts];
+      
+      // Update unread counts for community members if this is a community post
+      let updatedMemberships = state.communityMemberships;
+      if (newPost.communityId) {
+        const communitySettings = state.communityNotifications[newPost.communityId];
+        const shouldIncrementUnread = (membership: CommunityMembership) => {
+          // Don't increment for the post author
+          if (membership.studentId === storeState.studentId) return false;
+          
+          // Don't increment if member is not active
+          if (!membership.isActive) return false;
+          
+          // Don't increment if community is muted
+          if (membership.isMuted) return false;
+          
+          // Check notification settings
+          const settings = communitySettings || {
+            muteAll: false,
+            notifyOnPost: false,
+            channelOverrides: {},
+          };
+          
+          // Don't increment if community notifications are muted
+          if (settings.muteAll) return false;
+          
+          // Check channel-specific mute
+          if (newPost.channelId && settings.channelOverrides[newPost.channelId]) {
+            // Channel is explicitly unmuted (override is true)
+            return true;
+          }
+          
+          // If channel is not explicitly set, respect general post notifications
+          return settings.notifyOnPost;
+        };
+        
+        updatedMemberships = state.communityMemberships.map((m) => {
+          if (m.communityId === newPost.communityId && shouldIncrementUnread(m)) {
+            return { ...m, unreadCount: m.unreadCount + 1 };
+          }
+          return m;
+        });
+      }
+      
+      return {
+        posts: updatedPosts,
+        communityMemberships: updatedMemberships,
+      };
+    });
 
     if (isFirstPost && !storeState.firstPostAwarded) {
       set({ firstPostAwarded: true });
@@ -4590,6 +4637,8 @@ export const useStore = create<StoreState>((set, get) => {
           isActive: true,
           isModerator: state.isModerator,
           lastVisitedAt: now,
+          channelUnreadCounts: existingMembership.channelUnreadCounts ?? {},
+          channelLastVisitedAt: existingMembership.channelLastVisitedAt ?? {},
         }
       : {
           id: crypto.randomUUID(),
@@ -4602,6 +4651,8 @@ export const useStore = create<StoreState>((set, get) => {
           isMuted: false,
           isActive: true,
           isModerator: state.isModerator,
+          channelUnreadCounts: {},
+          channelLastVisitedAt: {},
           notificationPrefs: {
             posts: false,
             mentions: true,
