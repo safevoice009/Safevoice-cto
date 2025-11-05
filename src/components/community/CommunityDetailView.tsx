@@ -23,6 +23,8 @@ interface CommunityDetailViewProps {
   activeChannelId: string | null;
   onSelectChannel: (channelId: string) => void;
   onToggleNotification: (setting: 'notifyOnPost' | 'notifyOnMention' | 'notifyOnReply' | 'muteAll') => void;
+  onToggleChannelNotification?: (channelId: string) => void;
+  channelUnreadCounts?: Record<string, number>;
   onLeaveCommunity: () => void;
   onViewGuidelines: () => void;
 }
@@ -36,6 +38,8 @@ export default function CommunityDetailView({
   activeChannelId,
   onSelectChannel,
   onToggleNotification,
+  onToggleChannelNotification,
+  channelUnreadCounts,
   onLeaveCommunity,
   onViewGuidelines,
 }: CommunityDetailViewProps) {
@@ -62,6 +66,10 @@ export default function CommunityDetailView({
         postsMeta={postsMeta}
         activeChannelId={activeChannelId}
         onSelectChannel={onSelectChannel}
+        communityId={community.id}
+        notificationSettings={notificationSettings}
+        onToggleChannelNotification={onToggleChannelNotification}
+        unreadCounts={channelUnreadCounts}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr),minmax(0,1fr)]">

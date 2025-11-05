@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, CheckCircle, MailOpen } from 'lucide-react';
+import { Bell, CheckCircle, MailOpen, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../lib/store';
 import { formatTimeAgo, getStudentIdColor } from '../../lib/utils';
+import NotificationPreferencesModal from '../community/NotificationPreferencesModal';
 
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isPrefsOpen, setIsPrefsOpen] = useState(false);
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useStore();
   const navigate = useNavigate();
 
@@ -102,11 +104,22 @@ export default function NotificationDropdown() {
 
             <div className="flex items-center justify-between border-t border-white/10 pt-3 text-xs text-gray-400">
               <button className="hover:text-primary transition-colors">View All</button>
-              <button className="hover:text-primary transition-colors">Settings</button>
+              <button
+                className="flex items-center gap-1 hover:text-primary transition-colors"
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsPrefsOpen(true);
+                }}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                <span>Preferences</span>
+              </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      <NotificationPreferencesModal isOpen={isPrefsOpen} onClose={() => setIsPrefsOpen(false)} />
     </div>
   );
 }
