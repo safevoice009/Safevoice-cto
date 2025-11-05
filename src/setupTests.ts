@@ -49,3 +49,45 @@ Object.defineProperty(window, 'scrollTo', {
   writable: true,
   value: () => {},
 });
+
+// Vitest/jsdom do not implement the streaming TextEncoder/TextDecoder interfaces that OpenPGP relies on.
+// We provide minimal polyfills that satisfy the required behaviour.
+type StreamingTextEncoder = {
+  encode: (input?: string, options?: { stream?: boolean }) => Uint8Array;
+};
+
+if (typeof globalThis.TextEncoder === 'undefined' || (() => {
+  try {
+    const encoder = new globalThis.TextEncoder() as unknown as StreamingTextEncoder;
+    const result = encoder.encode('test', { stream: true });
+    return !(result instanceof Uint8Array);
+  } catch {
+    return true;
+  }
+})()) {
+  class PatchedTextEncoder {
+    encode(input: string = ''): Uint8Array {
+      return new Uint8Array(Buffer.from(input, 'utf-8'));
+    }
+
+    encodeInto(source: string, destination: Uint8Array): { read: number; written: number } {
+      const bytes = Buffer.from(source, 'utf-8');
+      destination.set(bytes);
+      return { read: source.length, written: bytes.length };
+    }
+  }
+
+  // @ts-expect-error - override global TextEncoder for test environment
+  globalThis.TextEncoder = PatchedTextEncoder;
+}
+
+if (typeof globalThis.TextDecoder === 'undefined') {
+  class PatchedTextDecoder {
+    decode(input: BufferSource = new Uint8Array()): string {
+      return Buffer.from(input instanceof Uint8Array ? input : new Uint8Array(input as ArrayBuffer)).toString('utf-8');
+    }
+  }
+
+  // @ts-expect-error - override global TextDecoder for test environment
+  globalThis.TextDecoder = PatchedTextDecoder;
+}
