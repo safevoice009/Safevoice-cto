@@ -9,6 +9,7 @@ import RankChip from '../components/wallet/RankChip';
 import AchievementGrid from '../components/wallet/AchievementGrid';
 import AchievementProgress from '../components/wallet/AchievementProgress';
 import LanguageSettings from '../components/settings/LanguageSettings';
+import PrivacySettings from '../components/settings/PrivacySettings';
 import { ACHIEVEMENT_DEFINITIONS } from '../lib/tokens/AchievementService';
 
 type ProfileTab = 'overview' | 'wallet' | 'achievements' | 'settings';
@@ -237,7 +238,12 @@ export default function Profile() {
 
         {activeTab === 'wallet' && <WalletSection />}
 
-        {activeTab === 'settings' && <LanguageSettings />}
+        {activeTab === 'settings' && (
+          <div className="space-y-6">
+            <LanguageSettings />
+            <PrivacySettings />
+          </div>
+        )}
       </div>
     </motion.section>
   );

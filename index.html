@@ -8,6 +8,35 @@
       name="description"
       content="SafeVoice - India's first decentralized student platform for anonymous stories, crisis support, and safe communities."
     />
+    
+    <!-- Security & Privacy Headers -->
+    <!-- Content Security Policy: Restrict resources to trusted sources -->
+    <meta 
+      http-equiv="Content-Security-Policy" 
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://eth-mainnet.g.alchemy.com https://polygon-mainnet.g.alchemy.com https://rpc.ankr.com https://cloudflare-eth.com https://*.infura.io wss://eth-mainnet.g.alchemy.com wss://polygon-mainnet.g.alchemy.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+    />
+    
+    <!-- Referrer Policy: Don't leak referrer information -->
+    <meta name="referrer" content="no-referrer" />
+    
+    <!-- Strict-Transport-Security: Enforce HTTPS -->
+    <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains" />
+    
+    <!-- Subresource Integrity indicator: document requirement for future external assets -->
+    <meta name="subresource-integrity" content="require-sri-for script style" />
+    
+    <!-- Permissions Policy: Disable unnecessary browser features -->
+    <meta 
+      http-equiv="Permissions-Policy" 
+      content="geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+    />
+    
+    <!-- X-Content-Type-Options: Prevent MIME type sniffing -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    
+    <!-- X-Frame-Options: Prevent clickjacking -->
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    
     <title>SafeVoice | Your Anonymous Voice Matters</title>
     <script>
       (function () {
