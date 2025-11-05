@@ -167,9 +167,16 @@ For comprehensive guides and technical details:
 - ✅ **100% Anonymous** - No personal information collected
 - ✅ **Local-first storage** - All data stays in your browser
 - ✅ **No tracking** - No IP logging or user behavior monitoring
+- ✅ **No cookies** - Zero cookies set by the application
+- ✅ **No third-party scripts** - No analytics, trackers, or external dependencies
+- ✅ **WebRTC IP leak protection** - Prevents IP address exposure
+- ✅ **Fingerprint defenses** - Active protection against browser fingerprinting
+- ✅ **End-to-end encryption** - Optional AES-GCM-256 for sensitive content
 - ✅ **Content moderation** - Automatic profanity, spam, and personal info detection
 - ✅ **Crisis intervention** - Immediate support resources for mental health emergencies
 - ✅ **Report system** - Community-driven content moderation with transparency
+
+**Privacy Testing**: SafeVoice includes comprehensive automated privacy tests and manual audit checklists. See [Privacy Audit Checklist](./docs/PRIVACY_AUDIT_CHECKLIST.md) for testing procedures and browser extension tools.
 
 ## 🪙 Reward Engine & Token Economy
 
@@ -331,6 +338,9 @@ npm run test:ui
 
 # Generate coverage report
 npm run test:coverage
+
+# Run privacy audit tests
+npm run test:privacy
 
 # Run tests in watch mode
 npm test -- --watch
