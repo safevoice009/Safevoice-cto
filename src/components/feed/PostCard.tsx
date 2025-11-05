@@ -20,6 +20,9 @@ import {
   Hash,
   Building2,
   Eye,
+  Database,
+  ExternalLink,
+  CheckCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Post } from '../../lib/store';
@@ -34,6 +37,7 @@ import {
   parseMarkdown,
 } from '../../lib/utils';
 import { decryptContent, encryptContent } from '../../lib/encryption';
+import { getIPFSGatewayUrl, verifyIPFSContent } from '../../lib/ipfs';
 import ReactionBar from './ReactionBar';
 import CommentSection from './CommentSection';
 import ReportModal from './ReportModal';
@@ -70,6 +74,8 @@ export default function PostCard({ post }: PostCardProps) {
   const [crossCampusLabel, setCrossCampusLabel] = useState<string | null>(
     formatTimeRemaining(post.crossCampusUntil ?? null)
   );
+  const [isVerifyingIPFS, setIsVerifyingIPFS] = useState(false);
+  const [ipfsVerified, setIpfsVerified] = useState<boolean | null>(null);
 
   const {
     studentId,
@@ -255,6 +261,28 @@ export default function PostCard({ post }: PostCardProps) {
   const handleCrossCampusBoost = () => {
     const defaultCampuses = post.crossCampusBoosts?.length ? post.crossCampusBoosts : ['global'];
     boostToCampuses(post.id, defaultCampuses);
+  };
+
+  const handleVerifyIPFS = async () => {
+    if (!post.ipfsCid) return;
+
+    setIsVerifyingIPFS(true);
+    try {
+      const content = post.isEncrypted ? decryptedContent : post.content;
+      const verified = await verifyIPFSContent(post.ipfsCid, content);
+      setIpfsVerified(verified);
+      if (verified) {
+        toast.success('Content verified on IPFS! ✓');
+      } else {
+        toast.error('Content verification failed. The content may have been modified.');
+      }
+    } catch (error) {
+      console.error('IPFS verification error:', error);
+      toast.error('Failed to verify content on IPFS.');
+      setIpfsVerified(false);
+    } finally {
+      setIsVerifyingIPFS(false);
+    }
   };
 
   const totalReactions = Object.values(post.reactions).reduce((sum, count) => sum + count, 0);
@@ -487,34 +515,81 @@ export default function PostCard({ post }: PostCardProps) {
                 )}
               </div>
               {/* Community and Channel Badges */}
-              {(postCommunity || postChannel || visibilityLabel || post.isAnonymous) && (
-                <div className="flex items-center gap-2 flex-wrap mt-1">
-                  {postCommunity && (
-                    <span className="flex items-center gap-1 text-xs text-cyan-300 bg-cyan-500/15 px-2 py-0.5 rounded-full">
-                      <Building2 className="w-3 h-3" />
-                      {postCommunity.shortCode}
-                    </span>
-                  )}
-                  {postChannel && (
-                    <span className="flex items-center gap-1 text-xs text-blue-300 bg-blue-500/15 px-2 py-0.5 rounded-full">
-                      <Hash className="w-3 h-3" />
-                      {postChannel.name.toLowerCase()}
-                    </span>
-                  )}
-                  {visibilityLabel && (
-                    <span className="flex items-center gap-1 text-xs text-gray-300 bg-gray-500/15 px-2 py-0.5 rounded-full">
-                      <Eye className="w-3 h-3" />
-                      {visibilityLabel}
-                    </span>
-                  )}
-                  {post.isAnonymous && (
-                    <span className="text-xs text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded-full">
-                      🎭 Anonymous
-                    </span>
-                  )}
-                </div>
+              {(postCommunity || postChannel || visibilityLabel || post.isAnonymous || post.ipfsCid) && (
+               <div className="flex items-center gap-2 flex-wrap mt-1">
+                 {postCommunity && (
+                   <span className="flex items-center gap-1 text-xs text-cyan-300 bg-cyan-500/15 px-2 py-0.5 rounded-full">
+                     <Building2 className="w-3 h-3" />
+                     {postCommunity.shortCode}
+                   </span>
+                 )}
+                 {postChannel && (
+                   <span className="flex items-center gap-1 text-xs text-blue-300 bg-blue-500/15 px-2 py-0.5 rounded-full">
+                     <Hash className="w-3 h-3" />
+                     {postChannel.name.toLowerCase()}
+                   </span>
+                 )}
+                 {visibilityLabel && (
+                   <span className="flex items-center gap-1 text-xs text-gray-300 bg-gray-500/15 px-2 py-0.5 rounded-full">
+                     <Eye className="w-3 h-3" />
+                     {visibilityLabel}
+                   </span>
+                 )}
+                 {post.isAnonymous && (
+                   <span className="text-xs text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded-full">
+                     🎭 Anonymous
+                   </span>
+                 )}
+                 {post.ipfsCid && (
+                   <span className="flex items-center gap-1 text-xs text-green-300 bg-green-500/15 px-2 py-0.5 rounded-full">
+                     <Database className="w-3 h-3" />
+                     Decentralized
+                   </span>
+                 )}
+               </div>
               )}
             </div>
+
+            {post.ipfsCid && (
+              <div className="mt-3 space-y-2">
+                <div className="inline-flex items-center gap-1 text-xs text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-full">
+                  <Database className="w-3 h-3" />
+                  <span>Decentralized storage</span>
+                  {ipfsVerified && (
+                    <CheckCircle className="w-3 h-3 text-emerald-300" />
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-400">
+                  <span className="break-all">CID: {post.ipfsCid}</span>
+                  <a
+                    href={getIPFSGatewayUrl(post.ipfsCid)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-emerald-200 hover:text-emerald-100 transition-colors"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span>Open</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={handleVerifyIPFS}
+                    disabled={isVerifyingIPFS}
+                    className="inline-flex items-center gap-1 rounded bg-emerald-500/20 px-2 py-1 text-[11px] text-emerald-100 transition-colors hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isVerifyingIPFS ? (
+                      <span className="w-3 h-3 border-2 border-emerald-200 border-t-transparent rounded-full animate-spin" />
+                    ) : ipfsVerified ? (
+                      <CheckCircle className="w-3 h-3" />
+                    ) : (
+                      <Database className="w-3 h-3" />
+                    )}
+                    <span>
+                      {isVerifyingIPFS ? 'Verifying...' : ipfsVerified ? 'Verified' : 'Verify'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {isOwnPost && !isEditing && (

@@ -95,6 +95,7 @@ export interface AddPostPayload {
   channelId?: string | null;
   visibility?: PostVisibility;
   isAnonymous?: boolean;
+  ipfsCid?: string | null;
   encryptionData?: {
     encrypted: string;
     iv: string;
@@ -203,6 +204,7 @@ export interface Post {
   archived?: boolean;
   archivedAt?: number | null;
   emotionAnalysis?: PostEmotionMetadata;
+  ipfsCid?: string | null;
 }
 
 export interface Report {
@@ -548,6 +550,7 @@ export interface StoreState {
    * @param moderationData - Pre-moderation results (issues, blur, crisis flags)
    * @param imageUrl - Optional image attachment URL
    * @param communityMeta - Optional community context (communityId, channelId, visibility, isAnonymous)
+   * @param ipfsCid - Optional IPFS content identifier if content was stored on IPFS
    */
   addPost: (
     content: string,
@@ -571,7 +574,8 @@ export interface StoreState {
       visibility?: PostVisibility;
       isAnonymous?: boolean;
     },
-    emotionAnalysis?: PostEmotionMetadata | null
+    emotionAnalysis?: PostEmotionMetadata | null,
+    ipfsCid?: string
   ) => void;
   updatePost: (
     postId: string,
@@ -3238,7 +3242,8 @@ export const useStore = create<StoreState>((set, get) => {
       visibility?: PostVisibility;
       isAnonymous?: boolean;
     },
-    emotionAnalysis?: PostEmotionMetadata | null
+    emotionAnalysis?: PostEmotionMetadata | null,
+    ipfsCid?: string
   ) => {
     const storeState = get();
     const isFirstPost = !storeState.firstPostAwarded;
@@ -3307,6 +3312,7 @@ export const useStore = create<StoreState>((set, get) => {
       archived: false,
       archivedAt: null,
       emotionAnalysis: normalizedEmotionAnalysis,
+      ipfsCid: ipfsCid ?? null,
     };
 
     set((state) => {
