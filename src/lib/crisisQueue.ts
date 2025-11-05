@@ -417,7 +417,7 @@ export class CrisisQueueService {
     crisisLevel: 'high' | 'critical',
     options?: { postId?: string | null; ttl?: number; metadata?: CrisisRequest['metadata'] }
   ): Promise<CrisisRequest> {
-    const ttl = Math.max(options?.ttl ?? FIFTEEN_MINUTES_MS, 60 * 1000); // minimum 1 minute safeguard
+    const ttl = Math.max(options?.ttl ?? FIFTEEN_MINUTES_MS, 60 * 1000);
     const timestamp = Date.now();
 
     const request: CrisisRequest = {
