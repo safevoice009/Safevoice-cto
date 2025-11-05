@@ -24,6 +24,8 @@ import type {
   PostVisibility,
 } from './communities/types';
 import { createDefaultCommunities } from './communities/defaults';
+import type { FingerprintDefenseSettings } from './privacy/fingerprint';
+import { DEFAULT_FINGERPRINT_SETTINGS, syncFingerprintDefenses } from './privacy/fingerprint';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -496,6 +498,14 @@ export interface StoreState {
   dismissEmergencyBanner: () => void;
   checkEmergencyBannerStatus: () => void;
 
+  // Privacy & Fingerprint Defense
+  fingerprintDefenseSettings: FingerprintDefenseSettings;
+  updateFingerprintDefenseSetting: <K extends keyof FingerprintDefenseSettings>(
+    key: K,
+    value: FingerprintDefenseSettings[K]
+  ) => void;
+  resetFingerprintDefenseSettings: () => void;
+
   // Initialization
   initStudentId: () => void;
   initializeStore: () => void;
@@ -826,6 +836,7 @@ const STORAGE_KEYS = {
   COMMUNITY_STATE_VERSION: 'safevoice_community_state_version', // Versioning for community data migrations
   CURRENT_COMMUNITY: 'safevoice_current_community',     // Last selected community
   CURRENT_CHANNEL: 'safevoice_current_channel',         // Last selected channel within community
+  FINGERPRINT_DEFENSE: 'safevoice_fingerprint_settings', // Fingerprint defense preferences
 };
 
 const COMMUNITY_STATE_VERSION = 1;
@@ -1141,6 +1152,28 @@ const getEmergencyBannerDismissedUntil = (): number | null => {
     return null;
   }
   return parsed;
+};
+
+const getFingerprintDefenseSettings = (): FingerprintDefenseSettings => {
+  if (typeof window === 'undefined') return DEFAULT_FINGERPRINT_SETTINGS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FINGERPRINT_DEFENSE);
+    if (!raw) return DEFAULT_FINGERPRINT_SETTINGS;
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_FINGERPRINT_SETTINGS, ...parsed };
+  } catch (error) {
+    console.error('Failed to parse fingerprint defense settings:', error);
+    return DEFAULT_FINGERPRINT_SETTINGS;
+  }
+};
+
+const persistFingerprintDefenseSettings = (settings: FingerprintDefenseSettings): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.FINGERPRINT_DEFENSE, JSON.stringify(settings));
+  } catch (error) {
+    console.error('Failed to persist fingerprint defense settings:', error);
+  }
 };
 
 type ReferralStorageState = {
@@ -1617,6 +1650,11 @@ export const useStore = create<StoreState>((set, get) => {
     typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.CURRENT_COMMUNITY) : null;
   const initialCurrentChannel =
     typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.CURRENT_CHANNEL) : null;
+  const initialFingerprintSettings = getFingerprintDefenseSettings();
+
+  if (typeof window !== 'undefined') {
+    syncFingerprintDefenses(initialFingerprintSettings);
+  }
 
   const clearBoostTimeout = (postId: string, type: BoostType) => {
     if (typeof window === 'undefined') return;
@@ -1740,6 +1778,20 @@ export const useStore = create<StoreState>((set, get) => {
     memorialTributes: [],
     communityEvents: typeof window !== 'undefined' ? readStoredCommunityEvents() : createDefaultCommunityEvents(),
     nftBadges: initialNFTBadges,
+    fingerprintDefenseSettings: initialFingerprintSettings,
+    updateFingerprintDefenseSetting: (key, value) => {
+      set((state) => {
+        const updatedSettings = { ...state.fingerprintDefenseSettings, [key]: value };
+        persistFingerprintDefenseSettings(updatedSettings);
+        syncFingerprintDefenses(updatedSettings);
+        return { fingerprintDefenseSettings: updatedSettings };
+      });
+    },
+    resetFingerprintDefenseSettings: () => {
+      persistFingerprintDefenseSettings(DEFAULT_FINGERPRINT_SETTINGS);
+      syncFingerprintDefenses(DEFAULT_FINGERPRINT_SETTINGS);
+      set({ fingerprintDefenseSettings: DEFAULT_FINGERPRINT_SETTINGS });
+    },
 
     // Community moderation state
     communityAnnouncements: [],
