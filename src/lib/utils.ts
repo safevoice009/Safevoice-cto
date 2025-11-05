@@ -211,3 +211,21 @@ export function getTimerBgColor(color: string): string {
   };
   return colorMap[color] || 'bg-gray-500/10 border-gray-500/20';
 }
+
+export async function sha256(input: string): Promise<string> {
+  if (typeof window === 'undefined' || !window.crypto?.subtle) {
+    const buffer = new TextEncoder().encode(input);
+    let hash = 0;
+    for (let i = 0; i < buffer.length; i += 1) {
+      hash = (hash << 5) - hash + buffer[i]!;
+      hash |= 0;
+    }
+    return hash.toString(16).padStart(64, '0').slice(0, 64);
+  }
+
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}

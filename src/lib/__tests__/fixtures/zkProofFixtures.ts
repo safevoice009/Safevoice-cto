@@ -1,0 +1,72 @@
+export const mockVerificationKey = {
+  protocol: 'groth16',
+  curve: 'bn128',
+  vk_alpha_1: ['0x1', '0x0', '0x1'],
+  vk_beta_2: [
+    ['0x1', '0x0'],
+    ['0x0', '0x1'],
+    ['0x0', '0x0'],
+  ],
+  vk_gamma_2: [
+    ['0x1', '0x0'],
+    ['0x0', '0x1'],
+    ['0x0', '0x0'],
+  ],
+  vk_delta_2: [
+    ['0x1', '0x0'],
+    ['0x0', '0x1'],
+    ['0x0', '0x0'],
+  ],
+  vk_alphabeta_12: [
+    [
+      ['0x1', '0x0'],
+      ['0x0', '0x1'],
+      ['0x0', '0x0'],
+    ],
+    [
+      ['0x1', '0x0'],
+      ['0x0', '0x1'],
+      ['0x0', '0x0'],
+    ],
+    [
+      ['0x1', '0x0'],
+      ['0x0', '0x1'],
+      ['0x0', '0x0'],
+    ],
+  ],
+  IC: [
+    ['0x1', '0x0', '0x1'],
+    ['0x2', '0x0', '0x1'],
+    ['0x3', '0x0', '0x1'],
+  ],
+};
+
+export const mockProofResponse = {
+  proof: {
+    pi_a: ['0x123', '0x456', '0x789'],
+    pi_b: [
+      ['0xabc', '0xdef'],
+      ['0x111', '0x222'],
+      ['0x333', '0x444'],
+    ],
+    pi_c: ['0x555', '0x666', '0x777'],
+    protocol: 'groth16',
+    curve: 'bn128',
+  },
+  publicSignals: ['commitment-hash', 'nullifier-hash'],
+};
+
+export const mockInvalidProofResponse = {
+  proof: {
+    pi_a: ['0x0', '0x0', '0x0'],
+    pi_b: [
+      ['0x0', '0x0'],
+      ['0x0', '0x0'],
+      ['0x0', '0x0'],
+    ],
+    pi_c: ['0x0', '0x0', '0x0'],
+    protocol: 'groth16',
+    curve: 'bn128',
+  },
+  publicSignals: ['invalid-commitment', 'invalid-nullifier'],
+};
