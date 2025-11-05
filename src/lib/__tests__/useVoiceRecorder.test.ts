@@ -10,6 +10,7 @@ import {
 } from 'vitest';
 
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 class MockSpeechRecognition {
   static instances: MockSpeechRecognition[] = [];
@@ -140,9 +141,9 @@ describe('useVoiceRecorder', () => {
     } as unknown as MediaStream;
 
     mockGetUserMedia = vi.fn().mockResolvedValue(mockStream);
-    (navigator as unknown as { mediaDevices?: MediaDevices }).mediaDevices = {
+    (navigator as any).mediaDevices = {
       getUserMedia: mockGetUserMedia,
-    } as MediaDevices;
+    } as any;
 
     (window as any).MediaRecorder = MockMediaRecorder;
     (window as any).AudioContext = MockAudioContext;
@@ -660,6 +661,7 @@ describe('useVoiceRecorder', () => {
 
     await startPromise;
 
-    expect(abortSignal?.aborted).toBe(true);
+    expect(abortSignal).not.toBeNull();
+    expect(abortSignal!.aborted).toBe(true);
   });
 });
