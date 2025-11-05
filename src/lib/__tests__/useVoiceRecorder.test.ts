@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { act, renderHook } from '@testing-library/react';
 import {
   afterEach,
@@ -142,7 +143,7 @@ describe('useVoiceRecorder', () => {
     mockGetUserMedia = vi.fn().mockResolvedValue(mockStream);
     (navigator as unknown as { mediaDevices?: MediaDevices }).mediaDevices = {
       getUserMedia: mockGetUserMedia,
-    } as MediaDevices;
+    } as unknown as MediaDevices;
 
     (window as any).MediaRecorder = MockMediaRecorder;
     (window as any).AudioContext = MockAudioContext;
@@ -632,7 +633,7 @@ describe('useVoiceRecorder', () => {
   it('aborts fallback transcription on stop', async () => {
     delete (window as any).webkitSpeechRecognition;
 
-    let abortSignal: AbortSignal | null = null;
+    let abortSignal: AbortSignal | undefined;
     const fallbackTranscribe = vi.fn((signal: AbortSignal) => {
       abortSignal = signal;
       return new Promise<string>((resolve) => {
@@ -660,6 +661,7 @@ describe('useVoiceRecorder', () => {
 
     await startPromise;
 
-    expect(abortSignal?.aborted).toBe(true);
+    const aborted = abortSignal ? abortSignal.aborted : false;
+    expect(aborted).toBe(true);
   });
 });
