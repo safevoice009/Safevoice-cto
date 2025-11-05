@@ -7,5 +7,12 @@ export default defineConfig(({ mode }) => ({
   base: mode === 'production' ? '/Safevoice-cto/' : '/',
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          openpgp: ['openpgp'],
+        },
+      },
+    },
   },
 }))

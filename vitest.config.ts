@@ -40,6 +40,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Use browser build of OpenPGP in jsdom test environment
+      'openpgp': path.resolve(__dirname, './node_modules/openpgp/dist/openpgp.mjs'),
     },
   },
 });

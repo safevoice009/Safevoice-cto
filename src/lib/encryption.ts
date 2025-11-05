@@ -2,6 +2,24 @@
  * Encryption utilities using Web Crypto API (AES-GCM-256)
  */
 
+// Discriminated union types for AES vs. PGP payloads
+export interface AESEncryptedData {
+  type: 'aes';
+  encrypted: string;
+  iv: string;
+  key: JsonWebKey;
+  keyId: string;
+}
+
+export interface PGPEncryptedData {
+  type: 'pgp';
+  encrypted: string;
+  publicKeyArmored?: string;
+}
+
+export type EncryptedPayload = AESEncryptedData | PGPEncryptedData;
+
+// Legacy type for backward compatibility
 export interface EncryptedData {
   encrypted: string;
   iv: string;
