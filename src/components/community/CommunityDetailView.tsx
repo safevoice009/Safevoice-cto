@@ -5,7 +5,10 @@ import type {
   CommunityPostMeta,
   CommunityNotificationSettings,
   CommunityActivity,
+  CommunityMembership,
 } from '../../lib/communities/types';
+import type { Post } from '../../lib/store';
+import type { StreakData } from '../../lib/tokens/RewardEngine';
 import CommunityHeader from './CommunityHeader';
 import CommunityChannelTabs from './CommunityChannelTabs';
 import CommunitySidebar from './CommunitySidebar';
@@ -27,6 +30,11 @@ interface CommunityDetailViewProps {
   channelUnreadCounts?: Record<string, number>;
   onLeaveCommunity: () => void;
   onViewGuidelines: () => void;
+  memberships: CommunityMembership[];
+  posts: Post[];
+  getVoiceBalance: (studentId: string) => number;
+  getStreakData: (studentId: string) => StreakData;
+  currentUserId: string;
 }
 
 export default function CommunityDetailView({
@@ -42,6 +50,11 @@ export default function CommunityDetailView({
   channelUnreadCounts,
   onLeaveCommunity,
   onViewGuidelines,
+  memberships,
+  posts,
+  getVoiceBalance,
+  getStreakData,
+  currentUserId,
 }: CommunityDetailViewProps) {
   const activeChannel = channels.find((channel) => channel.id === activeChannelId) ?? null;
   const channelMeta = activeChannelId ? postsMeta[activeChannelId] : null;
@@ -85,14 +98,30 @@ export default function CommunityDetailView({
 
         <aside className="space-y-6 hidden lg:block">
           <ActivityHeatmap activity={communityActivity} channelId={activeChannel?.id} />
-          <CommunitySidebar community={community} channelMeta={channelMeta} />
+          <CommunitySidebar 
+            community={community} 
+            channelMeta={channelMeta}
+            memberships={memberships}
+            posts={posts}
+            getVoiceBalance={getVoiceBalance}
+            getStreakData={getStreakData}
+            currentUserId={currentUserId}
+          />
         </aside>
       </div>
 
       {/* Mobile sidebar */}
       <div className="space-y-6 lg:hidden">
         <ActivityHeatmap activity={communityActivity} channelId={activeChannel?.id} />
-        <CommunitySidebar community={community} channelMeta={channelMeta} />
+        <CommunitySidebar 
+          community={community} 
+          channelMeta={channelMeta}
+          memberships={memberships}
+          posts={posts}
+          getVoiceBalance={getVoiceBalance}
+          getStreakData={getStreakData}
+          currentUserId={currentUserId}
+        />
       </div>
     </div>
   );
