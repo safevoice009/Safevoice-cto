@@ -207,6 +207,46 @@ export interface Post {
   ipfsCid?: string | null;
 }
 
+export type CrisisQueueStatus = 'pending' | 'broadcasted' | 'acknowledged' | 'resolved';
+
+export type CrisisQueueSource = 'automatic' | 'report' | 'manual';
+
+export type CrisisBroadcastStatus = 'idle' | 'broadcasting' | 'error';
+
+export interface CrisisQueueEntry {
+  id: string;
+  postId: string;
+  authorId: string;
+  detectedAt: number;
+  severity: 'high' | 'critical';
+  status: CrisisQueueStatus;
+  source: CrisisQueueSource;
+  broadcastAttempts: number;
+  lastBroadcastAt: number | null;
+  lastError: string | null;
+  message: string | null;
+  metadata: Record<string, unknown> | null;
+  ipfsCid: string | null;
+  communityId: string | null;
+  channelId: string | null;
+  postPreview: string | null;
+  fallbackUsed: boolean;
+  fallbackReason: string | null;
+  acknowledgedBy: string | null;
+  acknowledgedAt: number | null;
+  resolvedBy: string | null;
+  resolvedAt: number | null;
+  resolutionNote: string | null;
+}
+
+export interface CrisisBroadcastMetrics {
+  successCount: number;
+  failureCount: number;
+  lastSuccessAt: number | null;
+  lastFailureAt: number | null;
+  lastSyncAt: number | null;
+}
+
 export interface Report {
   id: string;
   postId?: string;
@@ -514,8 +554,29 @@ export interface StoreState {
   // Crisis support
   showCrisisModal: boolean;
   pendingPost: AddPostPayload | null;
+  crisisQueue: CrisisQueueEntry[];
+  crisisBroadcastStatus: CrisisBroadcastStatus;
+  crisisBroadcastError: string | null;
+  crisisBroadcastMetrics: CrisisBroadcastMetrics;
   setShowCrisisModal: (show: boolean) => void;
   setPendingPost: (post: AddPostPayload | null) => void;
+  enqueueCrisisEvent: (options: {
+    post: Post;
+    severity?: 'high' | 'critical';
+    source?: CrisisQueueSource;
+    message?: string | null;
+    metadata?: Record<string, unknown>;
+  }) => Promise<void>;
+  acknowledgeCrisisEvent: (entryId: string, moderatorId?: string) => void;
+  resolveCrisisEvent: (
+    entryId: string,
+    resolution?: {
+      resolvedBy?: string;
+      note?: string;
+    }
+  ) => void;
+  retryCrisisBroadcast: () => Promise<void>;
+  removeCrisisEvent: (entryId: string) => void;
 
   // Saved helplines
   savedHelplines: string[];
@@ -880,6 +941,9 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'safevoice_notifications',            // User notifications
   ENCRYPTION_KEYS: 'safevoice_encryption_keys',        // End-to-end encryption keys
   SAVED_HELPLINES: 'safevoice_saved_helplines',        // User-saved crisis helplines
+  CRISIS_QUEUE: 'safevoice_crisis_queue',              // Crisis queue entries awaiting support
+  CRISIS_QUEUE_META: 'safevoice_crisis_queue_meta',    // Crisis broadcast metrics and sync data
+  CRISIS_BROADCAST_SHADOW: 'safevoice_crisis_broadcast_shadow', // Last broadcast payload for fallback sync
   EMERGENCY_BANNER: 'emergencyBannerDismissed',        // Emergency banner dismissal timestamp
   ANON_WALLET_ADDRESS: 'anonWallet_address',           // Anonymous wallet address
   ANON_WALLET_ENCRYPTED_KEY: 'anonWallet_encrypted',   // Encrypted wallet private key
@@ -907,6 +971,262 @@ const STORAGE_KEYS = {
   MENTEE_REQUESTS: 'safevoice_mentee_requests',         // Mentee requests
   MENTORSHIP_MATCHES: 'safevoice_mentorship_matches',   // Active/past matches
   MENTORSHIP_WEIGHTS: 'safevoice_mentorship_weights',   // Custom matching weights
+};
+
+const CRISIS_QUEUE_STORAGE_VERSION = 1;
+const MAX_CRISIS_QUEUE_ENTRIES = 50;
+
+const DEFAULT_CRISIS_BROADCAST_METRICS: CrisisBroadcastMetrics = {
+  successCount: 0,
+  failureCount: 0,
+  lastSuccessAt: null,
+  lastFailureAt: null,
+  lastSyncAt: null,
+};
+
+type SafevoiceWindow = Window & {
+  safevoice?: {
+    supabase?: {
+      broadcastCrisisUpdate?: (entry: CrisisQueueEntry) => Promise<void>;
+    };
+  };
+};
+
+const isCrisisStatus = (value: unknown): value is CrisisQueueStatus =>
+  value === 'pending' || value === 'broadcasted' || value === 'acknowledged' || value === 'resolved';
+
+const isCrisisSource = (value: unknown): value is CrisisQueueSource =>
+  value === 'automatic' || value === 'report' || value === 'manual';
+
+const sanitizeNullableString = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim().length > 0 ? value : null;
+
+const normalizeCrisisQueueEntry = (raw: Partial<CrisisQueueEntry>): CrisisQueueEntry | null => {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const postId = sanitizeNullableString(raw.postId);
+  if (!postId) {
+    return null;
+  }
+
+  const id = sanitizeNullableString(raw.id) ?? crypto.randomUUID();
+  const authorId = sanitizeNullableString(raw.authorId) ?? 'unknown';
+  const detectedAt =
+    typeof raw.detectedAt === 'number' && Number.isFinite(raw.detectedAt) ? raw.detectedAt : Date.now();
+  const severity: 'high' | 'critical' = raw.severity === 'critical' ? 'critical' : 'high';
+  const status: CrisisQueueStatus = isCrisisStatus(raw.status) ? raw.status : 'pending';
+  const source: CrisisQueueSource = isCrisisSource(raw.source) ? raw.source : 'automatic';
+  const broadcastAttempts =
+    typeof raw.broadcastAttempts === 'number' && Number.isFinite(raw.broadcastAttempts) && raw.broadcastAttempts >= 0
+      ? Math.floor(raw.broadcastAttempts)
+      : 0;
+  const lastBroadcastAt =
+    typeof raw.lastBroadcastAt === 'number' && Number.isFinite(raw.lastBroadcastAt) ? raw.lastBroadcastAt : null;
+  const lastError = sanitizeNullableString(raw.lastError);
+  const message = sanitizeNullableString(raw.message);
+  const metadata = raw.metadata && typeof raw.metadata === 'object' ? (raw.metadata as Record<string, unknown>) : null;
+  const ipfsCid = sanitizeNullableString(raw.ipfsCid);
+  const communityId = sanitizeNullableString(raw.communityId);
+  const channelId = sanitizeNullableString(raw.channelId);
+  const postPreview = sanitizeNullableString(raw.postPreview);
+  const fallbackUsed = raw.fallbackUsed === true || raw.fallbackUsed === false ? raw.fallbackUsed : false;
+  const fallbackReason = sanitizeNullableString(raw.fallbackReason);
+  const acknowledgedBy = sanitizeNullableString(raw.acknowledgedBy);
+  const acknowledgedAt =
+    typeof raw.acknowledgedAt === 'number' && Number.isFinite(raw.acknowledgedAt) ? raw.acknowledgedAt : null;
+  const resolvedBy = sanitizeNullableString(raw.resolvedBy);
+  const resolvedAt =
+    typeof raw.resolvedAt === 'number' && Number.isFinite(raw.resolvedAt) ? raw.resolvedAt : null;
+  const resolutionNote = sanitizeNullableString(raw.resolutionNote);
+
+  return {
+    id,
+    postId,
+    authorId,
+    detectedAt,
+    severity,
+    status,
+    source,
+    broadcastAttempts,
+    lastBroadcastAt,
+    lastError,
+    message,
+    metadata,
+    ipfsCid,
+    communityId,
+    channelId,
+    postPreview,
+    fallbackUsed,
+    fallbackReason,
+    acknowledgedBy,
+    acknowledgedAt,
+    resolvedBy,
+    resolvedAt,
+    resolutionNote,
+  };
+};
+
+const sortAndTrimCrisisQueue = (entries: CrisisQueueEntry[]): CrisisQueueEntry[] => {
+  const sorted = [...entries].sort((a, b) => b.detectedAt - a.detectedAt);
+  if (sorted.length <= MAX_CRISIS_QUEUE_ENTRIES) {
+    return sorted;
+  }
+
+  const unresolved = sorted.filter((entry) => entry.status !== 'resolved');
+  const resolved = sorted.filter((entry) => entry.status === 'resolved');
+  const trimmedUnresolved = unresolved.slice(0, MAX_CRISIS_QUEUE_ENTRIES);
+
+  if (trimmedUnresolved.length >= MAX_CRISIS_QUEUE_ENTRIES) {
+    return trimmedUnresolved;
+  }
+
+  const remainingSlots = MAX_CRISIS_QUEUE_ENTRIES - trimmedUnresolved.length;
+  return trimmedUnresolved.concat(resolved.slice(0, remainingSlots));
+};
+
+const readStoredCrisisQueue = (): CrisisQueueEntry[] => {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  const raw = localStorage.getItem(STORAGE_KEYS.CRISIS_QUEUE);
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as
+      | { version?: number; items?: Array<Partial<CrisisQueueEntry>> }
+      | Array<Partial<CrisisQueueEntry>>;
+    const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items ?? [] : [];
+    const normalized = items
+      .map((item) => normalizeCrisisQueueEntry(item ?? {}))
+      .filter((entry): entry is CrisisQueueEntry => entry !== null);
+    return sortAndTrimCrisisQueue(normalized);
+  } catch (error) {
+    console.error('Failed to parse crisis queue from storage', error);
+    return [];
+  }
+};
+
+const persistCrisisQueue = (entries: CrisisQueueEntry[]): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const payload = {
+    version: CRISIS_QUEUE_STORAGE_VERSION,
+    items: sortAndTrimCrisisQueue(entries),
+  };
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.CRISIS_QUEUE, JSON.stringify(payload));
+  } catch (error) {
+    console.error('Failed to persist crisis queue', error);
+  }
+};
+
+const readStoredCrisisMetrics = (): CrisisBroadcastMetrics => {
+  if (typeof window === 'undefined') {
+    return { ...DEFAULT_CRISIS_BROADCAST_METRICS };
+  }
+
+  const raw = localStorage.getItem(STORAGE_KEYS.CRISIS_QUEUE_META);
+  if (!raw) {
+    return { ...DEFAULT_CRISIS_BROADCAST_METRICS };
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<CrisisBroadcastMetrics>;
+    return {
+      successCount:
+        typeof parsed.successCount === 'number' && Number.isFinite(parsed.successCount) && parsed.successCount >= 0
+          ? Math.floor(parsed.successCount)
+          : 0,
+      failureCount:
+        typeof parsed.failureCount === 'number' && Number.isFinite(parsed.failureCount) && parsed.failureCount >= 0
+          ? Math.floor(parsed.failureCount)
+          : 0,
+      lastSuccessAt:
+        typeof parsed.lastSuccessAt === 'number' && Number.isFinite(parsed.lastSuccessAt)
+          ? parsed.lastSuccessAt
+          : null,
+      lastFailureAt:
+        typeof parsed.lastFailureAt === 'number' && Number.isFinite(parsed.lastFailureAt)
+          ? parsed.lastFailureAt
+          : null,
+      lastSyncAt:
+        typeof parsed.lastSyncAt === 'number' && Number.isFinite(parsed.lastSyncAt)
+          ? parsed.lastSyncAt
+          : null,
+    };
+  } catch (error) {
+    console.error('Failed to parse crisis broadcast metrics', error);
+    return { ...DEFAULT_CRISIS_BROADCAST_METRICS };
+  }
+};
+
+const persistCrisisMetrics = (metrics: CrisisBroadcastMetrics): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.CRISIS_QUEUE_META, JSON.stringify(metrics));
+  } catch (error) {
+    console.error('Failed to persist crisis broadcast metrics', error);
+  }
+};
+
+type CrisisBroadcastTransport = 'supabase' | 'localStorage';
+
+interface CrisisBroadcastResult {
+  success: boolean;
+  error?: string;
+  transport?: CrisisBroadcastTransport;
+  fallbackReason?: string | null;
+}
+
+const broadcastCrisisEntry = async (entry: CrisisQueueEntry): Promise<CrisisBroadcastResult> => {
+  if (typeof window === 'undefined') {
+    return { success: false, error: 'Broadcast unavailable in this environment' };
+  }
+
+  const globalWindow = window as SafevoiceWindow;
+  const supabaseFn = globalWindow.safevoice?.supabase?.broadcastCrisisUpdate;
+  let supabaseError: string | null = null;
+
+  if (typeof supabaseFn === 'function') {
+    try {
+      await supabaseFn(entry);
+      return { success: true, transport: 'supabase' };
+    } catch (error) {
+      supabaseError = error instanceof Error ? error.message : 'Supabase broadcast failed';
+      console.warn('Supabase crisis broadcast failed, falling back to local storage:', supabaseError);
+    }
+  }
+
+  try {
+    const payload = { entry, attemptedAt: Date.now(), supabaseError };
+    localStorage.setItem(STORAGE_KEYS.CRISIS_BROADCAST_SHADOW, JSON.stringify(payload));
+
+    if (typeof CustomEvent === 'function') {
+      try {
+        const event = new CustomEvent('safevoice:crisis-broadcast', { detail: payload });
+        globalWindow.dispatchEvent(event);
+      } catch (eventError) {
+        console.warn('Failed to dispatch crisis broadcast event', eventError);
+      }
+    }
+
+    return { success: true, transport: 'localStorage', fallbackReason: supabaseError };
+  } catch (error) {
+    const fallbackError = error instanceof Error ? error.message : 'Local fallback failed';
+    const combinedError = supabaseError ? `${supabaseError}; ${fallbackError}` : fallbackError;
+    return { success: false, error: combinedError };
+  }
 };
 
 const COMMUNITY_STATE_VERSION = 1;
@@ -1938,6 +2258,21 @@ export const useStore = create<StoreState>((set, get) => {
   const initialCurrentChannel =
     typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.CURRENT_CHANNEL) : null;
 
+  const initialCrisisQueue =
+    typeof window !== 'undefined' ? readStoredCrisisQueue() : [];
+  const initialCrisisMetrics =
+    typeof window !== 'undefined' ? readStoredCrisisMetrics() : { ...DEFAULT_CRISIS_BROADCAST_METRICS };
+  const initialCrisisBroadcastStatus: CrisisBroadcastStatus = initialCrisisQueue.some(
+    (entry) => entry.status !== 'resolved' && Boolean(entry.lastError)
+  )
+    ? 'error'
+    : 'idle';
+  const initialCrisisBroadcastError =
+    initialCrisisBroadcastStatus === 'error'
+      ? initialCrisisQueue.find((entry) => entry.status !== 'resolved' && entry.lastError)?.lastError ??
+        'Crisis alerts pending broadcast'
+      : null;
+
   const clearBoostTimeout = (postId: string, type: BoostType) => {
     if (typeof window === 'undefined') return;
     const timeoutId = get().boostTimeouts[postId]?.[type];
@@ -2036,6 +2371,96 @@ export const useStore = create<StoreState>((set, get) => {
     }
   };
 
+  const finalizeCrisisQueueMutation = (nextQueue: CrisisQueueEntry[], currentState: StoreState) => {
+    const trimmedQueue = sortAndTrimCrisisQueue(nextQueue);
+    persistCrisisQueue(trimmedQueue);
+
+    const hasErrors = trimmedQueue.some((entry) => entry.status !== 'resolved' && Boolean(entry.lastError));
+    const errorMessage = hasErrors
+      ? trimmedQueue.find((entry) => entry.status !== 'resolved' && entry.lastError)?.lastError ??
+        'Crisis alerts pending broadcast'
+      : null;
+
+    const metrics: CrisisBroadcastMetrics = {
+      ...currentState.crisisBroadcastMetrics,
+      lastSyncAt: Date.now(),
+    };
+    persistCrisisMetrics(metrics);
+
+    const status: CrisisBroadcastStatus = hasErrors ? 'error' : 'idle';
+
+    return { trimmedQueue, status, errorMessage, metrics };
+  };
+
+  const applyCrisisBroadcastResult = (
+    entryId: string,
+    result: CrisisBroadcastResult,
+    options?: { keepBroadcasting?: boolean }
+  ) => {
+    const attemptedAt = Date.now();
+
+    set((state) => {
+      let entryFound = false;
+      const updatedQueue = state.crisisQueue.map((entry) => {
+        if (entry.id !== entryId) {
+          return entry;
+        }
+
+        entryFound = true;
+        const nextStatus = result.success && entry.status === 'pending' ? 'broadcasted' : entry.status;
+        const fallbackUsed = entry.fallbackUsed || result.transport === 'localStorage';
+        const fallbackReason =
+          result.transport === 'localStorage'
+            ? result.fallbackReason ?? entry.fallbackReason
+            : entry.fallbackReason;
+
+        return {
+          ...entry,
+          status: nextStatus,
+          broadcastAttempts: entry.broadcastAttempts + 1,
+          lastBroadcastAt: result.success ? attemptedAt : entry.lastBroadcastAt,
+          lastError: result.success ? null : result.error ?? 'Crisis broadcast failed',
+          fallbackUsed,
+          fallbackReason,
+        };
+      });
+
+      if (!entryFound) {
+        return {};
+      }
+
+      const trimmedQueue = sortAndTrimCrisisQueue(updatedQueue);
+      const metrics: CrisisBroadcastMetrics = {
+        successCount: state.crisisBroadcastMetrics.successCount + (result.success ? 1 : 0),
+        failureCount: state.crisisBroadcastMetrics.failureCount + (result.success ? 0 : 1),
+        lastSuccessAt: result.success ? attemptedAt : state.crisisBroadcastMetrics.lastSuccessAt,
+        lastFailureAt: result.success ? state.crisisBroadcastMetrics.lastFailureAt : attemptedAt,
+        lastSyncAt: attemptedAt,
+      };
+
+      persistCrisisQueue(trimmedQueue);
+      persistCrisisMetrics(metrics);
+
+      const hasErrors = trimmedQueue.some((entry) => entry.status !== 'resolved' && Boolean(entry.lastError));
+      const errorMessage = hasErrors
+        ? trimmedQueue.find((entry) => entry.status !== 'resolved' && entry.lastError)?.lastError ??
+          'Crisis broadcast failed'
+        : null;
+      const nextStatus: CrisisBroadcastStatus = hasErrors
+        ? 'error'
+        : options?.keepBroadcasting
+        ? 'broadcasting'
+        : 'idle';
+
+      return {
+        crisisQueue: trimmedQueue,
+        crisisBroadcastStatus: nextStatus,
+        crisisBroadcastError: hasErrors ? errorMessage : null,
+        crisisBroadcastMetrics: metrics,
+      };
+    });
+  };
+
   const initialTotalVoice = rewardEngine.getTotalEarned();
   const initialRank = AchievementService.getRank(initialTotalVoice);
   const initialNextRankData = AchievementService.getNextRank(initialTotalVoice);
@@ -2055,6 +2480,10 @@ export const useStore = create<StoreState>((set, get) => {
     communitySupport: {},
     showCrisisModal: false,
     pendingPost: null,
+    crisisQueue: initialCrisisQueue,
+    crisisBroadcastStatus: initialCrisisBroadcastStatus,
+    crisisBroadcastError: initialCrisisBroadcastError,
+    crisisBroadcastMetrics: initialCrisisMetrics,
     savedHelplines: getSavedHelplinesFromStorage(),
     emergencyBannerDismissedUntil: getEmergencyBannerDismissedUntil(),
     memorialTributes: [],
@@ -2146,6 +2575,225 @@ export const useStore = create<StoreState>((set, get) => {
 
     setShowCrisisModal: (show: boolean) => set({ showCrisisModal: show }),
     setPendingPost: (post: AddPostPayload | null) => set({ pendingPost: post }),
+    enqueueCrisisEvent: async ({
+      post,
+      severity = 'high',
+      source = 'automatic',
+      message = null,
+      metadata,
+    }) => {
+      const normalizedSeverity: 'high' | 'critical' = severity === 'critical' ? 'critical' : 'high';
+      const now = Date.now();
+      const preview = post.isEncrypted
+        ? '[encrypted]'
+        : post.content.length > 140
+        ? `${post.content.slice(0, 137).trimEnd()}…`
+        : post.content;
+      const sanitizedMessage =
+        typeof message === 'string' && message.trim().length > 0 ? message.trim() : null;
+      const metadataPayload =
+        metadata && Object.keys(metadata).length > 0 ? { ...metadata } : null;
+
+      const provisionalEntry: CrisisQueueEntry = {
+        id: crypto.randomUUID(),
+        postId: post.id,
+        authorId: post.studentId,
+        detectedAt: now,
+        severity: normalizedSeverity,
+        status: 'pending',
+        source,
+        broadcastAttempts: 0,
+        lastBroadcastAt: null,
+        lastError: null,
+        message: sanitizedMessage,
+        metadata: metadataPayload,
+        ipfsCid: post.ipfsCid ?? null,
+        communityId: post.communityId ?? null,
+        channelId: post.channelId ?? null,
+        postPreview: preview,
+        fallbackUsed: false,
+        fallbackReason: null,
+        acknowledgedBy: null,
+        acknowledgedAt: null,
+        resolvedBy: null,
+        resolvedAt: null,
+        resolutionNote: null,
+      };
+
+      let targetEntryId = provisionalEntry.id;
+
+      set((state) => {
+        let nextQueue = state.crisisQueue;
+        const existingIndex = nextQueue.findIndex(
+          (entry) => entry.postId === provisionalEntry.postId && entry.status !== 'resolved'
+        );
+
+        if (existingIndex >= 0) {
+          const existingEntry = nextQueue[existingIndex];
+          targetEntryId = existingEntry.id;
+          const upgradedSeverity: 'high' | 'critical' =
+            existingEntry.severity === 'critical' || provisionalEntry.severity === 'critical'
+              ? 'critical'
+              : provisionalEntry.severity;
+
+          const mergedEntry: CrisisQueueEntry = {
+            ...existingEntry,
+            severity: upgradedSeverity,
+            detectedAt: now,
+            status: 'pending',
+            message: provisionalEntry.message ?? existingEntry.message,
+            metadata: provisionalEntry.metadata ?? existingEntry.metadata,
+            ipfsCid: provisionalEntry.ipfsCid ?? existingEntry.ipfsCid,
+            communityId: provisionalEntry.communityId ?? existingEntry.communityId,
+            channelId: provisionalEntry.channelId ?? existingEntry.channelId,
+            postPreview: provisionalEntry.postPreview ?? existingEntry.postPreview,
+            lastError: existingEntry.lastError,
+            fallbackUsed: existingEntry.fallbackUsed,
+            fallbackReason: existingEntry.fallbackReason,
+          };
+
+          nextQueue = nextQueue.map((entry, index) => (index === existingIndex ? mergedEntry : entry));
+        } else {
+          nextQueue = [provisionalEntry, ...nextQueue];
+        }
+
+        const trimmedQueue = sortAndTrimCrisisQueue(nextQueue);
+        persistCrisisQueue(trimmedQueue);
+
+        return {
+          crisisQueue: trimmedQueue,
+          crisisBroadcastStatus: 'broadcasting' as CrisisBroadcastStatus,
+          crisisBroadcastError: null,
+        };
+      });
+
+      const entryToBroadcast = get().crisisQueue.find((entry) => entry.id === targetEntryId);
+      if (!entryToBroadcast) {
+        return;
+      }
+
+      const result = await broadcastCrisisEntry(entryToBroadcast);
+      applyCrisisBroadcastResult(entryToBroadcast.id, result);
+    },
+    acknowledgeCrisisEvent: (entryId: string, moderatorId?: string) => {
+      set((state) => {
+        if (!state.crisisQueue.some((entry) => entry.id === entryId)) {
+          return {};
+        }
+
+        const updatedQueue = state.crisisQueue.map((entry): CrisisQueueEntry => {
+          if (entry.id !== entryId) {
+            return entry;
+          }
+
+          if (entry.status === 'resolved') {
+            return { ...entry, lastError: null };
+          }
+
+          return {
+            ...entry,
+            status: 'acknowledged',
+            acknowledgedBy: moderatorId ?? state.studentId,
+            acknowledgedAt: Date.now(),
+            lastError: null,
+          };
+        });
+
+        const { trimmedQueue, status, errorMessage, metrics } = finalizeCrisisQueueMutation(updatedQueue, state);
+
+        return {
+          crisisQueue: trimmedQueue,
+          crisisBroadcastStatus: status,
+          crisisBroadcastError: errorMessage,
+          crisisBroadcastMetrics: metrics,
+        };
+      });
+    },
+    resolveCrisisEvent: (
+      entryId: string,
+      resolution?: {
+        resolvedBy?: string;
+        note?: string;
+      }
+    ) => {
+      set((state) => {
+        if (!state.crisisQueue.some((entry) => entry.id === entryId)) {
+          return {};
+        }
+
+        const updatedQueue = state.crisisQueue.map((entry): CrisisQueueEntry => {
+          if (entry.id !== entryId) {
+            return entry;
+          }
+
+          return {
+            ...entry,
+            status: 'resolved',
+            resolvedBy: resolution?.resolvedBy ?? state.studentId,
+            resolvedAt: Date.now(),
+            resolutionNote: resolution?.note ?? null,
+            lastError: null,
+          };
+        });
+
+        const { trimmedQueue, status, errorMessage, metrics } = finalizeCrisisQueueMutation(updatedQueue, state);
+
+        return {
+          crisisQueue: trimmedQueue,
+          crisisBroadcastStatus: status,
+          crisisBroadcastError: errorMessage,
+          crisisBroadcastMetrics: metrics,
+        };
+      });
+    },
+    retryCrisisBroadcast: async () => {
+      const candidates = get()
+        .crisisQueue
+        .filter((entry) => entry.status !== 'resolved' && (entry.status === 'pending' || entry.lastError))
+        .map((entry) => entry.id);
+
+      if (candidates.length === 0) {
+        set({
+          crisisBroadcastStatus: 'idle',
+          crisisBroadcastError: null,
+        });
+        return;
+      }
+
+      set({
+        crisisBroadcastStatus: 'broadcasting',
+        crisisBroadcastError: null,
+      });
+
+      for (let index = 0; index < candidates.length; index += 1) {
+        const entryId = candidates[index];
+        const entry = get().crisisQueue.find((item) => item.id === entryId);
+        if (!entry) {
+          continue;
+        }
+
+        const result = await broadcastCrisisEntry(entry);
+        const keepBroadcasting = index < candidates.length - 1;
+        applyCrisisBroadcastResult(entryId, result, { keepBroadcasting });
+      }
+    },
+    removeCrisisEvent: (entryId: string) => {
+      set((state) => {
+        const filteredQueue = state.crisisQueue.filter((entry) => entry.id !== entryId);
+        if (filteredQueue.length === state.crisisQueue.length) {
+          return {};
+        }
+
+        const { trimmedQueue, status, errorMessage, metrics } = finalizeCrisisQueueMutation(filteredQueue, state);
+
+        return {
+          crisisQueue: trimmedQueue,
+          crisisBroadcastStatus: status,
+          crisisBroadcastError: errorMessage,
+          crisisBroadcastMetrics: metrics,
+        };
+      });
+    },
 
     toggleSaveHelpline: (helplineId: string) => {
       const current = get().savedHelplines;
@@ -2991,6 +3639,18 @@ export const useStore = create<StoreState>((set, get) => {
 
     const reports = Array.from(reportCollection.values()).sort((a, b) => b.reportedAt - a.reportedAt);
 
+    const storedCrisisQueue = readStoredCrisisQueue();
+    const storedCrisisMetrics = readStoredCrisisMetrics();
+    const storedCrisisStatus: CrisisBroadcastStatus = storedCrisisQueue.some(
+      (entry) => entry.status !== 'resolved' && Boolean(entry.lastError)
+    )
+      ? 'error'
+      : 'idle';
+    const storedCrisisError =
+      storedCrisisStatus === 'error'
+        ? storedCrisisQueue.find((entry) => entry.status !== 'resolved' && entry.lastError)?.lastError ??
+          'Crisis alerts pending broadcast'
+        : null;
 
     const storedFirstPostFlag = localStorage.getItem(STORAGE_KEYS.FIRST_POST_AWARDED) === 'true';
     const hasExistingPosts = rawPosts.some((post) => post.studentId === studentId);
@@ -3159,6 +3819,10 @@ export const useStore = create<StoreState>((set, get) => {
       menteeRequests,
       mentorshipMatches,
       mentorshipWeights,
+      crisisQueue: storedCrisisQueue,
+      crisisBroadcastStatus: storedCrisisStatus,
+      crisisBroadcastError: storedCrisisError,
+      crisisBroadcastMetrics: storedCrisisMetrics,
     });
 
     get().archiveOldCommunityPosts();
@@ -3206,6 +3870,8 @@ export const useStore = create<StoreState>((set, get) => {
     localStorage.setItem(STORAGE_KEYS.MENTEE_REQUESTS, JSON.stringify(state.menteeRequests));
     localStorage.setItem(STORAGE_KEYS.MENTORSHIP_MATCHES, JSON.stringify(state.mentorshipMatches));
     localStorage.setItem(STORAGE_KEYS.MENTORSHIP_WEIGHTS, JSON.stringify(state.mentorshipWeights));
+    persistCrisisQueue(state.crisisQueue);
+    persistCrisisMetrics(state.crisisBroadcastMetrics);
 
     if (state.currentCommunity) {
       localStorage.setItem(STORAGE_KEYS.CURRENT_COMMUNITY, state.currentCommunity);
@@ -3365,6 +4031,23 @@ export const useStore = create<StoreState>((set, get) => {
         communityMemberships: updatedMemberships,
       };
     });
+
+    if (moderationData?.isCrisisFlagged) {
+      void get().enqueueCrisisEvent({
+        post: newPost,
+        severity: moderationData.crisisLevel ?? 'high',
+        source: 'automatic',
+        message:
+          moderationData.issues?.map((issue) => issue.message).filter((message) => Boolean(message)).join('; ') ??
+          null,
+        metadata: {
+          detectedBy: 'content_moderation',
+          issues: moderationData.issues ?? [],
+          needsReview: moderationData.needsReview ?? false,
+          crisisLevel: moderationData.crisisLevel ?? 'high',
+        },
+      });
+    }
 
     if (isFirstPost && !storeState.firstPostAwarded) {
       set({ firstPostAwarded: true });
@@ -4261,6 +4944,23 @@ export const useStore = create<StoreState>((set, get) => {
     }
 
     if (report.reportType === 'self_harm') {
+      if (report.postId) {
+        const crisisPost = get().posts.find((post) => post.id === report.postId);
+        if (crisisPost) {
+          void get().enqueueCrisisEvent({
+            post: crisisPost,
+            severity: crisisPost.crisisLevel ?? 'critical',
+            source: 'report',
+            message: newReport.description,
+            metadata: {
+              reportId: newReport.id,
+              reporterId: newReport.reporterId,
+              reportType: newReport.reportType,
+            },
+          });
+        }
+      }
+
       get().setShowCrisisModal(true);
     }
   },
