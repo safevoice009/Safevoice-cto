@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { act, renderHook } from '@testing-library/react';
 import {
   afterEach,
@@ -12,6 +11,7 @@ import {
 
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 class MockSpeechRecognition {
   static instances: MockSpeechRecognition[] = [];
   static shouldThrowOnStart = false;
@@ -141,9 +141,9 @@ describe('useVoiceRecorder', () => {
     } as unknown as MediaStream;
 
     mockGetUserMedia = vi.fn().mockResolvedValue(mockStream);
-    (navigator as unknown as { mediaDevices?: MediaDevices }).mediaDevices = {
+    (navigator as unknown as { mediaDevices?: Partial<MediaDevices> }).mediaDevices = {
       getUserMedia: mockGetUserMedia,
-    } as unknown as MediaDevices;
+    } as Partial<MediaDevices>;
 
     (window as any).MediaRecorder = MockMediaRecorder;
     (window as any).AudioContext = MockAudioContext;
@@ -661,7 +661,6 @@ describe('useVoiceRecorder', () => {
 
     await startPromise;
 
-    const aborted = abortSignal ? abortSignal.aborted : false;
-    expect(aborted).toBe(true);
+    expect(abortSignal?.aborted).toBe(true);
   });
 });

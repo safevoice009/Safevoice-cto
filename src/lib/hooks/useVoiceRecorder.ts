@@ -50,11 +50,8 @@ type RecognitionConstructor = new () => RecognitionInstance;
 
 type StopReason = 'manual' | 'timeout' | 'error';
 
-const defaultServerTranscription = async (signal: AbortSignal): Promise<string> => {
-  if (signal.aborted) {
-    return Promise.reject(new DOMException('Aborted', 'AbortError'));
-  }
-
+const defaultServerTranscription = async (_signal: AbortSignal): Promise<string> => {
+  void _signal;
   return '';
 };
 
