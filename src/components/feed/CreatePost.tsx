@@ -136,6 +136,7 @@ export default function CreatePost() {
         moderationData,
         undefined,
         undefined,
+        null,
         ipfsCid
       );
       setPendingPost(null);
