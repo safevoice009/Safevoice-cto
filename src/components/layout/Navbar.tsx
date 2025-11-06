@@ -17,6 +17,7 @@ type NavLink = {
 const navLinks: NavLink[] = [
   { labelKey: 'nav.feed', value: '/feed', type: 'route' },
   { labelKey: 'nav.communities', value: '/communities', type: 'route' },
+  { labelKey: 'nav.search', value: '/search', type: 'route' },
   { labelKey: 'nav.leaderboard', value: '/leaderboard', type: 'route' },
   { labelKey: 'nav.marketplace', value: '/marketplace', type: 'route' },
   { labelKey: 'nav.helplines', value: '/helplines', type: 'route' },
