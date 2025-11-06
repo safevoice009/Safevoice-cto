@@ -23,6 +23,7 @@ import TokenMarketplace from './pages/TokenMarketplace';
 import LeaderboardPage from './pages/Leaderboard';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
 import CommunitiesPage from './pages/Communities';
+import SearchPage from './pages/Search';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
 import AchievementToastContainer from './components/wallet/AchievementToastContainer';
 import { useStore } from './lib/store';
@@ -84,12 +85,14 @@ function AnimatedRoutes() {
         pendingPost.imageUrl,
         pendingPost.communityId
           ? {
-              communityId: pendingPost.communityId ?? undefined,
-              channelId: pendingPost.channelId ?? undefined,
-              visibility: pendingPost.visibility,
-              isAnonymous: pendingPost.isAnonymous,
-            }
-          : undefined
+             communityId: pendingPost.communityId ?? undefined,
+             channelId: pendingPost.channelId ?? undefined,
+             visibility: pendingPost.visibility,
+             isAnonymous: pendingPost.isAnonymous,
+           }
+          : undefined,
+          pendingPost.emotionAnalysis ?? null,
+          pendingPost.ipfsCid ?? undefined
       );
     }
 
@@ -106,6 +109,7 @@ function AnimatedRoutes() {
             <Route path="/" element={<Landing />} />
             <Route path="/feed" element={<Feed />} />
             <Route path="/communities" element={<CommunitiesPage />} />
+            <Route path="/search" element={<SearchPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/post/:postId" element={<PostDetail />} />
             <Route path="/helplines" element={<HelplinesPage />} />
