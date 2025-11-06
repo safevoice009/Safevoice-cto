@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Send, X, Lock, Clock } from 'lucide-react';
+import { Send, X, Lock, Clock, Database } from 'lucide-react';
 import { useStore, type PostLifetime } from '../../lib/store';
 import { encryptContent } from '../../lib/encryption';
 import { moderateContent } from '../../lib/contentModeration';
 import { detectCrisis, getCrisisSeverity } from '../../lib/crisisDetection';
+import { uploadToIPFS } from '../../lib/ipfs';
 import toast from 'react-hot-toast';
 
 const categories = [
@@ -35,6 +36,7 @@ export default function CreatePost() {
   const [lifetime, setLifetime] = useState<PostLifetime>('24h');
   const [customHours, setCustomHours] = useState<number>(24);
   const [isEncrypted, setIsEncrypted] = useState(false);
+  const [storeOnIPFS, setStoreOnIPFS] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const addPost = useStore((state) => state.addPost);
@@ -95,6 +97,18 @@ export default function CreatePost() {
         crisisLevel,
       };
 
+      // Try to upload to IPFS if user opted in
+      let ipfsCid: string | undefined;
+      if (storeOnIPFS) {
+        const ipfsResult = await uploadToIPFS(trimmedContent, true);
+        if (ipfsResult.success && ipfsResult.cid) {
+          ipfsCid = ipfsResult.cid;
+          toast.success('Content stored on IPFS! 📦');
+        } else {
+          toast.error(`IPFS upload failed: ${ipfsResult.error || 'Unknown error'}`);
+        }
+      }
+
       if (isCrisis) {
         setPendingPost({
           content: trimmedContent,
@@ -105,6 +119,7 @@ export default function CreatePost() {
           isEncrypted,
           encryptionData: encryptedData,
           moderationData,
+          ipfsCid: ipfsCid ?? null,
         });
         setShowCrisisModal(true);
         setIsSubmitting(false);
@@ -118,7 +133,11 @@ export default function CreatePost() {
         lifetime === 'custom' ? customHours : undefined,
         isEncrypted,
         encryptedData,
-        moderationData
+        moderationData,
+        undefined,
+        undefined,
+        null,
+        ipfsCid
       );
       setPendingPost(null);
 
@@ -127,6 +146,7 @@ export default function CreatePost() {
       setLifetime('24h');
       setCustomHours(24);
       setIsEncrypted(false);
+      setStoreOnIPFS(false);
       setIsExpanded(false);
     } catch (error) {
       console.error('Failed to create post:', error);
@@ -260,6 +280,25 @@ export default function CreatePost() {
             {isEncrypted && (
               <div className="text-xs text-gray-500 pl-7">
                 Only you can decrypt this content. Uses AES-GCM-256 encryption.
+              </div>
+            )}
+
+            <div className="flex items-center space-x-3 p-3 bg-surface/50 rounded-lg border border-white/10">
+              <input
+                type="checkbox"
+                id="ipfs"
+                checked={storeOnIPFS}
+                onChange={(e) => setStoreOnIPFS(e.target.checked)}
+                className="w-4 h-4 rounded accent-primary"
+              />
+              <label htmlFor="ipfs" className="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer">
+                <Database className="w-4 h-4" />
+                <span>📦 Store on IPFS (Decentralized storage)</span>
+              </label>
+            </div>
+            {storeOnIPFS && (
+              <div className="text-xs text-gray-500 pl-7">
+                Your content will be permanently stored on the decentralized IPFS network.
               </div>
             )}
 

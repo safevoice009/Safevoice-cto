@@ -90,7 +90,9 @@ function AnimatedRoutes() {
               visibility: pendingPost.visibility,
               isAnonymous: pendingPost.isAnonymous,
             }
-          : undefined
+          : undefined,
+        pendingPost.emotionAnalysis ?? null,
+        pendingPost.ipfsCid ?? undefined
       );
     }
 
