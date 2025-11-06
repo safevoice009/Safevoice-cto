@@ -1,0 +1,4 @@
+# Privacy audit artifacts - keep the directory but ignore sensitive test results
+*
+!.gitignore
+!README.md

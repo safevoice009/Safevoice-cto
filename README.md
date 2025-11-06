@@ -164,12 +164,33 @@ For comprehensive guides and technical details:
 
 ### Safety & Privacy
 
-- ✅ **100% Anonymous** - No personal information collected
-- ✅ **Local-first storage** - All data stays in your browser
-- ✅ **No tracking** - No IP logging or user behavior monitoring
-- ✅ **Content moderation** - Automatic profanity, spam, and personal info detection
-- ✅ **Crisis intervention** - Immediate support resources for mental health emergencies
-- ✅ **Report system** - Community-driven content moderation with transparency
+SafeVoice is built with zero-tracking guarantees and hardened privacy defaults:
+
+- ✅ **Analytics policy: none by default** – No Google Analytics, Meta Pixel, or telemetry. Future analytics (if ever introduced) must be opt-in and privacy-preserving.
+- ✅ **Local-first storage** – All state lives in your browser. No backend databases or remote logs.
+- ✅ **Cookie-free experience** – Cookies are programmatically blocked; encrypted localStorage powers persistence.
+- ✅ **Strict network allowlist** – Outbound requests are limited to SafeVoice and web3 RPC endpoints only.
+- ✅ **WebRTC protections** – RTCPeerConnection is shimmed to relay-only to prevent local IP leaks.
+- ✅ **Fingerprinting defenses** – Automated tests block canvas/audio/device fingerprinting patterns.
+- ✅ **End-to-end encryption** – Optional AES-GCM-256 for sensitive posts and direct support messages.
+- ✅ **Safety tooling** – Automated moderation, crisis detection, and transparent reporting remain active without tracking users.
+
+#### Privacy Middleware
+- `initializePrivacyProtections()` runs before React mounts, enforcing cookie blocking, localStorage sanitization, and WebRTC IP leak mitigation.
+- `privacyFetch` wraps every fetch call, strips cookies/credentials, enforces HTTPS (with localhost exceptions), and blocks domains outside a strict allowlist.
+- A storage whitelist removes any unexpected keys (e.g., `_ga`, `tracking_id`) on startup.
+
+#### Security Headers & Frontend Hardening
+- **Content Security Policy**: `default-src 'self'` with explicit `connect-src` overrides for approved RPC providers.
+- **Strict-Transport-Security**: Enforces HTTPS for one year with subdomain coverage.
+- **Referrer-Policy**: `no-referrer` ensures no navigation metadata leaks.
+- **Permissions-Policy**: Sensitive APIs (camera, mic, geolocation, etc.) are disabled by default.
+- **X-Frame-Options & X-Content-Type-Options**: Protect against clickjacking and MIME sniffing.
+- **Subresource Integrity metadata**: Documented in `index.html` to require hashed assets for any future third-party resources.
+
+#### Privacy Testing & Audits
+- Run automated privacy checks with `npm run test:privacy` (existing suite) and unit coverage in `src/lib/__tests__/privacyMiddleware.test.ts`.
+- Manual review steps are documented in [Privacy Audit Checklist](./docs/PRIVACY_AUDIT_CHECKLIST.md), including browser extension tooling and remediation tips.
 
 ## 🪙 Reward Engine & Token Economy
 
@@ -332,6 +353,9 @@ npm run test:ui
 # Generate coverage report
 npm run test:coverage
 
+# Run privacy audit tests
+npm run test:privacy
+
 # Run tests in watch mode
 npm test -- --watch
 ```
@@ -375,6 +399,10 @@ npm run security:gas
 - [Community Moderation Guide](./docs/COMMUNITY_MODERATION_GUIDE.md) - Policies and workflows for moderators
 - [Communities Technical Overview](./docs/COMMUNITIES_TECH_OVERVIEW.md) - Developer reference for data models, store actions, and APIs
 - [Communities QA Checklist](./docs/COMMUNITIES_QA_CHECKLIST.md) - Manual testing scenarios for end-to-end validation
+
+### Privacy & Security
+- [Privacy Configuration Guide](./docs/PRIVACY_CONFIGURATION.md) - Deep dive into middleware, security headers, and testing
+- [Privacy Audit Checklist](./docs/PRIVACY_AUDIT_CHECKLIST.md) - Manual audit procedures and tooling
 
 ### Token Economics & Rewards
 - [Reward Engine](./REWARD_ENGINE_DOCS.md) - Complete reward system documentation

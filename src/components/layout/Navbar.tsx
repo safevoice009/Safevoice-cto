@@ -2,30 +2,34 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, Lock, Menu, X, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useStore } from '../../lib/store';
 import NotificationDropdown from './NotificationDropdown';
 import ConnectWalletButton from '../wallet/ConnectWalletButton';
+import LanguageSwitcher from './LanguageSwitcher';
 
 type NavLink = {
-  name: string;
+  labelKey: string;
   value: string;
   type: 'route' | 'scroll';
 };
 
 const navLinks: NavLink[] = [
-  { name: 'Feed', value: '/feed', type: 'route' },
-  { name: 'Communities', value: '/communities', type: 'route' },
-  { name: 'Leaderboard', value: '/leaderboard', type: 'route' },
-  { name: 'Marketplace', value: '/marketplace', type: 'route' },
-  { name: 'Helplines', value: '/helplines', type: 'route' },
-  { name: 'Guidelines', value: '/guidelines', type: 'route' },
-  { name: 'Memorial', value: '/memorial', type: 'route' },
+  { labelKey: 'nav.feed', value: '/feed', type: 'route' },
+  { labelKey: 'nav.communities', value: '/communities', type: 'route' },
+  { labelKey: 'nav.search', value: '/search', type: 'route' },
+  { labelKey: 'nav.leaderboard', value: '/leaderboard', type: 'route' },
+  { labelKey: 'nav.marketplace', value: '/marketplace', type: 'route' },
+  { labelKey: 'nav.helplines', value: '/helplines', type: 'route' },
+  { labelKey: 'nav.guidelines', value: '/guidelines', type: 'route' },
+  { labelKey: 'nav.memorial', value: '/memorial', type: 'route' },
 ];
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [visible, setVisible] = useState(true);
   const lastScrollYRef = useRef(0);
+  const { t } = useTranslation();
   const { studentId, isModerator, toggleModeratorMode, setShowCrisisModal } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -80,7 +84,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center space-x-2" onClick={closeMenu}>
             <Lock className="w-6 h-6 text-primary" />
-            <span className="text-xl font-bold text-white">SafeVoice</span>
+            <span className="text-xl font-bold text-white">{t('common.appName')}</span>
           </Link>
 
           <div className="hidden md:flex items-center space-x-8">
@@ -89,13 +93,13 @@ export default function Navbar() {
                 link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
               return (
                 <button
-                  key={link.name}
+                  key={link.labelKey}
                   onClick={() => handleNavClick(link)}
                   className={`nav-link relative ${isActive ? 'text-primary font-semibold' : ''}`}
                   type="button"
                   aria-current={isActive ? 'page' : undefined}
                 >
-                  {link.name}
+                  {t(link.labelKey)}
                   {isActive && <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-primary rounded-full" />}
                 </button>
               );
@@ -103,16 +107,17 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
+            <LanguageSwitcher />
             <NotificationDropdown />
             <motion.button
               onClick={() => setShowCrisisModal(true)}
               className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg font-medium transition-all hover:bg-red-700"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              title="Get Crisis Help"
+              title={t('nav.getCrisisHelp')}
             >
               <AlertTriangle className="w-4 h-4" />
-              <span>Crisis Help</span>
+              <span>{t('nav.crisisHelp')}</span>
             </motion.button>
             <motion.button
               onClick={toggleModeratorMode}
@@ -123,7 +128,7 @@ export default function Navbar() {
               }`}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              title={isModerator ? 'Moderator mode ON' : 'Moderator mode OFF (click to enable)'}
+              title={t(isModerator ? 'moderator.modeOn' : 'moderator.modeOff')}
             >
               <Shield className="w-4 h-4" />
               {isModerator && <span className="text-xs">MOD</span>}
@@ -150,18 +155,21 @@ export default function Navbar() {
             className="md:hidden bg-surface/95 backdrop-blur-xl border-t border-white/10"
           >
             <div className="px-4 py-4 space-y-3">
+              <div className="flex justify-end">
+                <LanguageSwitcher />
+              </div>
               {navLinks.map((link) => {
                 const isActive =
                   link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
                 return (
                   <button
-                    key={link.name}
+                    key={link.labelKey}
                     onClick={() => handleNavClick(link)}
                     className={`block w-full text-left nav-link py-2 ${isActive ? 'text-primary font-semibold' : ''}`}
                     type="button"
                     aria-current={isActive ? 'page' : undefined}
                   >
-                    {link.name}
+                    {t(link.labelKey)}
                   </button>
                 );
               })}
@@ -173,9 +181,10 @@ export default function Navbar() {
                 className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                title={t('nav.getCrisisHelp')}
               >
                 <AlertTriangle className="w-4 h-4" />
-                <span>Get Crisis Help</span>
+                <span>{t('nav.crisisHelp')}</span>
               </motion.button>
               <motion.button
                 onClick={() => {
@@ -186,9 +195,10 @@ export default function Navbar() {
                 }`}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
+                title={t(isModerator ? 'moderator.modeOn' : 'moderator.modeOff')}
               >
                 <Shield className="w-4 h-4" />
-                <span>{isModerator ? 'Disable Moderator Mode' : 'Enable Moderator Mode'}</span>
+                <span>{t(isModerator ? 'moderator.disable' : 'moderator.enable')}</span>
               </motion.button>
               <div className="pt-3 border-t border-white/10 space-y-3">
                 <NotificationDropdown />
