@@ -10,8 +10,8 @@ import {
 } from 'vitest';
 
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 class MockSpeechRecognition {
   static instances: MockSpeechRecognition[] = [];
   static shouldThrowOnStart = false;
@@ -141,9 +141,9 @@ describe('useVoiceRecorder', () => {
     } as unknown as MediaStream;
 
     mockGetUserMedia = vi.fn().mockResolvedValue(mockStream);
-    (navigator as any).mediaDevices = {
+    (navigator as unknown as { mediaDevices?: Partial<MediaDevices> }).mediaDevices = {
       getUserMedia: mockGetUserMedia,
-    } as any;
+    } as Partial<MediaDevices>;
 
     (window as any).MediaRecorder = MockMediaRecorder;
     (window as any).AudioContext = MockAudioContext;
@@ -633,7 +633,7 @@ describe('useVoiceRecorder', () => {
   it('aborts fallback transcription on stop', async () => {
     delete (window as any).webkitSpeechRecognition;
 
-    let abortSignal: AbortSignal | null = null;
+    let abortSignal: AbortSignal | undefined;
     const fallbackTranscribe = vi.fn((signal: AbortSignal) => {
       abortSignal = signal;
       return new Promise<string>((resolve) => {
@@ -661,7 +661,6 @@ describe('useVoiceRecorder', () => {
 
     await startPromise;
 
-    expect(abortSignal).not.toBeNull();
-    expect(abortSignal!.aborted).toBe(true);
+    expect(abortSignal?.aborted).toBe(true);
   });
 });
