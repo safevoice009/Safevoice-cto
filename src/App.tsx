@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import '@rainbow-me/rainbowkit/styles.css';
 import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiConfig } from 'wagmi';
@@ -22,6 +23,7 @@ import TokenMarketplace from './pages/TokenMarketplace';
 import LeaderboardPage from './pages/Leaderboard';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
 import CommunitiesPage from './pages/Communities';
+import SearchPage from './pages/Search';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
 import AchievementToastContainer from './components/wallet/AchievementToastContainer';
 import { useStore } from './lib/store';
@@ -41,6 +43,7 @@ function AnimatedRoutes() {
   const loadWalletData = useStore((state) => state.loadWalletData);
   const grantDailyLoginBonus = useStore((state) => state.grantDailyLoginBonus);
   const lifecycleManagerRef = useRef<PostLifecycleManager | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const storedId = typeof window !== 'undefined' ? localStorage.getItem('studentId') : null;
@@ -67,7 +70,7 @@ function AnimatedRoutes() {
 
   const handleCrisisAcknowledge = (action: 'call_helpline' | 'continue') => {
     if (action === 'call_helpline') {
-      toast.success('Thank you for reaching out 💙');
+      toast.success(t('crisis.thankYou'));
     }
 
     if (pendingPost && pendingPost.moderationData) {
@@ -87,7 +90,9 @@ function AnimatedRoutes() {
               visibility: pendingPost.visibility,
               isAnonymous: pendingPost.isAnonymous,
             }
-          : undefined
+          : undefined,
+        pendingPost.emotionAnalysis ?? null,
+        pendingPost.ipfsCid ?? undefined
       );
     }
 
@@ -104,6 +109,7 @@ function AnimatedRoutes() {
             <Route path="/" element={<Landing />} />
             <Route path="/feed" element={<Feed />} />
             <Route path="/communities" element={<CommunitiesPage />} />
+            <Route path="/search" element={<SearchPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/post/:postId" element={<PostDetail />} />
             <Route path="/helplines" element={<HelplinesPage />} />
