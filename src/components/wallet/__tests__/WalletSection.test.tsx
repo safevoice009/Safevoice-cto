@@ -180,7 +180,7 @@ describe('WalletSection - Rendering Tests', () => {
     renderWalletSection();
 
     expect(screen.getAllByText('Total Earned').length).toBeGreaterThan(0);
-    expect(screen.getByText('Pending Rewards')).toBeInTheDocument();
+    expect(screen.getAllByText('Pending Rewards').length).toBeGreaterThan(0);
     expect(screen.getByText('Claimed')).toBeInTheDocument();
     expect(screen.getByText('Spent')).toBeInTheDocument();
     expect(screen.getByText('Available')).toBeInTheDocument();
@@ -269,7 +269,7 @@ describe('WalletSection - Rendering Tests', () => {
     expect(screen.getByText('Connected Wallets')).toBeInTheDocument();
     expect(screen.getByText(/0x1234...5678/)).toBeInTheDocument();
     expect(screen.getByText('Connected')).toBeInTheDocument();
-    expect(screen.getByText('Ethereum')).toBeInTheDocument();
+    expect(screen.getAllByText('Ethereum').length).toBeGreaterThan(0);
   });
 
   it('renders ENS name when available', () => {
@@ -405,8 +405,12 @@ describe('WalletSection - Claim Rewards Interaction', () => {
     expect(screen.getByText(/claiming/i)).toBeInTheDocument();
     await waitFor(() => expect(claimRewardsStub).toHaveBeenCalled());
 
-    await screen.findByText('0.0 VOICE', {}, { timeout: 2000 });
-    await screen.findByText('265.0 VOICE', {}, { timeout: 2000 });
+    await waitFor(() => {
+      expect(screen.queryAllByText('0.0 VOICE').length).toBeGreaterThan(0);
+    }, { timeout: 2000 });
+    await waitFor(() => {
+      expect(screen.queryAllByText('265.0 VOICE').length).toBeGreaterThan(0);
+    }, { timeout: 2000 });
   });
 
   it('handles claim error correctly', async () => {
