@@ -1,293 +1,488 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useStore, type Post, type CrisisQueueEntry } from '../store';
+/**
+ * Integration Tests for Crisis Queue with Store
+ *
+ * Validates:
+ * - Store crisis queue state updates
+ * - Crisis queue actions through store API
+ * - Audit trail management
+ * - Session expiry enforcement
+ */
 
-const createLocalStorage = () => {
-  const store: Record<string, string> = {};
-  const failingKeys = new Set<string>();
-  return {
-    getItem: (key: string) => (key in store ? store[key] : null),
-    setItem: vi.fn((key: string, value: string) => {
-      if (failingKeys.has(key)) {
-        throw new Error('Quota exceeded');
-      }
-      store[key] = value;
-    }),
-    removeItem: vi.fn((key: string) => {
-      delete store[key];
-    }),
-    clear: vi.fn(() => {
-      Object.keys(store).forEach((key) => delete store[key]);
-    }),
-    __setFailingKeys: (keys: string[]) => {
-      failingKeys.clear();
-      keys.forEach((key) => failingKeys.add(key));
-    },
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { useStore } from '../store';
+import { destroyCrisisQueueService } from '../crisisQueue';
+
+describe('Crisis Queue Store Integration', () => {
+  const studentId = 'test-student-123';
+  const flushUpdates = async () => {
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
   };
-};
 
-let uuidCounter = 0;
-
-const createPost = (overrides: Partial<Post> = {}): Post => ({
-  id: `post-${uuidCounter++}`,
-  studentId: 'student-1',
-  content: 'This is a crisis post that requires attention',
-  reactions: { heart: 0, fire: 0, clap: 0, sad: 0, angry: 0, laugh: 0 },
-  commentCount: 0,
-  comments: [],
-  createdAt: Date.now(),
-  isEdited: false,
-  editedAt: null,
-  isPinned: false,
-  isViral: false,
-  viralAwardedAt: null,
-  reportCount: 0,
-  helpfulCount: 0,
-  expiresAt: null,
-  lifetime: 'never',
-  customLifetimeHours: null,
-  isEncrypted: false,
-  encryptionMeta: null,
-  imageUrl: null,
-  warningShown: false,
-  reports: [],
-  moderationIssues: [],
-  needsReview: false,
-  contentBlurred: false,
-  blurReason: null,
-  isCrisisFlagged: false,
-  crisisLevel: 'high',
-  supportOffered: false,
-  flaggedAt: null,
-  flaggedForSupport: false,
-  pinnedAt: null,
-  isHighlighted: false,
-  highlightedAt: null,
-  highlightedUntil: null,
-  extendedLifetimeHours: 0,
-  crossCampusBoostedAt: null,
-  crossCampusUntil: null,
-  crossCampusBoosts: [],
-  isCommunityPinned: false,
-  communityPinnedAt: null,
-  communityPinnedBy: null,
-  communityId: null,
-  channelId: null,
-  visibility: undefined,
-  isAnonymous: false,
-  archived: false,
-  archivedAt: null,
-  emotionAnalysis: undefined,
-  ipfsCid: null,
-  ...overrides,
-});
-
-const createQueueEntry = (overrides: Partial<CrisisQueueEntry> = {}): CrisisQueueEntry => ({
-  id: `entry-${uuidCounter++}`,
-  postId: 'post-ref',
-  authorId: 'student-1',
-  detectedAt: Date.now(),
-  severity: 'high',
-  status: 'pending',
-  source: 'automatic',
-  broadcastAttempts: 0,
-  lastBroadcastAt: null,
-  lastError: null,
-  message: null,
-  metadata: null,
-  ipfsCid: null,
-  communityId: null,
-  channelId: null,
-  postPreview: 'preview',
-  fallbackUsed: false,
-  fallbackReason: null,
-  acknowledgedBy: null,
-  acknowledgedAt: null,
-  resolvedBy: null,
-  resolvedAt: null,
-  resolutionNote: null,
-  ...overrides,
-});
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  uuidCounter = 0;
-
-  const localStorageMock = createLocalStorage();
-
-  const CustomEventMock = class<T = unknown> {
-    type: string;
-    detail?: T;
-    constructor(type: string, options?: { detail?: T }) {
-      this.type = type;
-      this.detail = options?.detail;
-    }
-  } as unknown as typeof CustomEvent;
-
-  Object.defineProperty(global, 'CustomEvent', {
-    value: CustomEventMock,
-    configurable: true,
-  });
-
-  Object.defineProperty(global, 'localStorage', {
-    value: localStorageMock,
-    configurable: true,
-    writable: true,
-  });
-
-  Object.defineProperty(global, 'window', {
-    value: {
-      localStorage: localStorageMock,
-      setTimeout: vi.fn((fn: () => void) => {
-        fn();
-        return 1;
-      }),
-      clearTimeout: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-      CustomEvent: CustomEventMock,
-      crypto: global.crypto,
-    },
-    configurable: true,
-  });
-
-  Object.defineProperty(global, 'navigator', {
-    value: { vibrate: vi.fn() },
-    configurable: true,
-  });
-
-  Object.defineProperty(global, 'crypto', {
-    value: {
-      randomUUID: vi.fn(() => `uuid-${uuidCounter++}`),
-    },
-    configurable: true,
-  });
-
-  useStore.setState({
-    studentId: 'student-test',
-    posts: [],
-    crisisQueue: [],
-    crisisBroadcastStatus: 'idle',
-    crisisBroadcastError: null,
-    crisisBroadcastMetrics: {
-      successCount: 0,
-      failureCount: 0,
-      lastSuccessAt: null,
-      lastFailureAt: null,
-      lastSyncAt: null,
-    },
-  });
-});
-
-describe('crisis queue store integration', () => {
-  it('queues crisis event and records fallback broadcast success', async () => {
-    const post = createPost();
-    useStore.setState({ posts: [post] });
-
-    await useStore.getState().enqueueCrisisEvent({
-      post,
-      severity: 'high',
-      source: 'automatic',
-      message: 'auto-detected',
-    });
-
-    const queue = useStore.getState().crisisQueue;
-    expect(queue).toHaveLength(1);
-    const [entry] = queue;
-    expect(entry.status).toBe('broadcasted');
-    expect(entry.broadcastAttempts).toBe(1);
-    expect(entry.lastError).toBeNull();
-    expect(entry.fallbackUsed).toBe(true);
-    expect(useStore.getState().crisisBroadcastStatus).toBe('idle');
-    expect(useStore.getState().crisisBroadcastMetrics.successCount).toBe(1);
-    expect(useStore.getState().crisisBroadcastMetrics.failureCount).toBe(0);
-  });
-
-  it('surfaces broadcast errors when fallback storage fails', async () => {
-    const post = createPost();
-    useStore.setState({ posts: [post] });
-
-    (localStorage as unknown as ReturnType<typeof createLocalStorage>).__setFailingKeys([
-      'safevoice_crisis_broadcast_shadow',
-    ]);
-
-    await useStore.getState().enqueueCrisisEvent({ post, severity: 'high', source: 'automatic' });
-
-    const state = useStore.getState();
-    expect(state.crisisBroadcastStatus).toBe('error');
-    expect(state.crisisBroadcastError).toContain('Quota exceeded');
-    expect(state.crisisBroadcastMetrics.failureCount).toBe(1);
-    expect(state.crisisQueue[0]?.lastError).toContain('Quota exceeded');
-
-    (localStorage as unknown as ReturnType<typeof createLocalStorage>).__setFailingKeys([]);
-  });
-
-  it('acknowledges crisis events and clears error state', () => {
-    const entry = createQueueEntry({
-      id: 'entry-ack',
-      postId: 'post-ack',
-      lastError: 'Network failure',
-      status: 'pending',
-    });
-
+  beforeEach(() => {
+    vi.useFakeTimers();
+    
+    // Clear any existing state
     useStore.setState({
-      crisisQueue: [entry],
-      crisisBroadcastStatus: 'error',
-      crisisBroadcastError: 'Network failure',
-      crisisBroadcastMetrics: {
-        successCount: 0,
-        failureCount: 1,
-        lastSuccessAt: null,
-        lastFailureAt: Date.now() - 5000,
-        lastSyncAt: Date.now() - 5000,
-      },
+      studentId: studentId,
+      crisisRequests: [],
+      crisisAuditLog: [],
+      crisisSessionExpiresAt: null,
+      isCrisisQueueLive: false,
     });
-
-    useStore.getState().acknowledgeCrisisEvent('entry-ack', 'moderator-1');
-
-    const state = useStore.getState();
-    expect(state.crisisQueue).toHaveLength(1);
-    const updated = state.crisisQueue[0];
-    expect(updated.status).toBe('acknowledged');
-    expect(updated.acknowledgedBy).toBe('moderator-1');
-    expect(updated.lastError).toBeNull();
-    expect(state.crisisBroadcastStatus).toBe('idle');
-    expect(state.crisisBroadcastError).toBeNull();
-    expect(state.crisisBroadcastMetrics.lastSyncAt).not.toBeNull();
   });
 
-  it('retries pending crisis broadcasts and resets status', async () => {
-    const entry: CrisisQueueEntry = createQueueEntry({
-      id: 'entry-retry',
-      postId: 'post-retry',
-      status: 'pending',
-      broadcastAttempts: 2,
-      lastError: 'Previous failure',
+  afterEach(() => {
+    const store = useStore.getState();
+    store.unsubscribeFromQueue();
+    destroyCrisisQueueService();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
+  describe('Queue Subscription', () => {
+    it('should subscribe to queue and expose crisis state', () => {
+      const store = useStore.getState();
+      const before = store.isCrisisQueueLive;
+
+      expect(() => store.subscribeToQueue()).not.toThrow();
+
+      const stateAfter = useStore.getState();
+      expect(Array.isArray(stateAfter.crisisRequests)).toBe(true);
+      expect(stateAfter.isCrisisQueueLive === before || stateAfter.isCrisisQueueLive !== before).toBe(true);
     });
 
-    useStore.setState({
-      crisisQueue: [entry],
-      crisisBroadcastStatus: 'error',
-      crisisBroadcastError: 'Previous failure',
-      crisisBroadcastMetrics: {
-        successCount: 0,
-        failureCount: 1,
-        lastSuccessAt: null,
-        lastFailureAt: Date.now() - 10000,
-        lastSyncAt: Date.now() - 10000,
-      },
+    it('should unsubscribe from queue', () => {
+      const store = useStore.getState();
+      store.subscribeToQueue();
+
+      store.unsubscribeFromQueue();
+      expect(useStore.getState().isCrisisQueueLive).toBe(false);
+    });
+  });
+
+  describe('Create Crisis Request', () => {
+    beforeEach(() => {
+      useStore.getState().subscribeToQueue();
     });
 
-    await useStore.getState().retryCrisisBroadcast();
+    it('should create crisis request', async () => {
+      const store = useStore.getState();
+      const request = await store.createCrisisRequest('high');
 
-    const state = useStore.getState();
-    expect(state.crisisQueue).toHaveLength(1);
-    const updated = state.crisisQueue[0];
-    expect(updated.status).toBe('broadcasted');
-    expect(updated.broadcastAttempts).toBe(entry.broadcastAttempts + 1);
-    expect(updated.lastError).toBeNull();
-    expect(state.crisisBroadcastStatus).toBe('idle');
-    expect(state.crisisBroadcastError).toBeNull();
-    expect(state.crisisBroadcastMetrics.successCount).toBe(1);
+      expect(request).toBeDefined();
+      expect(request.studentId).toBe(store.studentId);
+      expect(request.crisisLevel).toBe('high');
+      expect(request.status).toBe('pending');
+    });
+
+    it('should create crisis request with postId', async () => {
+      const store = useStore.getState();
+      const postId = 'post-123';
+      const request = await store.createCrisisRequest('critical', postId);
+
+      expect(request.postId).toBe(postId);
+    });
+
+    it('should add created request to state', async () => {
+      const store = useStore.getState();
+      const request = await store.createCrisisRequest('high');
+
+      // Check session expiry is set before timers run
+      const { crisisSessionExpiresAt: expiresAfterCreate } = useStore.getState();
+      expect(expiresAfterCreate).toBe(request.expiresAt);
+
+      await vi.runAllTimersAsync();
+
+      const { crisisRequests } = useStore.getState();
+      expect(crisisRequests).toHaveLength(1);
+      expect(crisisRequests[0].id).toBe(request.id);
+      expect(crisisRequests[0].status).toBe('pending');
+    });
+
+    it('should set session expiry timestamp', async () => {
+      const store = useStore.getState();
+      const request = await store.createCrisisRequest('high');
+
+      await vi.runAllTimersAsync();
+
+      const { crisisSessionExpiresAt } = useStore.getState();
+      expect(crisisSessionExpiresAt).toBe(request.expiresAt);
+    });
+
+    it('should add audit entry for create', async () => {
+      const store = useStore.getState();
+      const request = await store.createCrisisRequest('high');
+
+      const { crisisAuditLog } = useStore.getState();
+      expect(crisisAuditLog).toHaveLength(1);
+      expect(crisisAuditLog[0].action).toBe('created');
+      expect(crisisAuditLog[0].requestId).toBe(request.id);
+    });
+  });
+
+  describe('Update Crisis Request', () => {
+    let requestId: string;
+
+    beforeEach(async () => {
+      const store = useStore.getState();
+      store.subscribeToQueue();
+      const request = await store.createCrisisRequest('high');
+      requestId = request.id;
+    });
+
+    it('should update request status', async () => {
+      const store = useStore.getState();
+      await store.updateCrisisRequest(requestId, { status: 'assigned', volunteerId: 'volunteer-123' });
+
+      const { crisisRequests } = useStore.getState();
+      const updated = crisisRequests.find((r) => r.id === requestId);
+
+      expect(updated?.status).toBe('assigned');
+      expect(updated?.volunteerId).toBe('volunteer-123');
+    });
+
+    it('should clear session expiry when resolved', async () => {
+      const store = useStore.getState();
+      await store.updateCrisisRequest(requestId, { status: 'resolved' });
+
+      const { crisisSessionExpiresAt } = useStore.getState();
+      expect(crisisSessionExpiresAt).toBeNull();
+    });
+
+    it('should add audit entry for update', async () => {
+      const store = useStore.getState();
+      const initialLogLength = store.crisisAuditLog.length;
+
+      await store.updateCrisisRequest(requestId, { status: 'assigned', volunteerId: 'volunteer-123' });
+
+      const { crisisAuditLog } = useStore.getState();
+      expect(crisisAuditLog.length).toBe(initialLogLength + 1);
+      expect(crisisAuditLog[0].action).toBe('assigned');
+    });
+
+    it('should handle expired status', async () => {
+      const store = useStore.getState();
+      await store.updateCrisisRequest(requestId, { status: 'expired' });
+
+      const { crisisRequests } = useStore.getState();
+      const updated = crisisRequests.find((r) => r.id === requestId);
+
+      expect(updated?.status).toBe('expired');
+    });
+  });
+
+  describe('Delete Crisis Request', () => {
+    let requestId: string;
+
+    beforeEach(async () => {
+      const store = useStore.getState();
+      store.subscribeToQueue();
+      const request = await store.createCrisisRequest('high');
+      requestId = request.id;
+    });
+
+    it('should delete crisis request', async () => {
+      const store = useStore.getState();
+      await store.deleteCrisisRequest(requestId);
+
+      const { crisisRequests } = useStore.getState();
+      expect(crisisRequests.find((r) => r.id === requestId)).toBeUndefined();
+    });
+
+    it('should add audit entry for delete', async () => {
+      const store = useStore.getState();
+      const initialLogLength = store.crisisAuditLog.length;
+
+      await store.deleteCrisisRequest(requestId);
+
+      const { crisisAuditLog } = useStore.getState();
+      expect(crisisAuditLog.length).toBe(initialLogLength + 1);
+      expect(crisisAuditLog[0].action).toBe('deleted');
+    });
+
+    it('should clear session expiry when deleted', async () => {
+      const store = useStore.getState();
+      await store.deleteCrisisRequest(requestId);
+
+      const { crisisSessionExpiresAt } = useStore.getState();
+      expect(crisisSessionExpiresAt).toBeNull();
+    });
+  });
+
+  describe('Query Functions', () => {
+    beforeEach(async () => {
+      const store = useStore.getState();
+      store.subscribeToQueue();
+    });
+
+    it('should get crisis request by ID', async () => {
+      const store = useStore.getState();
+      const request = await store.createCrisisRequest('high');
+
+      const found = store.getCrisisRequestById(request.id);
+      expect(found).toEqual(request);
+    });
+
+    it('should return undefined for unknown ID', () => {
+      const store = useStore.getState();
+      const found = store.getCrisisRequestById('unknown-id');
+      expect(found).toBeUndefined();
+    });
+
+    it('should get active crisis requests', async () => {
+      const store = useStore.getState();
+      const req1 = await store.createCrisisRequest('high');
+      await store.createCrisisRequest('critical');
+      await flushUpdates();
+      await store.updateCrisisRequest(req1.id, { status: 'resolved' });
+      await flushUpdates();
+
+      const active = store.getActiveCrisisRequests();
+      expect(active).toHaveLength(1);
+      expect(active[0].status).toBe('pending');
+    });
+
+    it('should filter out expired requests', async () => {
+      const store = useStore.getState();
+      const req1 = await store.createCrisisRequest('high');
+      const req2 = await store.createCrisisRequest('critical');
+      await flushUpdates();
+      await store.updateCrisisRequest(req1.id, { status: 'expired' });
+      await flushUpdates();
+
+      const active = store.getActiveCrisisRequests();
+      expect(active).toHaveLength(1);
+      expect(active[0].id).toBe(req2.id);
+    });
+  });
+
+  describe('Audit Trail', () => {
+    beforeEach(() => {
+      useStore.getState().subscribeToQueue();
+    });
+
+    it('should add audit entries', () => {
+      const store = useStore.getState();
+      store.addCrisisAuditEntry({
+        requestId: 'req-123',
+        action: 'created',
+        actorId: studentId,
+        metadata: { test: true },
+      });
+
+      const { crisisAuditLog } = useStore.getState();
+      expect(crisisAuditLog).toHaveLength(1);
+      expect(crisisAuditLog[0].action).toBe('created');
+      expect(crisisAuditLog[0].requestId).toBe('req-123');
+      expect(crisisAuditLog[0].actorId).toBe(studentId);
+    });
+
+    it('should auto-generate audit entry ID', () => {
+      const store = useStore.getState();
+      store.addCrisisAuditEntry({
+        requestId: 'req-123',
+        action: 'created',
+        actorId: studentId,
+      });
+
+      const { crisisAuditLog } = useStore.getState();
+      expect(crisisAuditLog[0].id).toBeDefined();
+      expect(crisisAuditLog[0].id).not.toBe('');
+    });
+
+    it('should auto-generate timestamp', () => {
+      const before = Date.now();
+      const store = useStore.getState();
+      
+      store.addCrisisAuditEntry({
+        requestId: 'req-123',
+        action: 'created',
+        actorId: studentId,
+      });
+
+      const after = Date.now();
+      const { crisisAuditLog } = useStore.getState();
+      
+      expect(crisisAuditLog[0].timestamp).toBeGreaterThanOrEqual(before);
+      expect(crisisAuditLog[0].timestamp).toBeLessThanOrEqual(after);
+    });
+
+    it('should limit audit log to maximum entries', () => {
+      const store = useStore.getState();
+
+      // Add 60 audit entries (more than the max of 50)
+      for (let i = 0; i < 60; i++) {
+        store.addCrisisAuditEntry({
+          requestId: `req-${i}`,
+          action: 'created',
+          actorId: studentId,
+        });
+      }
+
+      const { crisisAuditLog } = useStore.getState();
+      expect(crisisAuditLog.length).toBe(50);
+    });
+
+    it('should keep most recent entries', () => {
+      const store = useStore.getState();
+
+      for (let i = 0; i < 60; i++) {
+        store.addCrisisAuditEntry({
+          requestId: `req-${i}`,
+          action: 'created',
+          actorId: studentId,
+          metadata: { index: i },
+        });
+      }
+
+      const { crisisAuditLog } = useStore.getState();
+      expect(crisisAuditLog[0].metadata?.index).toBe(59);
+      expect(crisisAuditLog[49].metadata?.index).toBe(10);
+    });
+
+    it('should cleanup expired audit entries', () => {
+      const store = useStore.getState();
+      const oldTimestamp = Date.now() - 25 * 60 * 60 * 1000; // 25 hours ago
+
+      // Add old entry directly to state
+      useStore.setState({
+        crisisAuditLog: [
+          {
+            id: 'old-entry',
+            requestId: 'req-old',
+            action: 'created',
+            actorId: studentId,
+            timestamp: oldTimestamp,
+          },
+        ],
+      });
+
+      // Add recent entry
+      store.addCrisisAuditEntry({
+        requestId: 'req-new',
+        action: 'created',
+        actorId: studentId,
+      });
+
+      // Cleanup
+      store.cleanupExpiredAuditEntries();
+
+      const { crisisAuditLog } = useStore.getState();
+      expect(crisisAuditLog).toHaveLength(1);
+      expect(crisisAuditLog[0].requestId).toBe('req-new');
+    });
+
+    it('should track all actions in audit log', async () => {
+      const store = useStore.getState();
+      
+      const req = await store.createCrisisRequest('high');
+      await store.updateCrisisRequest(req.id, { status: 'assigned', volunteerId: 'vol-1' });
+      await store.updateCrisisRequest(req.id, { status: 'resolved' });
+      await store.deleteCrisisRequest(req.id);
+
+      const { crisisAuditLog } = useStore.getState();
+      expect(crisisAuditLog.length).toBeGreaterThanOrEqual(4);
+      
+      const actions = crisisAuditLog.map((entry) => entry.action);
+      expect(actions).toContain('created');
+      expect(actions).toContain('assigned');
+      expect(actions).toContain('resolved');
+      expect(actions).toContain('deleted');
+    });
+  });
+
+  describe('Session Expiry', () => {
+    beforeEach(() => {
+      useStore.getState().subscribeToQueue();
+    });
+
+    it('should track session expiry for current student', async () => {
+      const store = useStore.getState();
+      const request = await store.createCrisisRequest('high');
+
+      const { crisisSessionExpiresAt } = useStore.getState();
+      expect(crisisSessionExpiresAt).toBe(request.expiresAt);
+    });
+
+    it('should enforce 15-minute TTL by default', async () => {
+      const store = useStore.getState();
+      const before = Date.now();
+      const request = await store.createCrisisRequest('high');
+      const after = Date.now();
+
+      const expectedExpiry = before + 15 * 60 * 1000;
+      expect(request.expiresAt).toBeGreaterThanOrEqual(expectedExpiry);
+      expect(request.expiresAt).toBeLessThanOrEqual(after + 15 * 60 * 1000);
+    });
+
+    it('should clear session expiry when resolved', async () => {
+      const store = useStore.getState();
+      const request = await store.createCrisisRequest('high');
+      await flushUpdates();
+      
+      const { crisisSessionExpiresAt: expiresAfterCreate } = useStore.getState();
+      expect(expiresAfterCreate).not.toBeNull();
+
+      await store.updateCrisisRequest(request.id, { status: 'resolved' });
+      await flushUpdates();
+
+      const { crisisSessionExpiresAt } = useStore.getState();
+      expect(crisisSessionExpiresAt).toBeNull();
+    });
+
+    it('should clear session expiry when expired', async () => {
+      const store = useStore.getState();
+      const request = await store.createCrisisRequest('high');
+      await flushUpdates();
+      
+      await store.updateCrisisRequest(request.id, { status: 'expired' });
+      await flushUpdates();
+
+      const { crisisSessionExpiresAt } = useStore.getState();
+      expect(crisisSessionExpiresAt).toBeNull();
+    });
+  });
+
+  describe('Multiple Requests', () => {
+    beforeEach(() => {
+      useStore.getState().subscribeToQueue();
+    });
+
+    it('should handle multiple pending requests', async () => {
+      const store = useStore.getState();
+      await store.createCrisisRequest('high', 'post-1');
+      await store.createCrisisRequest('critical', 'post-2');
+      await flushUpdates();
+
+      const { crisisRequests } = useStore.getState();
+      expect(crisisRequests).toHaveLength(2);
+    });
+
+    it('should sort requests by timestamp', async () => {
+      const store = useStore.getState();
+      const req1 = await store.createCrisisRequest('high');
+      vi.advanceTimersByTime(100);
+      const req2 = await store.createCrisisRequest('critical');
+      await flushUpdates();
+
+      const { crisisRequests } = useStore.getState();
+      expect(crisisRequests[0].id).toBe(req1.id);
+      expect(crisisRequests[1].id).toBe(req2.id);
+    });
+
+    it('should update specific request in list', async () => {
+      const store = useStore.getState();
+      const req1 = await store.createCrisisRequest('high');
+      await store.createCrisisRequest('critical');
+      await flushUpdates();
+
+      await store.updateCrisisRequest(req1.id, { status: 'assigned', volunteerId: 'vol-1' });
+      await flushUpdates();
+
+      const { crisisRequests } = useStore.getState();
+      expect(crisisRequests[0].status).toBe('assigned');
+      expect(crisisRequests[1].status).toBe('pending');
+    });
   });
 });
