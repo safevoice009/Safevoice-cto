@@ -217,9 +217,17 @@ describe('CreatePost IPFS Integration', () => {
         undefined,
         false,
         undefined,
-        expect.any(Object),
+        {
+          blurReason: null,
+          contentBlurred: false,
+          crisisLevel: undefined,
+          isCrisisFlagged: false,
+          issues: [],
+          needsReview: false,
+        },
         undefined,
         undefined,
+        null,
         cid
       );
     });
