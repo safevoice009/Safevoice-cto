@@ -104,6 +104,12 @@ class MockAudioContext {
   }
 }
 
+type MutableNavigator = Navigator & {
+  mediaDevices?: MediaDevices;
+};
+
+const getMutableNavigator = (): MutableNavigator => navigator as MutableNavigator;
+
 describe('useVoiceRecorder', () => {
   let originalSpeechRecognition: any;
   let originalWebkitSpeechRecognition: any;
@@ -120,7 +126,7 @@ describe('useVoiceRecorder', () => {
     originalWebkitSpeechRecognition = (window as any).webkitSpeechRecognition;
     originalMediaRecorder = (window as any).MediaRecorder;
     originalAudioContext = (window as any).AudioContext;
-    originalMediaDevices = navigator.mediaDevices;
+    originalMediaDevices = getMutableNavigator().mediaDevices;
   });
 
   beforeEach(() => {
@@ -135,15 +141,24 @@ describe('useVoiceRecorder', () => {
     (window as any).SpeechRecognition = undefined;
     (window as any).webkitSpeechRecognition = MockSpeechRecognition;
 
+    const mutableNavigator = getMutableNavigator();
+
     mockTrackStop = vi.fn();
     mockStream = {
       getTracks: () => [{ stop: mockTrackStop }],
     } as unknown as MediaStream;
 
     mockGetUserMedia = vi.fn().mockResolvedValue(mockStream);
-    (navigator as unknown as { mediaDevices?: Partial<MediaDevices> }).mediaDevices = {
-      getUserMedia: mockGetUserMedia,
-    } as Partial<MediaDevices>;
+
+    const mediaDevicesMock = Object.assign(new EventTarget(), {
+      getUserMedia: mockGetUserMedia as unknown as MediaDevices['getUserMedia'],
+      enumerateDevices: vi.fn(),
+      getDisplayMedia: vi.fn(),
+      getSupportedConstraints: vi.fn(() => ({})),
+      ondevicechange: null as MediaDevices['ondevicechange'],
+    }) as MediaDevices;
+
+    mutableNavigator.mediaDevices = mediaDevicesMock;
 
     (window as any).MediaRecorder = MockMediaRecorder;
     (window as any).AudioContext = MockAudioContext;
@@ -177,11 +192,12 @@ describe('useVoiceRecorder', () => {
       (window as any).AudioContext = originalAudioContext;
     }
 
-    if (originalMediaDevices === undefined) {
-      delete (navigator as any).mediaDevices;
+    const mutableNavigator = getMutableNavigator();
+
+    if (originalMediaDevices !== undefined) {
+      mutableNavigator.mediaDevices = originalMediaDevices;
     } else {
-      (navigator as unknown as { mediaDevices?: MediaDevices }).mediaDevices =
-        originalMediaDevices;
+      Reflect.deleteProperty(mutableNavigator, 'mediaDevices');
     }
 
     vi.restoreAllMocks();

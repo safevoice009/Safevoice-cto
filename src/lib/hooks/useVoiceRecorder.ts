@@ -50,10 +50,7 @@ type RecognitionConstructor = new () => RecognitionInstance;
 
 type StopReason = 'manual' | 'timeout' | 'error';
 
-const defaultServerTranscription = async (_signal: AbortSignal): Promise<string> => {
-  void _signal;
-  return '';
-};
+const defaultServerTranscription = async (): Promise<string> => '';
 
 const getRecognitionConstructor = (): RecognitionConstructor | null => {
   if (typeof window === 'undefined') {
