@@ -1765,6 +1765,42 @@ const broadcastCrisisEntry = async (entry: CrisisQueueEntry): Promise<CrisisBroa
   }
 };
 
+const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
+const EMOTION_SOURCES: readonly EmotionAnalysisResult['source'][] = ['api', 'offline', 'manual'];
+
+const isEmotionType = (value: unknown): value is EmotionType =>
+  typeof value === 'string' && EMOTION_TYPES.includes(value as EmotionType);
+
+const isEmotionSource = (value: unknown): value is EmotionAnalysisResult['source'] =>
+  typeof value === 'string' && EMOTION_SOURCES.includes(value as EmotionAnalysisResult['source']);
+
+const normalizeEmotionAnalysis = (value: unknown): PostEmotionAnalysis | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const data = value as Partial<PostEmotionAnalysis>;
+
+  if (!isEmotionType(data.emotion) || !isEmotionSource(data.source)) {
+    return undefined;
+  }
+
+  if (typeof data.confidence !== 'number' || !Number.isFinite(data.confidence)) {
+    return undefined;
+  }
+
+  if (typeof data.detectedAt !== 'number' || !Number.isFinite(data.detectedAt)) {
+    return undefined;
+  }
+
+  return {
+    emotion: data.emotion,
+    source: data.source,
+    confidence: Math.max(0, Math.min(1, data.confidence)),
+    detectedAt: data.detectedAt,
+  };
+};
+
 const COMMUNITY_STATE_VERSION = 1;
 
 const rewardEngine = new RewardEngine();
