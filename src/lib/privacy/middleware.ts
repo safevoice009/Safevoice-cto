@@ -6,7 +6,16 @@
  * - WebRTC IP leak protection shim
  * - localStorage whitelist enforcement
  * - Cookie blocking via document.cookie interception
+ * - Browser fingerprint defense layer
  */
+
+import {
+  DEFAULT_FINGERPRINT_DEFENSES,
+  syncFingerprintDefenses,
+  updateFingerprintDefenses,
+  getFingerprintDefenseStatus,
+  FingerprintDefenseOptions,
+} from './fingerprint';
 
 export const ALLOWED_DOMAINS = [
   'localhost',
@@ -43,6 +52,10 @@ let fetchPatched = false;
 const hasNativeRequest = typeof Request !== 'undefined';
 
 const COOKIE_BLOCKER_SYMBOL = Symbol.for('safevoice:cookie-blocker-installed');
+
+// Fingerprint defense state
+let fingerprintDefenses: FingerprintDefenseOptions = DEFAULT_FINGERPRINT_DEFENSES;
+let fingerprintDefensesInitialized = false;
 
 export function setPrivacyFetchExecutorForTesting(executor?: typeof fetch): void {
   fetchExecutor = executor ?? nativeFetch ?? (typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : undefined);
@@ -285,9 +298,32 @@ export function initializePrivacyProtections(): void {
     console.info('[Privacy] Global fetch middleware installed');
   }
 
+  // Initialize fingerprint defenses
+  if (!fingerprintDefensesInitialized) {
+    syncFingerprintDefenses(fingerprintDefenses);
+    fingerprintDefensesInitialized = true;
+    console.info('[Privacy] Fingerprint defenses initialized');
+  }
+
   setPrivacyFetchExecutorForTesting();
 
   console.info('[Privacy] Privacy protections initialized successfully');
+}
+
+// Fingerprint defense management functions
+export function getFingerprintDefenses(): FingerprintDefenseOptions {
+  return { ...fingerprintDefenses };
+}
+
+export function updateFingerprintDefensesConfig(updates: Partial<FingerprintDefenseOptions>): void {
+  fingerprintDefenses = updateFingerprintDefenses(fingerprintDefenses, updates);
+}
+
+export function resetFingerprintDefenses(): void {
+  fingerprintDefenses = DEFAULT_FINGERPRINT_DEFENSES;
+  if (fingerprintDefensesInitialized) {
+    syncFingerprintDefenses(fingerprintDefenses);
+  }
 }
 
 export function getPrivacyStatus() {
@@ -297,5 +333,9 @@ export function getPrivacyStatus() {
     allowedDomains: [...ALLOWED_DOMAINS],
     allowedStorageKeys: [...ALLOWED_STORAGE_KEYS],
     httpsEnforced: Boolean(import.meta.env.PROD),
+    fingerprintDefenses: {
+      enabled: fingerprintDefenses,
+      status: getFingerprintDefenseStatus(),
+    },
   };
 }

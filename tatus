@@ -1,0 +1,26 @@
+[33mcommit d4181e2379292e5e413fd54e3775d5987f2eb1f2[m[33m ([m[1;31morigin/feat-fingerprint-defense-layer[m[33m)[m
+Author: engine-labs-app[bot] <140088366+engine-labs-app[bot]@users.noreply.github.com>
+Date:   Wed Nov 5 11:23:28 2025 +0000
+
+    feat(privacy): add configurable browser fingerprint defense layer
+    
+    Implements a robust fingerprint defense layer for browser privacy.
+    This feature randomizes or spoofs canvas, WebGL, AudioContext,
+    user agent, fonts, referer header, timezone, and screen metrics,
+    using a session-seeded PRNG for consistent per-session randomization.
+    
+    - Adds src/lib/privacy/fingerprint.ts with granular, configurable mitigations
+    - Exposes toggles in security/privacy settings UI (Profile > Settings)
+    - Initializes defenses before React render for maximum protection
+    - Updates global store with persistent user-controlled toggles
+    - Includes unit tests for randomization, determinism, and toggle logic
+    
+    Noteworthy: Strong privacy defaults; individual controls allow
+    users to restore compatibility or accessibility if needed.
+
+src/components/settings/PrivacySettings.tsx
+src/lib/__tests__/fingerprint.test.ts
+src/lib/privacy/fingerprint.ts
+src/lib/store.ts
+src/main.tsx
+src/pages/Profile.tsx

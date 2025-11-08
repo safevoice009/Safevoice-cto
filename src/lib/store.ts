@@ -44,10 +44,13 @@ import {
   shouldCleanupMatch,
 } from './mentorship';
 import type { EmotionAnalysisResult, EmotionType } from './emotionAnalysis';
+import type { FingerprintDefenseOptions } from './privacy/fingerprint';
+import { DEFAULT_FINGERPRINT_DEFENSES, updateFingerprintDefenses as updateFingerprintDefensesConfig } from './privacy/fingerprint';
 
 // Re-export premium types, achievement, and emotion types
 export type { Achievement, PremiumFeatureType, SubscriptionState };
 export type { EmotionType, EmotionAnalysisResult };
+export type { FingerprintDefenseOptions };
 
 // Types
 export interface Reaction {
@@ -448,6 +451,11 @@ export interface StoreState {
   boostTimeouts: Record<string, { highlight?: number; crossCampus?: number }>;
   communitySupport: Record<string, number>;
   communityEvents: CommunityEvent[];
+
+  // Privacy settings
+  fingerprintDefenses: FingerprintDefenseOptions;
+  updateFingerprintDefenses: (updates: Partial<FingerprintDefenseOptions>) => void;
+  resetFingerprintDefenses: () => void;
   
   // Community moderation state
   communityAnnouncements: CommunityAnnouncement[];
@@ -2490,6 +2498,21 @@ export const useStore = create<StoreState>((set, get) => {
     communityEvents: typeof window !== 'undefined' ? readStoredCommunityEvents() : createDefaultCommunityEvents(),
     nftBadges: initialNFTBadges,
 
+    // Privacy settings
+    fingerprintDefenses: (() => {
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('safevoice:fingerprintDefenses');
+        if (stored) {
+          try {
+            return { ...DEFAULT_FINGERPRINT_DEFENSES, ...JSON.parse(stored) };
+          } catch {
+            return DEFAULT_FINGERPRINT_DEFENSES;
+          }
+        }
+      }
+      return DEFAULT_FINGERPRINT_DEFENSES;
+    })(),
+
     // Community moderation state
     communityAnnouncements: [],
     communityModerationLogs: [],
@@ -2532,6 +2555,32 @@ export const useStore = create<StoreState>((set, get) => {
           toast('Moderator mode disabled', { icon: 'ℹ️' });
         }
         return { isModerator: next };
+      });
+    },
+
+    updateFingerprintDefenses: (updates: Partial<FingerprintDefenseOptions>) => {
+      set((state) => {
+        const updatedDefenses = updateFingerprintDefensesConfig(state.fingerprintDefenses, updates);
+        
+        // Store in localStorage for persistence
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('safevoice:fingerprintDefenses', JSON.stringify(updatedDefenses));
+        }
+        
+        toast.success('Fingerprint defenses updated');
+        return { fingerprintDefenses: updatedDefenses };
+      });
+    },
+
+    resetFingerprintDefenses: () => {
+      set(() => {
+        // Store in localStorage for persistence
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('safevoice:fingerprintDefenses', JSON.stringify(DEFAULT_FINGERPRINT_DEFENSES));
+        }
+        
+        toast.success('Fingerprint defenses reset to defaults');
+        return { fingerprintDefenses: DEFAULT_FINGERPRINT_DEFENSES };
       });
     },
 
