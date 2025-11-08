@@ -24,6 +24,7 @@ import type {
   PostVisibility,
 } from './communities/types';
 import { createDefaultCommunities } from './communities/defaults';
+import type { EmotionAnalysisResult, EmotionType } from './emotionAnalysis';
 import { getCrisisQueueService, type CrisisRequest, type CrisisAuditEntry, type CrisisQueueEvent } from './crisisQueue';
 
 // Re-export premium types and achievement
@@ -59,6 +60,10 @@ export interface EncryptionMeta {
   keyId: string;
 }
 
+export interface PostEmotionAnalysis extends EmotionAnalysisResult {
+  detectedAt: number;
+}
+
 export interface AddPostPayload {
   content: string;
   category?: string;
@@ -84,6 +89,8 @@ export interface AddPostPayload {
     isCrisisFlagged?: boolean;
     crisisLevel?: 'high' | 'critical';
   };
+  emotionAnalysis?: PostEmotionAnalysis | null;
+  ipfsCid?: string | null;
 }
 
 export interface UpdatePostOptions {
@@ -147,6 +154,8 @@ export interface Post {
   isEncrypted: boolean;
   encryptionMeta: EncryptionMeta | null;
   imageUrl?: string | null;
+  emotionAnalysis?: PostEmotionAnalysis;
+  ipfsCid?: string | null;
   warningShown?: boolean;
   reports?: Report[];
   contentBlurred?: boolean;
@@ -537,6 +546,8 @@ export interface StoreState {
    * @param moderationData - Pre-moderation results (issues, blur, crisis flags)
    * @param imageUrl - Optional image attachment URL
    * @param communityMeta - Optional community context (communityId, channelId, visibility, isAnonymous)
+   * @param emotionAnalysis - Optional emotion metadata (emotion, confidence, source, detectedAt)
+   * @param ipfsCid - Optional IPFS content identifier when content is stored off-chain
    */
   addPost: (
     content: string,
@@ -559,7 +570,9 @@ export interface StoreState {
       channelId?: string;
       visibility?: PostVisibility;
       isAnonymous?: boolean;
-    }
+    },
+    emotionAnalysis?: PostEmotionAnalysis | null,
+    ipfsCid?: string | null
   ) => void;
   updatePost: (
     postId: string,
@@ -842,6 +855,42 @@ const STORAGE_KEYS = {
   COMMUNITY_STATE_VERSION: 'safevoice_community_state_version', // Versioning for community data migrations
   CURRENT_COMMUNITY: 'safevoice_current_community',     // Last selected community
   CURRENT_CHANNEL: 'safevoice_current_channel',         // Last selected channel within community
+};
+
+const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
+const EMOTION_SOURCES: readonly EmotionAnalysisResult['source'][] = ['api', 'offline', 'manual'];
+
+const isEmotionType = (value: unknown): value is EmotionType =>
+  typeof value === 'string' && EMOTION_TYPES.includes(value as EmotionType);
+
+const isEmotionSource = (value: unknown): value is EmotionAnalysisResult['source'] =>
+  typeof value === 'string' && EMOTION_SOURCES.includes(value as EmotionAnalysisResult['source']);
+
+const normalizeEmotionAnalysis = (value: unknown): PostEmotionAnalysis | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const data = value as Partial<PostEmotionAnalysis>;
+
+  if (!isEmotionType(data.emotion) || !isEmotionSource(data.source)) {
+    return undefined;
+  }
+
+  if (typeof data.confidence !== 'number' || !Number.isFinite(data.confidence)) {
+    return undefined;
+  }
+
+  if (typeof data.detectedAt !== 'number' || !Number.isFinite(data.detectedAt)) {
+    return undefined;
+  }
+
+  return {
+    emotion: data.emotion,
+    source: data.source,
+    confidence: Math.max(0, Math.min(1, data.confidence)),
+    detectedAt: data.detectedAt,
+  };
 };
 
 const COMMUNITY_STATE_VERSION = 1;
@@ -2843,6 +2892,11 @@ export const useStore = create<StoreState>((set, get) => {
       const normalizedReportsForPost = Array.isArray(post.reports)
         ? (post.reports as Array<Partial<Report>>).map((rawReport) => upsertReport(reportCollection, rawReport))
         : [];
+      const normalizedEmotionFromStorage = normalizeEmotionAnalysis(post.emotionAnalysis);
+      const normalizedIpfsCidFromStorage =
+        typeof post.ipfsCid === 'string' && post.ipfsCid.trim().length > 0
+          ? post.ipfsCid.trim()
+          : null;
       const nowTs = Date.now();
       const rawPinnedAt = typeof post.pinnedAt === 'number' ? post.pinnedAt : null;
       const rawHighlightUntil = typeof post.highlightedUntil === 'number' ? post.highlightedUntil : null;
@@ -2872,6 +2926,8 @@ export const useStore = create<StoreState>((set, get) => {
         isEncrypted: normalizedMeta ? true : Boolean(post.isEncrypted),
         encryptionMeta: normalizedMeta,
         imageUrl: typeof post.imageUrl === 'string' ? post.imageUrl : null,
+        emotionAnalysis: normalizedEmotionFromStorage,
+        ipfsCid: normalizedIpfsCidFromStorage,
         warningShown: post.warningShown ?? false,
         isViral: post.isViral ?? false,
         viralAwardedAt: post.viralAwardedAt ?? null,
@@ -3136,11 +3192,16 @@ export const useStore = create<StoreState>((set, get) => {
       channelId?: string;
       visibility?: PostVisibility;
       isAnonymous?: boolean;
-    }
+    },
+    emotionAnalysis?: PostEmotionAnalysis | null,
+    ipfsCid?: string | null
   ) => {
     const storeState = get();
     const isFirstPost = !storeState.firstPostAwarded;
     const hasImage = Boolean(imageUrl);
+    const normalizedEmotionAnalysis = normalizeEmotionAnalysis(emotionAnalysis ?? undefined);
+    const normalizedIpfsCid =
+      typeof ipfsCid === 'string' && ipfsCid.trim().length > 0 ? ipfsCid.trim() : null;
     
     const lifetimeMap: Record<PostLifetime, number | null> = {
       '1h': 1 * 60 * 60 * 1000,
@@ -3183,6 +3244,8 @@ export const useStore = create<StoreState>((set, get) => {
           }
         : null,
       imageUrl: imageUrl || null,
+      emotionAnalysis: normalizedEmotionAnalysis,
+      ipfsCid: normalizedIpfsCid,
       warningShown: false,
       reports: [],
       moderationIssues: moderationData?.issues || [],
@@ -6059,159 +6122,7 @@ export const useStore = create<StoreState>((set, get) => {
     });
   },
 
-  // Crisis Queue methods
-  createCrisisRequest: async (crisisLevel: 'high' | 'critical', postId?: string) => {
-    const service = ensureCrisisQueue();
-    const { studentId } = get();
 
-    try {
-      const request = await service.createRequest(studentId, crisisLevel, { postId });
-      
-      console.log('[createCrisisRequest] Created request:', {
-        id: request.id,
-        status: request.status,
-        expiresAt: request.expiresAt,
-        ttl: request.ttl,
-        createdAt: request.timestamp,
-        now: Date.now(),
-        timeToExpiry: request.expiresAt - Date.now(),
-      });
-      
-      // Set session expiry immediately for current student's request
-      if (request.studentId === studentId && (request.status === 'pending' || request.status === 'assigned')) {
-        set((state) => ({
-          crisisSessionExpiresAt: request.expiresAt,
-        }));
-      }
-      
-      // Add audit entry
-      get().addCrisisAuditEntry({
-        requestId: request.id,
-        action: 'created',
-        actorId: studentId,
-        metadata: {
-          crisisLevel,
-          postId,
-        },
-      });
-
-      toast.success('Crisis request created! Help is on the way. 🆘', {
-        duration: 5000,
-      });
-
-      return request;
-    } catch (error) {
-      console.error('Failed to create crisis request:', error);
-      toast.error('Failed to create crisis request. Please try again.');
-      throw error;
-    }
-  },
-
-  updateCrisisRequest: async (requestId: string, updates: Partial<Pick<CrisisRequest, 'status' | 'volunteerId' | 'metadata'>>) => {
-    const service = ensureCrisisQueue();
-    const { studentId } = get();
-
-    try {
-      const updated = await service.updateRequest(requestId, updates);
-      
-      // Add specific audit entry based on status change
-      const auditAction = updates.status === 'assigned' ? 'assigned' : 
-                       updates.status === 'resolved' ? 'resolved' : 
-                       updates.status === 'expired' ? 'expired' : 'updated';
-      
-      get().addCrisisAuditEntry({
-        requestId: updated.id,
-        action: auditAction,
-        actorId: studentId,
-        metadata: updates,
-      });
-
-      if (updates.status === 'resolved') {
-        toast.success('Crisis request resolved! Thank you for helping. 🙏', {
-          duration: 4000,
-        });
-      } else if (updates.status === 'assigned' && updates.volunteerId) {
-        toast.success('Crisis request assigned to volunteer. 🤝', {
-          duration: 3000,
-        });
-      }
-    } catch (error) {
-      console.error('Failed to update crisis request:', error);
-      toast.error('Failed to update crisis request.');
-      throw error;
-    }
-  },
-
-  deleteCrisisRequest: async (requestId: string) => {
-    const service = ensureCrisisQueue();
-    const { studentId } = get();
-
-    try {
-      await service.deleteRequest(requestId);
-      
-      // Add audit entry
-      get().addCrisisAuditEntry({
-        requestId,
-        action: 'deleted',
-        actorId: studentId,
-        metadata: {},
-      });
-
-      toast.success('Crisis request deleted.');
-    } catch (error) {
-      console.error('Failed to delete crisis request:', error);
-      toast.error('Failed to delete crisis request.');
-      throw error;
-    }
-  },
-
-  getCrisisRequestById: (requestId: string) => {
-    const { crisisRequests } = get();
-    return crisisRequests.find(request => request.id === requestId);
-  },
-
-  getActiveCrisisRequests: () => {
-    const { crisisRequests } = get();
-    return crisisRequests.filter(request => 
-      request.status === 'pending' || request.status === 'assigned'
-    );
-  },
-
-  subscribeToQueue: () => {
-    ensureCrisisQueue();
-  },
-
-  unsubscribeFromQueue: () => {
-    teardownCrisisQueue();
-    crisisQueueServiceInstance = null;
-  },
-
-  addCrisisAuditEntry: (entry: Omit<CrisisAuditEntry, 'id' | 'timestamp'>) => {
-    const auditEntry: CrisisAuditEntry = {
-      id: generateCrisisAuditId(),
-      timestamp: Date.now(),
-      ...entry,
-    };
-
-    set((state) => {
-      const nextAuditLog = [auditEntry, ...state.crisisAuditLog];
-      
-      // Keep only the most recent entries
-      const trimmed = nextAuditLog.slice(0, CRISIS_AUDIT_MAX);
-      
-      return {
-        crisisAuditLog: trimmed,
-      };
-    });
-  },
-
-  cleanupExpiredAuditEntries: () => {
-    const cutoff = Date.now() - CRISIS_AUDIT_RETENTION_MS;
-    
-    set((state) => ({
-      crisisAuditLog: state.crisisAuditLog.filter(entry => entry.timestamp > cutoff),
-    }));
-  },
 };
 });
 
