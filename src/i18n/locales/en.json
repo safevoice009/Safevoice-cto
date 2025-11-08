@@ -114,6 +114,8 @@
       "secureNetworkDesc": "All requests are validated against an allowlist. Only trusted domains are permitted.",
       "localData": "Local-Only Data Storage",
       "localDataDesc": "Your data never leaves your device. Posts, preferences, and wallet info stay local and encrypted.",
+      "fingerprintDefenses": "Fingerprint Defenses",
+      "fingerprintDefensesDesc": "Advanced protection against browser fingerprinting techniques that track you across websites.",
       "securityHeaders": "Security Headers Active",
       "web3Notice": "Web3 Wallet Privacy",
       "web3NoticeDesc": "Connecting a wallet exposes your blockchain address. Your Student ID stays anonymous.",

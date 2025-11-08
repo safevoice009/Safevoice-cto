@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Eye, Cookie, Globe, Lock, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { Shield, Eye, Cookie, Globe, Lock, AlertCircle, CheckCircle2, Info, Fingerprint, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getPrivacyStatus } from '../../lib/privacy/middleware';
+import { useAppStore } from '../../lib/store';
 
 export default function PrivacySettings() {
   const { t } = useTranslation();
   const [showDetails, setShowDetails] = useState(false);
+  const [showFingerprintDetails, setShowFingerprintDetails] = useState(false);
   const privacyStatus = getPrivacyStatus();
+  const { fingerprintDefenses, updateFingerprintDefenses, resetFingerprintDefenses } = useAppStore();
 
   return (
     <motion.div
@@ -48,6 +51,10 @@ export default function PrivacySettings() {
               <div className="flex items-center space-x-2">
                 <span className="w-2 h-2 bg-green-400 rounded-full" />
                 <span>HTTPS enforced</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="w-2 h-2 bg-green-400 rounded-full" />
+                <span>Fingerprint defenses active</span>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="w-2 h-2 bg-green-400 rounded-full" />
@@ -177,9 +184,196 @@ export default function PrivacySettings() {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Security Headers */}
+      {/* Fingerprint Defenses */}
+      <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                  <div className="flex items-start space-x-3">
+                    <Fingerprint className="w-5 h-5 text-purple-400 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-white">
+                          {t('settings.privacy.fingerprintDefenses', 'Fingerprint Defenses')}
+                        </h4>
+                        <button
+                          onClick={() => setShowFingerprintDetails(!showFingerprintDetails)}
+                          className="text-xs text-purple-300 hover:text-purple-200 transition-colors flex items-center space-x-1"
+                        >
+                          <Info className="w-3 h-3" />
+                          <span>{showFingerprintDetails ? 'Hide' : 'Show'} details</span>
+                        </button>
+                      </div>
+                      <p className="text-sm text-gray-400 mb-3">
+                        {t(
+                          'settings.privacy.fingerprintDefensesDesc',
+                          'Advanced protection against browser fingerprinting techniques that track you across websites.'
+                        )}
+                      </p>
+
+                      {/* Fingerprint Defense Toggles */}
+                      <div className="space-y-2 mb-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">Canvas Randomization</span>
+                          <button
+                            onClick={() => updateFingerprintDefenses({ canvas: !fingerprintDefenses.canvas })}
+                            className={`w-12 h-6 rounded-full transition-colors ${
+                              fingerprintDefenses.canvas ? 'bg-purple-500' : 'bg-gray-600'
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                                fingerprintDefenses.canvas ? 'translate-x-6' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">WebGL Protection</span>
+                          <button
+                            onClick={() => updateFingerprintDefenses({ webgl: !fingerprintDefenses.webgl })}
+                            className={`w-12 h-6 rounded-full transition-colors ${
+                              fingerprintDefenses.webgl ? 'bg-purple-500' : 'bg-gray-600'
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                                fingerprintDefenses.webgl ? 'translate-x-6' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">Audio Context Protection</span>
+                          <button
+                            onClick={() => updateFingerprintDefenses({ audioContext: !fingerprintDefenses.audioContext })}
+                            className={`w-12 h-6 rounded-full transition-colors ${
+                              fingerprintDefenses.audioContext ? 'bg-purple-500' : 'bg-gray-600'
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                                fingerprintDefenses.audioContext ? 'translate-x-6' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">User Agent Spoofing</span>
+                          <button
+                            onClick={() => updateFingerprintDefenses({ userAgent: !fingerprintDefenses.userAgent })}
+                            className={`w-12 h-6 rounded-full transition-colors ${
+                              fingerprintDefenses.userAgent ? 'bg-purple-500' : 'bg-gray-600'
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                                fingerprintDefenses.userAgent ? 'translate-x-6' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">Font Randomization</span>
+                          <button
+                            onClick={() => updateFingerprintDefenses({ fonts: !fingerprintDefenses.fonts })}
+                            className={`w-12 h-6 rounded-full transition-colors ${
+                              fingerprintDefenses.fonts ? 'bg-purple-500' : 'bg-gray-600'
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                                fingerprintDefenses.fonts ? 'translate-x-6' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">Referer Protection</span>
+                          <button
+                            onClick={() => updateFingerprintDefenses({ referer: !fingerprintDefenses.referer })}
+                            className={`w-12 h-6 rounded-full transition-colors ${
+                              fingerprintDefenses.referer ? 'bg-purple-500' : 'bg-gray-600'
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                                fingerprintDefenses.referer ? 'translate-x-6' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">Timezone Protection</span>
+                          <button
+                            onClick={() => updateFingerprintDefenses({ timezone: !fingerprintDefenses.timezone })}
+                            className={`w-12 h-6 rounded-full transition-colors ${
+                              fingerprintDefenses.timezone ? 'bg-purple-500' : 'bg-gray-600'
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                                fingerprintDefenses.timezone ? 'translate-x-6' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">Screen Metrics Protection</span>
+                          <button
+                            onClick={() => updateFingerprintDefenses({ screenMetrics: !fingerprintDefenses.screenMetrics })}
+                            className={`w-12 h-6 rounded-full transition-colors ${
+                              fingerprintDefenses.screenMetrics ? 'bg-purple-500' : 'bg-gray-600'
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                                fingerprintDefenses.screenMetrics ? 'translate-x-6' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Reset Button */}
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={resetFingerprintDefenses}
+                          className="text-xs text-purple-300 hover:text-purple-200 transition-colors flex items-center space-x-1"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Reset to defaults</span>
+                        </button>
+                      </div>
+
+                      {/* Detailed Status */}
+                      {showFingerprintDetails && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          className="mt-3 p-3 bg-background/50 rounded text-xs space-y-1"
+                        >
+                          <div className="text-gray-400 font-semibold mb-2">Defense Status:</div>
+                          {Object.entries(fingerprintDefenses).map(([key, enabled]) => (
+                            <div key={key} className="flex items-center space-x-2 text-gray-500">
+                              <span className="w-2 h-2 bg-purple-400 rounded-full" />
+                              <span className="font-mono">
+                                {key}: {enabled ? 'Active' : 'Disabled'}
+                              </span>
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+              {/* Security Headers */}
       <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
         <div className="flex items-start space-x-3">
           <Shield className="w-5 h-5 text-blue-400 mt-0.5" />
