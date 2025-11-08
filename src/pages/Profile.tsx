@@ -228,28 +228,18 @@ export default function Profile() {
                   ))}
                 </AnimatePresence>
               </div>
-            })}
+            )}
           </div>
 
-          {activeTab === 'overview' && (
-           <div className="glass p-6 space-y-4">
-             <h2 className="text-xl font-bold text-white">Bookmarked Posts</h2>
-             {savedPosts.length === 0 ? (
-               <div className="text-center py-10 text-gray-400 space-y-2">
-                 <Bookmark className="w-8 h-8 mx-auto" />
-                 <p className="text-sm">No bookmarked posts yet</p>
-                 <p className="text-xs">Save posts you find helpful or inspiring</p>
-               </div>
-             ) : (
-               <div className="space-y-4">
-                 <AnimatePresence mode="popLayout">
-                   {savedPosts.map((post) => (
-                     <PostCard key={post.id} post={post} />
-                   ))}
-                 </AnimatePresence>
-               </div>
-             )}
-           </div>
+          {activeTab === 'wallet' && <WalletSection />}
+
+          {activeTab === 'verification' && <ZKProofSettings />}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+              <LanguageSettings />
+              <PrivacySettings />
+            </div>
           )}
 
           {activeTab === 'achievements' && (
