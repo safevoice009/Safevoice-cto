@@ -7,6 +7,8 @@ import { useStore } from '../../lib/store';
 import NotificationDropdown from './NotificationDropdown';
 import ConnectWalletButton from '../wallet/ConnectWalletButton';
 import LanguageSwitcher from './LanguageSwitcher';
+import ThemeSwitcher from './ThemeSwitcher';
+import FontSwitcher from './FontSwitcher';
 
 type NavLink = {
   labelKey: string;
@@ -108,6 +110,8 @@ export default function Navbar() {
 
           <div className="hidden md:flex items-center space-x-4">
             <LanguageSwitcher />
+            <ThemeSwitcher />
+            <FontSwitcher />
             <NotificationDropdown />
             <motion.button
               onClick={() => setShowCrisisModal(true)}
@@ -155,8 +159,10 @@ export default function Navbar() {
             className="md:hidden bg-surface/95 backdrop-blur-xl border-t border-white/10"
           >
             <div className="px-4 py-4 space-y-3">
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
                 <LanguageSwitcher />
+                <ThemeSwitcher />
+                <FontSwitcher />
               </div>
               {navLinks.map((link) => {
                 const isActive =
