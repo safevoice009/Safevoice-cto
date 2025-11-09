@@ -1,19 +1,40 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { helplines } from '../../lib/helplines';
+import ZKProofPrompt from './ZKProofPrompt';
+import ZKProofStatusBadge from './ZKProofStatusBadge';
+import { useStore } from '../../lib/store';
 
 interface CrisisAlertModalProps {
   isOpen: boolean;
   onAcknowledge: (action: 'call_helpline' | 'continue') => void;
+  requestId?: string;
+  enableZKProof?: boolean;
 }
 
 export default function CrisisAlertModal({
   isOpen,
   onAcknowledge,
+  requestId,
+  enableZKProof = false,
 }: CrisisAlertModalProps) {
+  const { t } = useTranslation();
+  const studentId = useStore((state) => state.studentId);
+  const zkProofs = useStore((state) => state.zkProofs);
+  
   const primaryHelplines = helplines.filter((h) =>
     ['aasra', 'vandrevala', 'kiran'].includes(h.id)
   );
+
+  // Generate witness data from student ID and timestamp for ZK proof
+  const getWitnessData = () => {
+    if (!requestId || !studentId) return '';
+    return `${studentId}-${requestId}-${Date.now()}`;
+  };
+
+  const zkProofState = requestId ? zkProofs[requestId] : undefined;
+  const witnessData = getWitnessData();
 
   return (
     <AnimatePresence>
@@ -82,6 +103,31 @@ export default function CrisisAlertModal({
                     </motion.a>
                   ))}
                 </div>
+
+                {/* ZK Proof Section */}
+                {enableZKProof && requestId && (
+                  <div className="border-t border-white/10 pt-6">
+                    <div className="mb-4 flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-white">
+                        {t('zkProof.title')}
+                      </h3>
+                      {zkProofState && (
+                        <ZKProofStatusBadge 
+                          zkProofState={zkProofState}
+                          size="sm"
+                        />
+                      )}
+                    </div>
+                    <ZKProofPrompt
+                      requestId={requestId}
+                      witness={witnessData}
+                      onProofComplete={(success) => {
+                        // Handle proof completion if needed
+                        console.log('ZK proof completed:', success);
+                      }}
+                    />
+                  </div>
+                )}
 
                 <div className="text-center">
                   <a

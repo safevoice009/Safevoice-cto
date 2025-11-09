@@ -182,5 +182,22 @@
     "default": "Default Font",
     "dyslexic": "OpenDyslexic (Dyslexia-Friendly)",
     "comicSans": "Comic Sans Pro"
+  },
+  "zkProof": {
+    "title": "Privacy Protection",
+    "description": "Generating cryptographic proof to protect your identity",
+    "retry": "Retry",
+    "error": "Proof generation failed",
+    "verifiedMessage": "Your identity is cryptographically verified and protected",
+    "generating": "Generating cryptographic proof...",
+    "verifying": "Verifying proof...",
+    "status": {
+      "notStarted": "Not Started",
+      "pending": "Generating Proof",
+      "success": "Proof Generated",
+      "verified": "Verified & Protected",
+      "failed": "Generation Failed",
+      "verificationFailed": "Verification Failed"
+    }
   }
   }
