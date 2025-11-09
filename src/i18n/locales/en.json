@@ -171,5 +171,16 @@
     "leave": "Leave",
     "members": "Members",
     "posts": "Posts"
+  },
+  "theme": {
+    "lightMode": "Switch to Light Mode",
+    "darkMode": "Switch to Dark Mode",
+    "highContrast": "High Contrast Mode"
+  },
+  "font": {
+    "selectFont": "Font",
+    "default": "Default Font",
+    "dyslexic": "OpenDyslexic (Dyslexia-Friendly)",
+    "comicSans": "Comic Sans Pro"
   }
-}
+  }

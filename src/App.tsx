@@ -29,6 +29,7 @@ import AchievementToastContainer from './components/wallet/AchievementToastConta
 import { useStore } from './lib/store';
 import PostLifecycleManager from './lib/postLifecycleManager';
 import { wagmiConfig, chains } from './lib/wagmiConfig';
+import { useThemeStore } from './lib/themeStore';
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,7 @@ function AnimatedRoutes() {
   const addPost = useStore((state) => state.addPost);
   const loadWalletData = useStore((state) => state.loadWalletData);
   const grantDailyLoginBonus = useStore((state) => state.grantDailyLoginBonus);
+  const hydrate = useThemeStore((state) => state.hydrate);
   const lifecycleManagerRef = useRef<PostLifecycleManager | null>(null);
   const { t } = useTranslation();
 
@@ -50,7 +52,8 @@ function AnimatedRoutes() {
     if (!storedId) {
       initStudentId();
     }
-  }, [initStudentId]);
+    hydrate();
+  }, [initStudentId, hydrate]);
 
   useEffect(() => {
     loadWalletData();

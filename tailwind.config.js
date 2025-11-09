@@ -4,15 +4,32 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#6366f1',
-        background: '#0f172a',
-        surface: '#1e293b',
+        primary: 'var(--color-primary)',
+        background: 'var(--color-surface)',
+        surface: 'var(--color-surface-secondary)',
+        text: {
+          DEFAULT: 'var(--color-text)',
+          secondary: 'var(--color-text-secondary)',
+          muted: 'var(--color-text-muted)',
+          inverse: 'var(--color-text-inverse)',
+        },
+        border: {
+          DEFAULT: 'var(--color-border)',
+          light: 'var(--color-border-light)',
+        },
+        success: 'var(--color-success)',
+        warning: 'var(--color-warning)',
+        error: 'var(--color-error)',
+        info: 'var(--color-info)',
       },
       backgroundImage: {
-        'gradient-hero': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        'gradient-hero': 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
       },
       boxShadow: {
-        glow: '0 10px 30px -10px rgba(99, 102, 241, 0.45)',
+        glow: '0 10px 30px -10px var(--color-primary)',
+      },
+      outline: {
+        hc: ['var(--color-focus-outline-width) solid var(--color-focus-outline)', 'var(--color-focus-outline-width)'],
       },
     },
   },
