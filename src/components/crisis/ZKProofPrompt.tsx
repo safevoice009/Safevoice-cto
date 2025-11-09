@@ -28,13 +28,6 @@ export default function ZKProofPrompt({
   const verifyZKProof = useStore((state) => state.verifyZKProof);
   const clearZKProof = useStore((state) => state.clearZKProof);
 
-  // Auto-generate proof when component mounts and no proof exists
-  useEffect(() => {
-    if (!zkProofState && !isGenerating) {
-      handleGenerateProof();
-    }
-  }, [zkProofState, isGenerating, handleGenerateProof]);
-
   const handleGenerateProof = useCallback(async () => {
     if (isGenerating) return;
     
@@ -44,7 +37,7 @@ export default function ZKProofPrompt({
       if (result.success && result.artifacts) {
         await submitZKProof(requestId, witness, additionalData);
         const verifyResult = await verifyZKProof(requestId, witness);
-        onProofComplete?.(verifyResult.success && verifyResult.verified);
+        onProofComplete?.(verifyResult.success && (verifyResult.verified ?? false));
       } else {
         onProofComplete?.(false);
       }
@@ -55,6 +48,13 @@ export default function ZKProofPrompt({
       setIsGenerating(false);
     }
   }, [isGenerating, requestId, witness, additionalData, prepareZKProof, submitZKProof, verifyZKProof, onProofComplete]);
+
+  // Auto-generate proof when component mounts and no proof exists
+  useEffect(() => {
+    if (!zkProofState && !isGenerating) {
+      handleGenerateProof();
+    }
+  }, [zkProofState, isGenerating, handleGenerateProof]);
 
   const handleRetry = async () => {
     clearZKProof(requestId);
@@ -111,7 +111,7 @@ export default function ZKProofPrompt({
   };
 
   const showRetryButton = zkProofState?.status === 'failed' || zkProofState?.status === 'verification_failed';
-  const isLoading = isGenerating || isVerifying || zkProofState?.status === 'pending';
+  const isLoading = isGenerating || zkProofState?.status === 'pending';
 
   return (
     <motion.div

@@ -1,11 +1,10 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { useTranslation } from 'react-i18next';
+import { I18nextProvider } from 'react-i18next';
 import { useStore } from '../../../lib/store';
 import ZKProofPrompt from '../ZKProofPrompt';
 import ZKProofStatusBadge from '../ZKProofStatusBadge';
-
 // Mock the store
 vi.mock('../../../lib/store', () => ({
   useStore: vi.fn(),
@@ -14,18 +13,26 @@ vi.mock('../../../lib/store', () => ({
 // Mock framer-motion
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+    div: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    button: ({ children, ...props }: React.HTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button>,
   },
-  AnimatePresence: ({ children }: any) => <>{children}</>,
+  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 // Mock react-i18next
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
+vi.mock('react-i18next', async () => {
+  const actual = await vi.importActual('react-i18next');
+  return {
+    ...actual,
+    initReactI18next: {
+      type: '3rdParty',
+      init: () => {},
+    },
+    useTranslation: () => ({
+      t: (key: string) => key,
+    }),
+  };
+});
 
 const mockStore = {
   zkProofs: {},
@@ -35,13 +42,28 @@ const mockStore = {
   clearZKProof: vi.fn(),
 };
 
+// Create a simple test i18n instance
+const testI18n = {
+  language: 'en',
+  t: (key: string) => key,
+  changeLanguage: () => Promise.resolve(),
+  on: () => {},
+  off: () => {},
+};
+
 const renderWithI18n = (component: React.ReactElement) => {
-  return render(component);
+  return render(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    <I18nextProvider i18n={testI18n as any}>
+      {component}
+    </I18nextProvider>
+  );
 };
 
 describe('ZKProofPrompt', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (useStore as any).mockReturnValue(mockStore);
   });
 
@@ -66,7 +88,7 @@ describe('ZKProofPrompt', () => {
       success: true,
       artifacts: { proof: 'test-proof', publicParams: { commitment: 'test', challenge: 'test', curve: 'bls12-381' } }
     });
-    mockStore.submitZKProof.mockResolvedValue();
+    mockStore.submitZKProof.mockResolvedValue(undefined);
     mockStore.verifyZKProof.mockResolvedValue({ success: true, verified: true });
 
     renderWithI18n(
@@ -113,7 +135,7 @@ describe('ZKProofPrompt', () => {
       success: true,
       artifacts: { proof: 'test-proof', publicParams: { commitment: 'test', challenge: 'test', curve: 'bls12-381' } }
     });
-    mockStore.submitZKProof.mockResolvedValue();
+    mockStore.submitZKProof.mockResolvedValue(undefined);
     mockStore.verifyZKProof.mockResolvedValue({ success: true, verified: true });
 
     renderWithI18n(
@@ -158,7 +180,7 @@ describe('ZKProofPrompt', () => {
       success: true,
       artifacts: { proof: 'test-proof', publicParams: { commitment: 'test', challenge: 'test', curve: 'bls12-381' } }
     });
-    mockStore.submitZKProof.mockResolvedValue();
+    mockStore.submitZKProof.mockResolvedValue(undefined);
     mockStore.verifyZKProof.mockResolvedValue({ success: true, verified: true });
 
     renderWithI18n(
@@ -288,7 +310,8 @@ describe('ZKProofStatusBadge', () => {
     expect(screen.getByRole('generic')).toHaveClass('px-2', 'py-1', 'text-xs');
 
     rerender(
-      <I18nextProvider i18n={testI18n}>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      <I18nextProvider i18n={testI18n as any}>
         <ZKProofStatusBadge
           size="lg"
           zkProofState={{
