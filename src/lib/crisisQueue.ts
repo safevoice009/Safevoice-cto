@@ -358,7 +358,8 @@ class CrisisQueueService {
       try {
         handler(normalizedError);
       } catch (nestedError) {
-        // eslint-disable-next-line no-console
+        // Intentional logging for error handling debugging
+         
         console.error('CrisisQueueService error handler threw', nestedError);
       }
     });
