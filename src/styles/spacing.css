@@ -1,0 +1,85 @@
+:root {
+  --spacing-unit: 8px;
+  --density-scale: 1;
+  --space-0: 0px;
+  --space-1: calc(var(--spacing-unit) * 0.5 * var(--density-scale));
+  --space-2: calc(var(--spacing-unit) * 1 * var(--density-scale));
+  --space-3: calc(var(--spacing-unit) * 1.5 * var(--density-scale));
+  --space-4: calc(var(--spacing-unit) * 2 * var(--density-scale));
+  --space-5: calc(var(--spacing-unit) * 3 * var(--density-scale));
+  --space-6: calc(var(--spacing-unit) * 4 * var(--density-scale));
+}
+
+.spacing-stack-xs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.spacing-stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.spacing-stack-md {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.spacing-stack-lg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.spacing-stack-xl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.spacing-inline-sm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.spacing-inline-md {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.spacing-inline-lg {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.spacing-section {
+  padding-block: var(--space-5);
+  padding-inline: var(--space-4);
+}
+
+.spacing-card {
+  padding: var(--space-3);
+  border-radius: var(--radius-lg, 16px);
+}
+
+.spacing-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+  .spacing-section {
+    padding-block: var(--space-6);
+    padding-inline: var(--space-5);
+  }
+
+  .spacing-grid {
+    gap: var(--space-4);
+  }
+}

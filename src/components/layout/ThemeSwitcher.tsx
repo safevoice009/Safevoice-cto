@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next';
 
 export default function ThemeSwitcher() {
   const { t } = useTranslation();
-  const { theme, toggleTheme } = useThemeStore();
+  const { resolvedTheme, toggleTheme } = useThemeStore();
 
-  const isLight = theme === 'light-hc';
+  const isLight = resolvedTheme === 'light-hc';
   const label = isLight ? t('theme.darkMode') : t('theme.lightMode');
 
   return (

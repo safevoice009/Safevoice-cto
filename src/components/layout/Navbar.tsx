@@ -25,6 +25,7 @@ const navLinks: NavLink[] = [
   { labelKey: 'nav.helplines', value: '/helplines', type: 'route' },
   { labelKey: 'nav.guidelines', value: '/guidelines', type: 'route' },
   { labelKey: 'nav.memorial', value: '/memorial', type: 'route' },
+  { labelKey: 'nav.customize', value: '/settings/appearance', type: 'route' },
 ];
 
 export default function Navbar() {
