@@ -26,6 +26,8 @@ import type {
 import { createDefaultCommunities } from './communities/defaults';
 import type { EmotionAnalysisResult, EmotionType } from './emotionAnalysis';
 import { getCrisisQueueService, type CrisisRequest, type CrisisAuditEntry, type CrisisQueueEvent } from './crisisQueue';
+import type { ZKProofArtifacts, ZKProofResult } from './zkProof';
+import { generateZKProof, verifyZKProof, deserializeProof } from './zkProof';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -375,6 +377,13 @@ export interface PostSearchFilters {
   sort?: PostSortOption;
 }
 
+export interface ZKProofState {
+  artifacts?: ZKProofArtifacts;
+  status: 'pending' | 'success' | 'failed' | 'verified' | 'verification_failed';
+  error?: string;
+  timestamp: number;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -520,6 +529,13 @@ export interface StoreState {
   unsubscribeFromQueue: () => void;
   addCrisisAuditEntry: (entry: Omit<CrisisAuditEntry, 'id' | 'timestamp'>) => void;
   cleanupExpiredAuditEntries: () => void;
+
+  // ZK Proofs
+  zkProofs: Record<string, ZKProofState>;
+  prepareZKProof: (requestId: string, witness: string | Uint8Array) => Promise<ZKProofResult>;
+  submitZKProof: (requestId: string, witness: string | Uint8Array, additionalData?: string | Uint8Array) => Promise<void>;
+  verifyZKProof: (requestId: string, witness: string | Uint8Array) => Promise<ZKProofResult>;
+  clearZKProof: (requestId: string) => void;
 
   // Initialization
   initStudentId: () => void;
@@ -1799,6 +1815,30 @@ export const useStore = create<StoreState>((set, get) => {
     return `audit_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
   };
 
+  const hydrateProofFromMetadata = (metadata: Record<string, unknown> | undefined): ZKProofState | null => {
+    if (!metadata || typeof metadata !== 'object') {
+      return null;
+    }
+
+    const proofData = (metadata as Record<string, unknown>).proof;
+    if (!proofData || typeof proofData !== 'object') {
+      return null;
+    }
+
+    try {
+      const artifacts = deserializeProof(JSON.stringify(proofData));
+      return {
+        artifacts,
+        status: 'verified',
+        timestamp: typeof (metadata as Record<string, unknown>).proofGeneratedAt === 'number'
+          ? (metadata as Record<string, unknown>).proofGeneratedAt as number
+          : Date.now(),
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const updateStateFromEvent = (event: CrisisQueueEvent) => {
     if (event.type === 'upsert') {
       set((state) => {
@@ -1821,9 +1861,16 @@ export const useStore = create<StoreState>((set, get) => {
           // so the session timestamp is preserved even after automatic expiry
         }
 
+        const nextZKProofs = { ...state.zkProofs };
+        const proofState = hydrateProofFromMetadata(event.request.metadata);
+        if (proofState && !nextZKProofs[event.request.id]) {
+          nextZKProofs[event.request.id] = proofState;
+        }
+
         return {
           crisisRequests: nextRequests,
           crisisSessionExpiresAt: nextSessionExpiresAt,
+          zkProofs: nextZKProofs,
         };
       });
     } else if (event.type === 'delete') {
@@ -1833,9 +1880,13 @@ export const useStore = create<StoreState>((set, get) => {
         const nextSessionExpiresAt =
           removed && removed.studentId === state.studentId ? null : state.crisisSessionExpiresAt;
 
+        const nextZKProofs = { ...state.zkProofs };
+        delete nextZKProofs[event.requestId];
+
         return {
           crisisRequests: nextRequests,
           crisisSessionExpiresAt: nextSessionExpiresAt,
+          zkProofs: nextZKProofs,
         };
       });
     }
@@ -1852,10 +1903,21 @@ export const useStore = create<StoreState>((set, get) => {
           (req) => req.studentId === state.studentId && req.status !== 'resolved' && req.status !== 'expired'
         );
 
+        const nextZKProofs = { ...state.zkProofs };
+        snapshot.forEach((req) => {
+          if (!nextZKProofs[req.id]) {
+            const proofState = hydrateProofFromMetadata(req.metadata);
+            if (proofState) {
+              nextZKProofs[req.id] = proofState;
+            }
+          }
+        });
+
         return {
           crisisRequests: snapshot,
           crisisSessionExpiresAt: ownRequest ? ownRequest.expiresAt : state.crisisSessionExpiresAt,
           isCrisisQueueLive: service.isSupabaseAvailable() || service.isBroadcastChannelAvailable(),
+          zkProofs: nextZKProofs,
         };
       });
 
@@ -1908,6 +1970,9 @@ export const useStore = create<StoreState>((set, get) => {
     crisisAuditLog: [],
     crisisSessionExpiresAt: null,
     isCrisisQueueLive: false,
+
+    // ZK Proofs state
+    zkProofs: {},
 
     // Community moderation state
     communityAnnouncements: [],
@@ -2186,6 +2251,156 @@ export const useStore = create<StoreState>((set, get) => {
           (entry) => entry.timestamp > retentionCutoff
         ),
       }));
+    },
+
+    prepareZKProof: async (requestId: string, witness: string | Uint8Array): Promise<ZKProofResult> => {
+      const result = await generateZKProof({ witness });
+
+      set((state) => ({
+        zkProofs: {
+          ...state.zkProofs,
+          [requestId]: {
+            artifacts: result.artifacts,
+            status: result.success ? 'success' : 'failed',
+            error: result.error,
+            timestamp: Date.now(),
+          },
+        },
+      }));
+
+      return result;
+    },
+
+    submitZKProof: async (requestId: string, witness: string | Uint8Array, additionalData?: string | Uint8Array): Promise<void> => {
+      const queue = ensureCrisisQueue();
+
+      try {
+        const result = await generateZKProof({ witness, additionalData });
+
+        if (!result.success || !result.artifacts) {
+          throw new Error(result.error || 'Failed to generate proof');
+        }
+
+        set((state) => ({
+          zkProofs: {
+            ...state.zkProofs,
+            [requestId]: {
+              artifacts: result.artifacts,
+              status: 'success',
+              timestamp: Date.now(),
+            },
+          },
+        }));
+
+        const proofMetadata = {
+          proof: result.artifacts,
+          proofGeneratedAt: Date.now(),
+          proofDuration: result.metadata.duration,
+          proofSize: result.metadata.proofSize,
+        };
+
+        await queue.updateRequest(requestId, {
+          metadata: proofMetadata,
+        });
+
+        toast.success('ZK proof submitted successfully');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Proof submission failed';
+        set((state) => ({
+          zkProofs: {
+            ...state.zkProofs,
+            [requestId]: {
+              status: 'failed',
+              error: errorMessage,
+              timestamp: Date.now(),
+            },
+          },
+        }));
+        toast.error(errorMessage);
+        throw error;
+      }
+    },
+
+    verifyZKProof: async (requestId: string, witness: string | Uint8Array): Promise<ZKProofResult> => {
+      const state = get();
+      const proofState = state.zkProofs[requestId];
+
+      if (!proofState || !proofState.artifacts) {
+        const result: ZKProofResult = {
+          success: false,
+          verified: false,
+          error: 'No proof found for this request',
+          metadata: {
+            duration: 0,
+            timestamp: Date.now(),
+          },
+        };
+        set((state) => ({
+          zkProofs: {
+            ...state.zkProofs,
+            [requestId]: {
+              status: 'verification_failed',
+              error: 'No proof found',
+              timestamp: Date.now(),
+            },
+          },
+        }));
+        return result;
+      }
+
+      try {
+        const result = await verifyZKProof(proofState.artifacts, witness);
+
+        set((state) => ({
+          zkProofs: {
+            ...state.zkProofs,
+            [requestId]: {
+              ...state.zkProofs[requestId],
+              status: result.verified ? 'verified' : 'verification_failed',
+              timestamp: Date.now(),
+            },
+          },
+        }));
+
+        if (result.verified) {
+          toast.success('ZK proof verified successfully');
+        } else {
+          toast.error('ZK proof verification failed');
+        }
+
+        return result;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Verification failed';
+        set((state) => ({
+          zkProofs: {
+            ...state.zkProofs,
+            [requestId]: {
+              ...state.zkProofs[requestId],
+              status: 'verification_failed',
+              error: errorMessage,
+              timestamp: Date.now(),
+            },
+          },
+        }));
+        toast.error(errorMessage);
+        return {
+          success: false,
+          verified: false,
+          error: errorMessage,
+          metadata: {
+            duration: 0,
+            timestamp: Date.now(),
+          },
+        };
+      }
+    },
+
+    clearZKProof: (requestId: string): void => {
+      set((state) => {
+        const nextProofs = { ...state.zkProofs };
+        delete nextProofs[requestId];
+        return { zkProofs: nextProofs };
+      });
     },
 
     toggleEventRsvp: (eventId: string) => {
