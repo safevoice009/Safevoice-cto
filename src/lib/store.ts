@@ -628,6 +628,13 @@ export interface PostSearchFilters {
   sort?: PostSortOption;
 }
 
+export interface ZKProofState {
+  artifacts?: ZKProofArtifacts;
+  status: 'pending' | 'success' | 'failed' | 'verified' | 'verification_failed';
+  error?: string;
+  timestamp: number;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -891,6 +898,13 @@ export interface StoreState {
   unsubscribeFromQueue: () => void;
   addCrisisAuditEntry: (entry: Omit<CrisisAuditEntry, 'id' | 'timestamp'>) => void;
   cleanupExpiredAuditEntries: () => void;
+
+  // ZK Proofs
+  zkProofs: Record<string, ZKProofState>;
+  prepareZKProof: (requestId: string, witness: string | Uint8Array) => Promise<ZKProofResult>;
+  submitZKProof: (requestId: string, witness: string | Uint8Array, additionalData?: string | Uint8Array) => Promise<void>;
+  verifyZKProof: (requestId: string, witness: string | Uint8Array) => Promise<ZKProofResult>;
+  clearZKProof: (requestId: string) => void;
 
   // Initialization
   initStudentId: () => void;
