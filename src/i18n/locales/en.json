@@ -233,5 +233,96 @@
       "failed": "Generation Failed",
       "verificationFailed": "Verification Failed"
     }
+  },
+  "privacy": {
+    "hub": {
+      "title": "Privacy Education Hub",
+      "subtitle": "Learn how we protect your data and privacy",
+      "diagrams": {
+        "tracking": {
+          "title": "How Tracking Works",
+          "description": "Understand how websites and advertisers track your online activity across the internet"
+        },
+        "fingerprinting": {
+          "title": "Browser Fingerprinting",
+          "description": "Learn how trackers use your browser characteristics to identify you without cookies"
+        },
+        "dataFlow": {
+          "title": "Your Data Flow",
+          "description": "See exactly where your data goes and how SafeVoice keeps it local and secure"
+        },
+        "protection": {
+          "title": "Our Protection Layers",
+          "description": "Discover the multiple security layers that protect your privacy"
+        }
+      },
+      "faq": {
+        "title": "Frequently Asked Questions",
+        "questions": {
+          "whatIsTracking": {
+            "q": "What is online tracking?",
+            "a": "Online tracking is when companies follow your internet activity across websites to build a profile about your interests and behavior."
+          },
+          "howProtected": {
+            "q": "How is my data protected on SafeVoice?",
+            "a": "We use end-to-end encryption, local storage only, strict domain whitelisting, and advanced fingerprint protection to keep your data secure."
+          },
+          "canIBeAnonymous": {
+            "q": "Can I remain completely anonymous?",
+            "a": "Yes, SafeVoice assigns you a cryptographically verified anonymous identity. You can post and engage without revealing your real identity."
+          },
+          "whatIsFingerprinting": {
+            "q": "What is browser fingerprinting?",
+            "a": "Browser fingerprinting is a tracking technique that collects information about your browser and device to create a unique identifier."
+          },
+          "cookiesUsed": {
+            "q": "Does SafeVoice use cookies?",
+            "a": "No, we are 100% cookie-free. All data is stored locally on your device using encrypted localStorage."
+          },
+          "dataSharing": {
+            "q": "Do you share my data with third parties?",
+            "a": "Never. Your data stays on your device. We have strict security headers and network policies preventing unauthorized access."
+          }
+        }
+      },
+      "onboarding": {
+        "title": "Privacy Onboarding",
+        "steps": {
+          "welcome": {
+            "title": "Welcome to SafeVoice",
+            "description": "Your privacy-first platform for anonymous expression and community support"
+          },
+          "whyPrivacy": {
+            "title": "Why Privacy Matters",
+            "description": "In today's digital world, your data is more valuable than ever. We believe you deserve control over your information."
+          },
+          "ourApproach": {
+            "title": "Our Privacy Approach",
+            "description": "We don't track, profile, or monetize your data. Everything stays encrypted and local to your device."
+          },
+          "protections": {
+            "title": "Built-in Protections",
+            "description": "Enable fingerprint protection, manage your security settings, and stay in control of your privacy."
+          },
+          "gettingStarted": {
+            "title": "Getting Started",
+            "description": "Explore SafeVoice with confidence. Visit our Privacy Settings to learn more and adjust your preferences."
+          }
+        }
+      },
+      "cta": {
+        "learnMore": "Learn More About Privacy",
+        "readFaq": "Read FAQ",
+        "visitSettings": "Visit Privacy Settings",
+        "enableProtection": "Enable Fingerprint Protection",
+        "startOnboarding": "Start Privacy Onboarding",
+        "closeHub": "Close Privacy Hub",
+        "backToDashboard": "Back to Dashboard",
+        "nextStep": "Next Step",
+        "previousStep": "Previous Step",
+        "skipOnboarding": "Skip Onboarding",
+        "completeOnboarding": "Complete Onboarding"
+      }
+    }
   }
   }
