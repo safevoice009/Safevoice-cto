@@ -30,7 +30,11 @@
     "leaders": "Leaders",
     "customize": "Customize",
     "crisisHelp": "Crisis Help",
-    "getCrisisHelp": "Get Crisis Help"
+    "getCrisisHelp": "Get Crisis Help",
+    "mainNavigation": "Main navigation",
+    "bottomNavigation": "Bottom navigation",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
   },
   "profile": {
     "title": "Profile",

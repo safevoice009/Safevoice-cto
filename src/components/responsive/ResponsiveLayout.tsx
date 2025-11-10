@@ -9,7 +9,7 @@ interface ResponsiveLayoutProps {
   bottomNavigation?: ReactNode;
   children: ReactNode;
   className?: string;
-  mainProps?: HTMLAttributes<HTMLDivElement>;
+  mainProps?: ReactAttributes<HTMLElement>;
 }
 
 interface LayoutContextValue {

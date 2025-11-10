@@ -19,7 +19,11 @@
     "leaders": "నాయకులు",
     "customize": "అనుకూలీకరించు",
     "crisisHelp": "సంక్షోభ సహాయం",
-    "getCrisisHelp": "సంక్షోభ సహాయం పొందండి"
+    "getCrisisHelp": "సంక్షోభ సహాయం పొందండి",
+    "mainNavigation": "ప్రధాన నావిగేషన్",
+    "bottomNavigation": "దిగువ నావిగేషన్",
+    "openMenu": "మెనూను తెరవండి",
+    "closeMenu": "మెనూను మూసివేయండి"
   },
   "settings": {
     "title": "అమరికలు",

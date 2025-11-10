@@ -19,7 +19,11 @@
     "leaders": "নেতারা",
     "customize": "কাস্টমাইজ",
     "crisisHelp": "সংকট সহায়তা",
-    "getCrisisHelp": "সংকট সহায়তা নিন"
+    "getCrisisHelp": "সংকট সহায়তা নিন",
+    "mainNavigation": "প্রধান নেভিগেশন",
+    "bottomNavigation": "নিচের নেভিগেশন",
+    "openMenu": "মেনু খুলুন",
+    "closeMenu": "মেনু বন্ধ করুন"
   },
   "settings": {
     "title": "সেটিংস",

@@ -8,6 +8,7 @@ import '@rainbow-me/rainbowkit/styles.css';
 import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiConfig } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import SkipLink from './components/ui/SkipLink';
 
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
@@ -52,6 +53,7 @@ function AnimatedRoutes() {
   const hydrateAppearance = useCustomizationStore((state) => state.hydrate);
   const hydrateThemeSystem = useThemeSystemStore((state) => state.hydrate);
   const lifecycleManagerRef = useRef<PostLifecycleManager | null>(null);
+  const mainContentRef = useRef<HTMLElement>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -98,6 +100,39 @@ function AnimatedRoutes() {
     });
   }, []);
 
+  // Focus management for route changes
+  useEffect(() => {
+    // Focus management for accessibility - move focus to main content on route change
+    const focusMainContent = () => {
+      if (mainContentRef.current) {
+        // Find the first heading or focusable element in the main content
+        const focusableSelectors = [
+          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'button:not([disabled])',
+          'input:not([disabled])',
+          'textarea:not([disabled])',
+          'select:not([disabled])',
+          'a[href]',
+          '[tabindex]:not([tabindex="-1"])'
+        ];
+
+        const focusableElement = mainContentRef.current.querySelector(focusableSelectors.join(', ')) as HTMLElement;
+        
+        if (focusableElement) {
+          focusableElement.focus();
+        } else {
+          // Fallback to the main element itself
+          mainContentRef.current.focus();
+        }
+      }
+    };
+
+    // Small delay to ensure content has rendered
+    const timeoutId = setTimeout(focusMainContent, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [location.pathname]);
+
   const handleCrisisAcknowledge = (action: 'call_helpline' | 'continue') => {
     if (action === 'call_helpline') {
       toast.success(t('crisis.thankYou'));
@@ -131,35 +166,43 @@ function AnimatedRoutes() {
   };
 
   return (
-    <ResponsiveLayout
-      header={<Navbar />}
-      footer={<Footer />}
-      bottomNavigation={<BottomNav />}
-      mainProps={{ className: 'pt-24 pb-16' }}
-    >
-      <AnimatePresence mode="wait">
-        <Routes location={location} key={location.pathname}>
-          <Route path="/" element={<Landing />} />
-          <Route path="/feed" element={<Feed />} />
-          <Route path="/communities" element={<CommunitiesPage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/post/:postId" element={<PostDetail />} />
-          <Route path="/helplines" element={<HelplinesPage />} />
-          <Route path="/guidelines" element={<GuidelinesPage />} />
-          <Route path="/memorial" element={<MemorialWallPage />} />
-          <Route path="/marketplace" element={<TokenMarketplace />} />
-          <Route path="/leaderboard" element={<LeaderboardPage />} />
-          <Route path="/transactions" element={<TransactionHistoryPage />} />
-          <Route path="/settings/appearance" element={<AppearanceSettings />} />
-        </Routes>
-      </AnimatePresence>
-      <AchievementToastContainer />
-      <CrisisAlertModal
-        isOpen={showCrisisModal}
-        onAcknowledge={handleCrisisAcknowledge}
-      />
-    </ResponsiveLayout>
+    <>
+      <SkipLink targetId="main-content" />
+      <ResponsiveLayout
+        header={<Navbar />}
+        footer={<Footer />}
+        bottomNavigation={<BottomNav />}
+        mainProps={{ 
+          className: 'pt-24 pb-16',
+          id: 'main-content',
+          ref: mainContentRef,
+          tabIndex: -1 // Make main content focusable
+        }}
+      >
+        <AnimatePresence mode="wait">
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<Landing />} />
+            <Route path="/feed" element={<Feed />} />
+            <Route path="/communities" element={<CommunitiesPage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/post/:postId" element={<PostDetail />} />
+            <Route path="/helplines" element={<HelplinesPage />} />
+            <Route path="/guidelines" element={<GuidelinesPage />} />
+            <Route path="/memorial" element={<MemorialWallPage />} />
+            <Route path="/marketplace" element={<TokenMarketplace />} />
+            <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/transactions" element={<TransactionHistoryPage />} />
+            <Route path="/settings/appearance" element={<AppearanceSettings />} />
+          </Routes>
+        </AnimatePresence>
+        <AchievementToastContainer />
+        <CrisisAlertModal
+          isOpen={showCrisisModal}
+          onAcknowledge={handleCrisisAcknowledge}
+        />
+      </ResponsiveLayout>
+    </>
   );
 }
 

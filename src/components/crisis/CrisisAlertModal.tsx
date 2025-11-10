@@ -5,6 +5,7 @@ import { helplines } from '../../lib/helplines';
 import ZKProofPrompt from './ZKProofPrompt';
 import ZKProofStatusBadge from './ZKProofStatusBadge';
 import { useStore } from '../../lib/store';
+import useFocusTrap from '../../hooks/useFocusTrap';
 
 interface CrisisAlertModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export default function CrisisAlertModal({
   const { t } = useTranslation();
   const studentId = useStore((state) => state.studentId);
   const zkProofs = useStore((state) => state.zkProofs);
+  const modalRef = useFocusTrap(isOpen, { restoreFocus: true });
   
   const primaryHelplines = helplines.filter((h) =>
     ['aasra', 'vandrevala', 'kiran'].includes(h.id)
@@ -48,21 +50,26 @@ export default function CrisisAlertModal({
             onClick={(e) => e.stopPropagation()}
           />
           <motion.div
+            ref={modalRef}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="crisis-modal-title"
+            aria-describedby="crisis-modal-description"
           >
             <div className="glass max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-2xl border-2 border-red-500/30">
               <div className="sticky top-0 glass p-6 border-b border-white/10 flex items-start justify-between">
                 <div className="flex items-start space-x-3">
                   <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0 mt-1" />
                   <div>
-                    <h2 className="text-2xl font-bold text-white mb-1">
+                    <h2 id="crisis-modal-title" className="text-2xl font-bold text-white mb-1">
                       🆘 We're Here to Help
                     </h2>
-                    <p className="text-gray-300 text-sm">
+                    <p id="crisis-modal-description" className="text-gray-300 text-sm">
                       If you're thinking about suicide or need immediate support, you're not
                       alone. Help is available 24/7.
                     </p>
