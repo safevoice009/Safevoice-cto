@@ -1,129 +1,92 @@
-import { useState } from 'react';
-import { Star, MessageSquare, Zap } from 'lucide-react';
-import { useStore } from '../../lib/store';
+import { motion } from 'framer-motion';
+import { Star, Calendar, Award, Users } from 'lucide-react';
 import type { MentorProfile } from '../../lib/mentorship';
-import MentorReviewModal from './MentorReviewModal';
 
 interface MentorCardProps {
   mentor: MentorProfile;
-  matchId?: string;
-  isMatchCompleted?: boolean;
-  onReviewClick?: () => void;
+  onClick?: () => void;
 }
 
-export default function MentorCard({
-  mentor,
-  matchId,
-  isMatchCompleted = false,
-  onReviewClick,
-}: MentorCardProps) {
-  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-  const getMentorReviewSummary = useStore((state) => state.getMentorReviewSummary);
-  
-  const reviewSummary = getMentorReviewSummary(mentor.id);
-  const averageRating = reviewSummary.averageRating || mentor.rating;
-  const latestReview = reviewSummary.recentReviews[0];
+export default function MentorCard({ mentor, onClick }: MentorCardProps) {
+  const topicsToShow = mentor.topics.slice(0, 3);
+  const remainingTopics = mentor.topics.length - topicsToShow.length;
 
-  const handleReviewClick = () => {
-    setIsReviewModalOpen(true);
-    onReviewClick?.();
+  const formatTopic = (topic: string) => {
+    return topic
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
+  const availableDays = Object.keys(mentor.availability).filter(
+    (day) => mentor.availability[day]?.length > 0
+  );
+
   return (
-    <>
-      <div className="glass rounded-lg p-4 space-y-3 border border-white/10 hover:border-white/20 transition-all">
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="font-semibold text-white">
-              {mentor.displayName || 'Mentor'}
-            </h3>
-            <p className="text-xs text-gray-400">{mentor.college}</p>
-          </div>
-          {/* Rating */}
-          <div className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-lg">
-            <Star className="w-3 h-3 fill-primary text-primary" />
-            <span className="text-sm font-medium text-white">
-              {averageRating.toFixed(1)}
-            </span>
-          </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -4, boxShadow: '0 12px 24px rgba(0, 0, 0, 0.15)' }}
+      transition={{ duration: 0.2 }}
+      onClick={onClick}
+      className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 cursor-pointer border border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-400 transition-colors"
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">
+            {mentor.displayName || 'Anonymous Mentor'}
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400">{mentor.college}</p>
         </div>
-
-        {/* Bio */}
-        {mentor.bio && (
-          <p className="text-xs text-gray-300 line-clamp-2">{mentor.bio}</p>
-        )}
-
-        {/* Topics */}
-        <div className="flex flex-wrap gap-1">
-          {mentor.topics.slice(0, 3).map((topic) => (
-            <span
-              key={topic}
-              className="inline-block px-2 py-0.5 bg-primary/20 text-primary rounded text-xs"
-            >
-              {topic.replace(/_/g, ' ')}
-            </span>
-          ))}
-          {mentor.topics.length > 3 && (
-            <span className="inline-block px-2 py-0.5 bg-white/10 text-gray-300 rounded text-xs">
-              +{mentor.topics.length - 3} more
-            </span>
-          )}
+        
+        <div className="flex items-center gap-1 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-1 rounded-full">
+          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+            {mentor.rating.toFixed(1)}
+          </span>
         </div>
+      </div>
 
-        {/* Stats */}
-        <div className="flex gap-3 text-xs">
-          <div className="flex items-center gap-1 text-gray-300">
-            <Zap className="w-3 h-3 text-yellow-500" />
-            <span>Karma: {mentor.karma}</span>
-          </div>
-          <div className="flex items-center gap-1 text-gray-300">
-            <MessageSquare className="w-3 h-3 text-blue-400" />
-            <span>{reviewSummary.totalReviews} reviews</span>
-          </div>
-        </div>
+      {mentor.bio && (
+        <p className="text-sm text-gray-700 dark:text-gray-300 mb-4 line-clamp-2">
+          {mentor.bio}
+        </p>
+      )}
 
-        {/* Latest Review */}
-        {latestReview && (
-          <div className="p-2 bg-white/5 rounded border border-white/5 space-y-1">
-            <div className="flex items-center gap-1">
-              {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i}
-                  className="w-3 h-3"
-                  fill={i < latestReview.rating ? '#fbbf24' : 'none'}
-                  color={i < latestReview.rating ? '#fbbf24' : '#6b7280'}
-                />
-              ))}
-            </div>
-            {latestReview.feedback && (
-              <p className="text-xs text-gray-300 line-clamp-2">
-                "{latestReview.feedback}"
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Review Button */}
-        {isMatchCompleted && matchId && (
-          <button
-            onClick={handleReviewClick}
-            className="w-full mt-2 px-3 py-2 bg-primary/20 hover:bg-primary/30 text-primary rounded-lg transition-colors text-sm font-medium"
+      <div className="flex flex-wrap gap-2 mb-4">
+        {topicsToShow.map((topic) => (
+          <span
+            key={topic}
+            className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full"
           >
-            Leave Review
-          </button>
+            {formatTopic(topic)}
+          </span>
+        ))}
+        {remainingTopics > 0 && (
+          <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs font-medium rounded-full">
+            +{remainingTopics} more
+          </span>
         )}
       </div>
 
-      {matchId && (
-        <MentorReviewModal
-          isOpen={isReviewModalOpen}
-          onClose={() => setIsReviewModalOpen(false)}
-          matchId={matchId}
-          mentorId={mentor.id}
-          mentorName={mentor.displayName || 'Mentor'}
-        />
-      )}
-    </>
+      <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+        <div className="flex items-center gap-1">
+          <Calendar className="w-4 h-4" />
+          <span>{availableDays.length} days</span>
+        </div>
+        
+        <div className="flex items-center gap-1">
+          <Users className="w-4 h-4" />
+          <span>
+            {mentor.currentMentees.length}/{mentor.maxMentees} mentees
+          </span>
+        </div>
+        
+        <div className="flex items-center gap-1">
+          <Award className="w-4 h-4" />
+          <span>{mentor.totalSessions} sessions</span>
+        </div>
+      </div>
+    </motion.div>
   );
 }

@@ -49,6 +49,15 @@ import {
   serializeMitigationPlan,
   deserializeMitigationPlan,
 } from './privacy/fingerprint';
+import type {
+  MentorProfile,
+  MenteeRequest,
+  MentorMatch,
+  MentorshipTopic,
+} from './mentorship';
+import {
+  createMentorProfile,
+} from './mentorship';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -871,6 +880,21 @@ export interface StoreState {
   }>;
   applyFingerprintMitigations: (strategy?: 'aggressive' | 'balanced' | 'conservative') => Promise<FingerprintMitigationPlan | null>;
   rotateFingerprintIdentity: (reason?: string) => Promise<SaltRotation | null>;
+
+  // Mentorship State
+  mentorProfiles: MentorProfile[];
+  menteeRequests: MenteeRequest[];
+  mentorMatches: MentorMatch[];
+
+  // Mentorship Actions & Selectors
+  getMentorById: (mentorId: string) => MentorProfile | undefined;
+  getFilteredMentors: (filters: {
+    topics?: MentorshipTopic[];
+    college?: string;
+    minRating?: number;
+    availability?: string[];
+  }) => MentorProfile[];
+  loadMentorshipData: () => void;
 }
 
 /**
@@ -920,6 +944,9 @@ const STORAGE_KEYS = {
   FINGERPRINT_SALT_ROTATION: 'safevoice_fingerprint_salt_rotation', // Last salt rotation
   FINGERPRINT_MITIGATIONS_ACTIVE: 'safevoice_fingerprint_mitigations_active', // Whether mitigations are active
   FINGERPRINT_CURRENT_SALT: 'safevoice_fingerprint_current_salt', // Current anonymization salt
+  MENTOR_PROFILES: 'safevoice_mentor_profiles',          // Mentor profiles for matching
+  MENTEE_REQUESTS: 'safevoice_mentee_requests',          // Mentee match requests
+  MENTOR_MATCHES: 'safevoice_mentor_matches',            // Active mentor-mentee matches
 };
 
 const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
@@ -1315,6 +1342,138 @@ const createNotificationSettingsForCommunity = (
   channelOverrides: {},
   updatedAt: Date.now(),
 });
+
+const createDefaultMentorProfiles = (): MentorProfile[] => {
+  const now = Date.now();
+  const colleges = ['IIT Delhi', 'IIT Bombay', 'BITS Pilani', 'NIT Trichy', 'Delhi University'];
+  
+  return [
+    createMentorProfile(
+      'mentor_001',
+      colleges[0],
+      ['anxiety', 'academic_pressure', 'stress_management'],
+      {
+        monday: ['evening', 'late_night'],
+        wednesday: ['evening'],
+        friday: ['afternoon', 'evening'],
+      },
+      'Priya S.',
+      'Computer Science senior with experience in peer counseling. I understand exam stress and can help with anxiety management techniques.'
+    ),
+    createMentorProfile(
+      'mentor_002',
+      colleges[1],
+      ['depression', 'loneliness', 'self_esteem'],
+      {
+        tuesday: ['morning', 'afternoon'],
+        thursday: ['morning', 'afternoon'],
+        saturday: ['morning'],
+      },
+      'Rahul M.',
+      'Psychology student passionate about mental health awareness. Here to listen and provide support during difficult times.'
+    ),
+    createMentorProfile(
+      'mentor_003',
+      colleges[2],
+      ['career_guidance', 'time_management', 'academic_pressure'],
+      {
+        monday: ['afternoon'],
+        wednesday: ['morning', 'afternoon'],
+        friday: ['afternoon'],
+      },
+      'Ananya K.',
+      'MBA student with tech background. Can help with career planning, time management, and balancing academics with personal life.'
+    ),
+    createMentorProfile(
+      'mentor_004',
+      colleges[0],
+      ['relationships', 'family_issues', 'identity_exploration'],
+      {
+        tuesday: ['evening', 'late_night'],
+        thursday: ['evening'],
+        sunday: ['afternoon', 'evening'],
+      },
+      'Arjun P.',
+      'Social work student focusing on family therapy. Understanding listener for relationship and family challenges.'
+    ),
+    createMentorProfile(
+      'mentor_005',
+      colleges[3],
+      ['anxiety', 'sleep_issues', 'stress_management', 'academic_pressure'],
+      {
+        monday: ['morning', 'afternoon'],
+        wednesday: ['afternoon', 'evening'],
+        friday: ['morning'],
+      },
+      'Meera V.',
+      'Medical student with focus on wellness and stress reduction. Can share techniques for better sleep and anxiety management.'
+    ),
+    createMentorProfile(
+      'mentor_006',
+      colleges[1],
+      ['general_support', 'loneliness', 'self_esteem'],
+      {
+        tuesday: ['afternoon', 'evening'],
+        thursday: ['afternoon'],
+        saturday: ['afternoon', 'evening'],
+      },
+      'Vikram T.',
+      'Arts student and active listener. Here to provide a safe space for anyone needing to talk.'
+    ),
+  ].map((profile, index) => ({
+    ...profile,
+    karma: 200 + index * 150,
+    streak: 2 + index,
+    totalSessions: 5 + index * 3,
+    rating: 4.0 + (index * 0.15),
+    lastActiveAt: now - (index * 24 * 60 * 60 * 1000),
+  }));
+};
+
+const readStoredMentorProfiles = (): MentorProfile[] => {
+  if (typeof window === 'undefined') return createDefaultMentorProfiles();
+  
+  const raw = localStorage.getItem(STORAGE_KEYS.MENTOR_PROFILES);
+  if (!raw) {
+    return createDefaultMentorProfiles();
+  }
+  
+  try {
+    const parsed = JSON.parse(raw) as MentorProfile[];
+    return parsed.length > 0 ? parsed : createDefaultMentorProfiles();
+  } catch (error) {
+    console.error('Failed to parse stored mentor profiles', error);
+    return createDefaultMentorProfiles();
+  }
+};
+
+const readStoredMenteeRequests = (): MenteeRequest[] => {
+  if (typeof window === 'undefined') return [];
+  
+  const raw = localStorage.getItem(STORAGE_KEYS.MENTEE_REQUESTS);
+  if (!raw) return [];
+  
+  try {
+    return JSON.parse(raw) as MenteeRequest[];
+  } catch (error) {
+    console.error('Failed to parse stored mentee requests', error);
+    return [];
+  }
+};
+
+const readStoredMentorMatches = (): MentorMatch[] => {
+  if (typeof window === 'undefined') return [];
+  
+  const raw = localStorage.getItem(STORAGE_KEYS.MENTOR_MATCHES);
+  if (!raw) return [];
+  
+  try {
+    return JSON.parse(raw) as MentorMatch[];
+  } catch (error) {
+    console.error('Failed to parse stored mentor matches', error);
+    return [];
+  }
+};
 
 const findDefaultChannelId = (channels: CommunityChannel[], communityId: string): string | null => {
   const defaultChannel = channels.find((channel) => channel.communityId === communityId && channel.isDefault);
@@ -2192,6 +2351,11 @@ export const useStore = create<StoreState>((set, get) => {
     // Fingerprint Privacy state
     fingerprintSnapshot: loadFingerprintSnapshot(),
     fingerprintMitigationPlan: loadFingerprintMitigationPlan(),
+
+    // Mentorship state
+    mentorProfiles: typeof window !== 'undefined' ? readStoredMentorProfiles() : createDefaultMentorProfiles(),
+    menteeRequests: typeof window !== 'undefined' ? readStoredMenteeRequests() : [],
+    mentorMatches: typeof window !== 'undefined' ? readStoredMentorMatches() : [],
     lastSaltRotation: loadSaltRotation(),
     fingerprintMitigationsActive: loadFingerprintMitigationsActive(),
     currentFingerprintSalt: loadFingerprintSalt() || generateSalt(),
@@ -6722,6 +6886,54 @@ export const useStore = create<StoreState>((set, get) => {
     }
   },
 
+  getMentorById: (mentorId: string) => {
+    const { mentorProfiles } = get();
+    return mentorProfiles.find((mentor) => mentor.id === mentorId);
+  },
+
+  getFilteredMentors: (filters) => {
+    const { mentorProfiles } = get();
+    
+    return mentorProfiles.filter((mentor) => {
+      if (!mentor.isActive) return false;
+      
+      if (filters.topics && filters.topics.length > 0) {
+        const hasTopicMatch = filters.topics.some((topic) => mentor.topics.includes(topic));
+        if (!hasTopicMatch) return false;
+      }
+      
+      if (filters.college) {
+        const collegeMatch = mentor.college.toLowerCase().includes(filters.college.toLowerCase());
+        if (!collegeMatch) return false;
+      }
+      
+      if (filters.minRating !== undefined) {
+        if (mentor.rating < filters.minRating) return false;
+      }
+      
+      if (filters.availability && filters.availability.length > 0) {
+        const hasAvailabilityMatch = filters.availability.some((day) => {
+          const slots = mentor.availability[day];
+          return slots && slots.length > 0;
+        });
+        if (!hasAvailabilityMatch) return false;
+      }
+      
+      return true;
+    });
+  },
+
+  loadMentorshipData: () => {
+    const mentorProfiles = readStoredMentorProfiles();
+    const menteeRequests = readStoredMenteeRequests();
+    const mentorMatches = readStoredMentorMatches();
+    
+    set({
+      mentorProfiles,
+      menteeRequests,
+      mentorMatches,
+    });
+  },
 
 };
 });
