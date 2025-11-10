@@ -1,0 +1,298 @@
+/* Material Design Theme (Discord-Style) */
+
+/* Light Mode */
+[data-theme-system='material'][data-color-mode='light'] {
+  --color-surface: #F5F7FA;
+  --color-surface-secondary: #FFFFFF;
+  --color-surface-elevated: #FFFFFF;
+  --color-surface-rgb: 245, 247, 250;
+  --color-text: #2C2F33;
+  --color-text-secondary: #5a637a;
+  --color-text-muted: #99aab5;
+  --color-text-inverse: #ffffff;
+  --color-border: #D0D7E0;
+  --color-border-light: #e8eef5;
+  --color-border-strong: #b9bbbe;
+  --color-primary: #0066CC;
+  --color-primary-dark: #0052a3;
+  --color-primary-light: #66a8ff;
+  --color-secondary: #5865F2;
+  --color-secondary-dark: #4752c4;
+  --color-secondary-light: #7289da;
+  --color-success: #43B581;
+  --color-success-light: #3ba55d;
+  --color-danger: #F04747;
+  --color-danger-dark: #ed4245;
+  --color-danger-light: #f04747;
+  --color-warning: #FAA61A;
+  --color-warning-light: #faa81a;
+  --color-info: #0066CC;
+  --color-info-light: #66a8ff;
+  --color-error: #F04747;
+  --color-error-dark: #ed4245;
+  --color-focus-outline: #0066CC;
+  --color-focus-outline-width: 3px;
+  --color-disabled: rgba(17, 24, 39, 0.16);
+  --color-disabled-bg: rgba(99, 102, 241, 0.08);
+  --shadow-elevation: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-elevation-strong: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-elevation-subtle: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Dark Mode */
+[data-theme-system='material'][data-color-mode='dark'] {
+  --color-surface: #0A0E27;
+  --color-surface-secondary: #1E1F26;
+  --color-surface-elevated: #2a2d3a;
+  --color-surface-rgb: 10, 14, 39;
+  --color-text: #DCDDDE;
+  --color-text-secondary: #b9bbbe;
+  --color-text-muted: #72767d;
+  --color-text-inverse: #0a0e27;
+  --color-border: #424549;
+  --color-border-light: #4f545c;
+  --color-border-strong: #5865f2;
+  --color-primary: #5865F2;
+  --color-primary-dark: #4752c4;
+  --color-primary-light: #7289da;
+  --color-secondary: #5865F2;
+  --color-secondary-dark: #4752c4;
+  --color-secondary-light: #7289da;
+  --color-success: #43B581;
+  --color-success-light: #3ba55d;
+  --color-danger: #F04747;
+  --color-danger-dark: #ed4245;
+  --color-danger-light: #f04747;
+  --color-warning: #FAA61A;
+  --color-warning-light: #faa81a;
+  --color-info: #5865F2;
+  --color-info-light: #7289da;
+  --color-error: #F04747;
+  --color-error-dark: #ed4245;
+  --color-focus-outline: #5865F2;
+  --color-disabled: rgba(255, 255, 255, 0.24);
+  --color-disabled-bg: rgba(255, 255, 255, 0.12);
+  --shadow-elevation: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-elevation-strong: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-elevation-subtle: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Material Design Specific Components */
+[data-theme-system='material'] {
+  --radius-base: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  
+  /* Material Design Animation Durations */
+  --animation-duration-fast: 150ms;
+  --animation-duration-normal: 200ms;
+  --animation-duration-slow: 300ms;
+  
+  /* Material Design Easing */
+  --animation-easing: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --animation-easing-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+  --animation-easing-in: cubic-bezier(0.4, 0.0, 1, 1);
+  
+  /* Material Design Spacing */
+  --material-spacing-xs: 4px;
+  --material-spacing-sm: 8px;
+  --material-spacing-md: 16px;
+  --material-spacing-lg: 24px;
+  --material-spacing-xl: 32px;
+  
+  /* Material Design Typography */
+  --material-font-display: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  --material-font-body: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Material Design Button Styles */
+[data-theme-system='material'] .btn-material {
+  border-radius: var(--radius-base);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0.025em;
+  transition: all var(--animation-duration-fast) var(--animation-easing);
+  box-shadow: var(--shadow-elevation-subtle);
+}
+
+[data-theme-system='material'] .btn-material:hover {
+  box-shadow: var(--shadow-elevation);
+  transform: translateY(-1px);
+}
+
+[data-theme-system='material'] .btn-material:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-elevation-subtle);
+}
+
+/* Material Design Card Styles */
+[data-theme-system='material'] .card-material {
+  background-color: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-elevation-subtle);
+  transition: all var(--animation-duration-normal) var(--animation-easing);
+}
+
+[data-theme-system='material'] .card-material:hover {
+  box-shadow: var(--shadow-elevation);
+  transform: translateY(-2px);
+}
+
+/* Material Design Input Styles */
+[data-theme-system='material'] .input-material {
+  background-color: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  padding: 12px 16px;
+  transition: all var(--animation-duration-fast) var(--animation-easing);
+}
+
+[data-theme-system='material'] .input-material:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.1);
+}
+
+/* Material Design Navigation */
+[data-theme-system='material'] .nav-material {
+  background-color: var(--color-surface-secondary);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow-elevation-subtle);
+}
+
+[data-theme-system='material'] .nav-link-material {
+  color: var(--color-text-secondary);
+  padding: 8px 16px;
+  border-radius: var(--radius-base);
+  transition: all var(--animation-duration-fast) var(--animation-easing);
+}
+
+[data-theme-system='material'] .nav-link-material:hover,
+[data-theme-system='material'] .nav-link-material:focus-visible {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+[data-theme-system='material'] .nav-link-material.active {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+/* Material Design Modal */
+[data-theme-system='material'] .modal-material {
+  background-color: var(--color-surface-secondary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevation-strong);
+  border: 1px solid var(--color-border-light);
+}
+
+/* Material Design Badge */
+[data-theme-system='material'] .badge-material {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+  border-radius: var(--radius-base);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 4px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Material Design Progress Bar */
+[data-theme-system='material'] .progress-material {
+  background-color: var(--color-border-light);
+  border-radius: var(--radius-base);
+  overflow: hidden;
+}
+
+[data-theme-system='material'] .progress-bar-material {
+  background-color: var(--color-primary);
+  transition: width var(--animation-duration-normal) var(--animation-easing);
+}
+
+/* Material Design Tab System */
+[data-theme-system='material'] .tab-material {
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-secondary);
+  padding: 12px 16px;
+  transition: all var(--animation-duration-fast) var(--animation-easing);
+}
+
+[data-theme-system='material'] .tab-material:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface);
+}
+
+[data-theme-system='material'] .tab-material.active {
+  border-bottom-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* Material Design Dropdown */
+[data-theme-system='material'] .dropdown-material {
+  background-color: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-elevation);
+  overflow: hidden;
+}
+
+[data-theme-system='material'] .dropdown-item-material {
+  padding: 12px 16px;
+  transition: background-color var(--animation-duration-fast) var(--animation-easing);
+}
+
+[data-theme-system='material'] .dropdown-item-material:hover {
+  background-color: var(--color-surface);
+}
+
+/* Material Design Tooltip */
+[data-theme-system='material'] .tooltip-material {
+  background-color: var(--color-surface-elevated);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-elevation);
+  font-size: 14px;
+  padding: 8px 12px;
+}
+
+/* Material Design Loading States */
+[data-theme-system='material'] .skeleton-material {
+  background: linear-gradient(90deg, var(--color-border-light) 25%, var(--color-border) 50%, var(--color-border-light) 75%);
+  background-size: 200% 100%;
+  animation: material-skeleton-loading 1.5s infinite;
+}
+
+@keyframes material-skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+[data-theme-system='material'] .spinner-material {
+  border: 3px solid var(--color-border-light);
+  border-top: 3px solid var(--color-primary);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: material-spin 1s linear infinite;
+}
+
+@keyframes material-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Material Design Responsive Adjustments */
+@media (max-width: 768px) {
+  [data-theme-system='material'] {
+    --radius-base: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+  }
+}

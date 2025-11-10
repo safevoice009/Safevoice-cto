@@ -1,0 +1,532 @@
+/* Professional Gradient System */
+
+/* Pre-Built Gradient Palettes - Light Mode */
+
+/* Gradient 1: Sunset (Light Mode) */
+.gradient-sunset {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Gradient 2: Ocean (Light Mode) */
+.gradient-ocean {
+  background: linear-gradient(135deg, #667eea 0%, #4c9aff 100%);
+}
+
+/* Gradient 3: Forest (Light Mode) */
+.gradient-forest {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+/* Gradient 4: Fire (Light Mode) */
+.gradient-fire {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 100%);
+}
+
+/* Pre-Built Gradient Palettes - Dark Mode */
+
+/* Gradient 5: Arctic (Dark Mode) */
+.gradient-arctic {
+  background: linear-gradient(135deg, #667eea 0%, #64b5f6 100%);
+}
+
+/* Gradient 6: Cosmic (Dark Mode) */
+.gradient-cosmic {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Gradient 7: Neon (Dark Mode) */
+.gradient-neon {
+  background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+}
+
+/* Gradient 8: Magma (Dark Mode) */
+.gradient-magma {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 100%);
+}
+
+/* Additional Professional Gradients */
+
+/* Gradient 9: Aurora */
+.gradient-aurora {
+  background: linear-gradient(135deg, #00d2ff 0%, #3a47d5 100%);
+}
+
+/* Gradient 10: Peach */
+.gradient-peach {
+  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+}
+
+/* Gradient 11: Midnight */
+.gradient-midnight {
+  background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+}
+
+/* Gradient 12: Lavender */
+.gradient-lavender {
+  background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+}
+
+/* Gradient 13: Emerald */
+.gradient-emerald {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+/* Gradient 14: Rose */
+.gradient-rose {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+/* Gradient 15: Sky */
+.gradient-sky {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+/* Gradient 16: Sunset 2 */
+.gradient-sunset2 {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+/* Gradient Text Classes */
+.gradient-text-sunset {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-ocean {
+  background: linear-gradient(135deg, #667eea 0%, #4c9aff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-forest {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-fire {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-arctic {
+  background: linear-gradient(135deg, #667eea 0%, #64b5f6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-cosmic {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-neon {
+  background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-magma {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Gradient Border Classes */
+.gradient-border-sunset {
+  position: relative;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+}
+
+.gradient-border-sunset::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: inherit;
+  z-index: -1;
+}
+
+.gradient-border-ocean {
+  position: relative;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+}
+
+.gradient-border-ocean::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(135deg, #667eea 0%, #4c9aff 100%);
+  border-radius: inherit;
+  z-index: -1;
+}
+
+.gradient-border-forest {
+  position: relative;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+}
+
+.gradient-border-forest::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  border-radius: inherit;
+  z-index: -1;
+}
+
+.gradient-border-fire {
+  position: relative;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+}
+
+.gradient-border-fire::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 100%);
+  border-radius: inherit;
+  z-index: -1;
+}
+
+/* Gradient Overlay Classes */
+.gradient-overlay-sunset {
+  position: relative;
+}
+
+.gradient-overlay-sunset::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.gradient-overlay-ocean {
+  position: relative;
+}
+
+.gradient-overlay-ocean::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(76, 154, 255, 0.1) 100%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.gradient-overlay-forest {
+  position: relative;
+}
+
+.gradient-overlay-forest::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(17, 153, 142, 0.1) 0%, rgba(56, 239, 125, 0.1) 100%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.gradient-overlay-fire {
+  position: relative;
+}
+
+.gradient-overlay-fire::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.1) 0%, rgba(255, 217, 61, 0.1) 100%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Animated Gradients */
+.gradient-animated-sunset {
+  background: linear-gradient(270deg, #667eea, #764ba2, #667eea);
+  background-size: 600% 600%;
+  animation: gradient-shift-sunset 8s ease infinite;
+}
+
+@keyframes gradient-shift-sunset {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-animated-ocean {
+  background: linear-gradient(270deg, #667eea, #4c9aff, #667eea);
+  background-size: 600% 600%;
+  animation: gradient-shift-ocean 8s ease infinite;
+}
+
+@keyframes gradient-shift-ocean {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-animated-forest {
+  background: linear-gradient(270deg, #11998e, #38ef7d, #11998e);
+  background-size: 600% 600%;
+  animation: gradient-shift-forest 8s ease infinite;
+}
+
+@keyframes gradient-shift-forest {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-animated-fire {
+  background: linear-gradient(270deg, #ff6b6b, #ffd93d, #ff6b6b);
+  background-size: 600% 600%;
+  animation: gradient-shift-fire 8s ease infinite;
+}
+
+@keyframes gradient-shift-fire {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Gradient Hover Effects */
+.gradient-hover-sunset {
+  background: var(--color-surface);
+  transition: all var(--animation-duration-normal, 300ms) ease;
+}
+
+.gradient-hover-sunset:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: var(--color-text-inverse);
+}
+
+.gradient-hover-ocean {
+  background: var(--color-surface);
+  transition: all var(--animation-duration-normal, 300ms) ease;
+}
+
+.gradient-hover-ocean:hover {
+  background: linear-gradient(135deg, #667eea 0%, #4c9aff 100%);
+  color: var(--color-text-inverse);
+}
+
+.gradient-hover-forest {
+  background: var(--color-surface);
+  transition: all var(--animation-duration-normal, 300ms) ease;
+}
+
+.gradient-hover-forest:hover {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: var(--color-text-inverse);
+}
+
+.gradient-hover-fire {
+  background: var(--color-surface);
+  transition: all var(--animation-duration-normal, 300ms) ease;
+}
+
+.gradient-hover-fire:hover {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 100%);
+  color: var(--color-text-inverse);
+}
+
+/* Gradient Utilities */
+.gradient-none {
+  background: none !important;
+}
+
+.gradient-inherit {
+  background: inherit !important;
+}
+
+.gradient-transparent {
+  background: transparent !important;
+}
+
+/* Gradient Mixins for Dynamic Usage */
+[data-selected-gradient='sunset'] {
+  --gradient-current: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+[data-selected-gradient='ocean'] {
+  --gradient-current: linear-gradient(135deg, #667eea 0%, #4c9aff 100%);
+}
+
+[data-selected-gradient='forest'] {
+  --gradient-current: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+[data-selected-gradient='fire'] {
+  --gradient-current: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 100%);
+}
+
+[data-selected-gradient='arctic'] {
+  --gradient-current: linear-gradient(135deg, #667eea 0%, #64b5f6 100%);
+}
+
+[data-selected-gradient='cosmic'] {
+  --gradient-current: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+[data-selected-gradient='neon'] {
+  --gradient-current: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+}
+
+[data-selected-gradient='magma'] {
+  --gradient-current: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 100%);
+}
+
+[data-selected-gradient='aurora'] {
+  --gradient-current: linear-gradient(135deg, #00d2ff 0%, #3a47d5 100%);
+}
+
+[data-selected-gradient='peach'] {
+  --gradient-current: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+}
+
+[data-selected-gradient='midnight'] {
+  --gradient-current: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+}
+
+[data-selected-gradient='lavender'] {
+  --gradient-current: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+}
+
+[data-selected-gradient='emerald'] {
+  --gradient-current: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+[data-selected-gradient='rose'] {
+  --gradient-current: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+[data-selected-gradient='sky'] {
+  --gradient-current: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+[data-selected-gradient='sunset2'] {
+  --gradient-current: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+/* Apply Selected Gradient */
+.use-selected-gradient {
+  background: var(--gradient-current, var(--color-surface));
+}
+
+.use-selected-gradient-text {
+  background: var(--gradient-current, var(--color-text));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Custom Gradient Variables (will be set dynamically) */
+:root {
+  --custom-gradient-angle: 135deg;
+  --custom-gradient-stops: #667eea 0%, #764ba2 100%;
+}
+
+.custom-gradient {
+  background: linear-gradient(var(--custom-gradient-angle, 135deg), var(--custom-gradient-stops, #667eea 0%, #764ba2 100%));
+}
+
+/* Gradient Patterns */
+.gradient-pattern-dots {
+  background-image: 
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.gradient-pattern-lines {
+  background-image: 
+    repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.1) 10px, rgba(255, 255, 255, 0.1) 20px);
+}
+
+.gradient-pattern-grid {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Gradient Masks */
+.gradient-mask-circle {
+  mask-image: radial-gradient(circle, black 30%, transparent 70%);
+  -webkit-mask-image: radial-gradient(circle, black 30%, transparent 70%);
+}
+
+.gradient-mask-triangle {
+  mask-image: polygon(50% 0%, 0% 100%, 100% 100%);
+  -webkit-mask-image: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
+.gradient-mask-diamond {
+  mask-image: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  -webkit-mask-image: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+/* Gradient Blend Modes */
+.gradient-multiply {
+  mix-blend-mode: multiply;
+}
+
+.gradient-screen {
+  mix-blend-mode: screen;
+}
+
+.gradient-overlay {
+  mix-blend-mode: overlay;
+}
+
+.gradient-soft-light {
+  mix-blend-mode: soft-light;
+}
+
+/* Gradient Filters */
+.gradient-blur {
+  filter: blur(2px);
+}
+
+.gradient-brightness {
+  filter: brightness(1.2);
+}
+
+.gradient-contrast {
+  filter: contrast(1.1);
+}
+
+.gradient-saturate {
+  filter: saturate(1.2);
+}
+
+/* Responsive Gradient Adjustments */
+@media (max-width: 768px) {
+  .gradient-mobile-full {
+    background-size: 200% 200% !important;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .gradient-print-safe {
+    background: var(--color-surface) !important;
+    color: var(--color-text) !important;
+  }
+}

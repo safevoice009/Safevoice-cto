@@ -1,0 +1,498 @@
+/* Modern Minimal Theme (Twitter-Style) */
+
+/* Light Mode */
+[data-theme-system='minimal'][data-color-mode='light'] {
+  --color-surface: #FFFFFF;
+  --color-surface-secondary: #F7F9FA;
+  --color-surface-elevated: #FFFFFF;
+  --color-surface-rgb: 255, 255, 255;
+  --color-text: #0F1419;
+  --color-text-secondary: #536471;
+  --color-text-muted: #8b98a5;
+  --color-text-inverse: #FFFFFF;
+  --color-border: #EFF3F4;
+  --color-border-light: #F7F9FA;
+  --color-border-strong: #CFD9DE;
+  --color-primary: #1DA1F2;
+  --color-primary-dark: #1a91da;
+  --color-primary-light: #8ed1fc;
+  --color-secondary: #7856FF;
+  --color-secondary-dark: #6543d4;
+  --color-secondary-light: #a892ff;
+  --color-success: #17BF63;
+  --color-success-light: #10d877;
+  --color-danger: #E1444D;
+  --color-danger-dark: #d93942;
+  --color-danger-light: #ff6b74;
+  --color-warning: #FFAD1F;
+  --color-warning-light: #ffc947;
+  --color-info: #1DA1F2;
+  --color-info-light: #8ed1fc;
+  --color-error: #E1444D;
+  --color-error-dark: #d93942;
+  --color-focus-outline: #1DA1F2;
+  --color-focus-outline-width: 2px;
+  --color-disabled: rgba(15, 20, 25, 0.16);
+  --color-disabled-bg: rgba(15, 20, 25, 0.08);
+  --shadow-elevation: none;
+  --shadow-elevation-strong: none;
+  --shadow-elevation-subtle: none;
+  --shadow-hover: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Dark Mode */
+[data-theme-system='minimal'][data-color-mode='dark'] {
+  --color-surface: #000000;
+  --color-surface-secondary: #16181C;
+  --color-surface-elevated: #1C1F26;
+  --color-surface-rgb: 0, 0, 0;
+  --color-text: #E7E9EA;
+  --color-text-secondary: #71767B;
+  --color-text-muted: #8b98a5;
+  --color-text-inverse: #000000;
+  --color-border: #2F3336;
+  --color-border-light: #383B41;
+  --color-border-strong: #536471;
+  --color-primary: #1DA1F2;
+  --color-primary-dark: #1a91da;
+  --color-primary-light: #1c9ded;
+  --color-secondary: #7856FF;
+  --color-secondary-dark: #6543d4;
+  --color-secondary-light: #8b72ff;
+  --color-success: #17BF63;
+  --color-success-light: #10d877;
+  --color-danger: #E1444D;
+  --color-danger-dark: #d93942;
+  --color-danger-light: #f45a63;
+  --color-warning: #FFAD1F;
+  --color-warning-light: #ffc947;
+  --color-info: #1DA1F2;
+  --color-info-light: #1c9ded;
+  --color-error: #E1444D;
+  --color-error-dark: #d93942;
+  --color-focus-outline: #1DA1F2;
+  --color-disabled: rgba(231, 233, 234, 0.24);
+  --color-disabled-bg: rgba(231, 233, 234, 0.12);
+  --shadow-elevation: none;
+  --shadow-elevation-strong: none;
+  --shadow-elevation-subtle: none;
+  --shadow-hover: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Modern Minimal Specific Components */
+[data-theme-system='minimal'] {
+  --radius-base: 0px;
+  --radius-lg: 4px;
+  --radius-xl: 8px;
+  --radius-2xl: 12px;
+  
+  /* Minimal Animation Durations */
+  --animation-duration-fast: 100ms;
+  --animation-duration-normal: 150ms;
+  --animation-duration-slow: 200ms;
+  
+  /* Minimal Easing */
+  --animation-easing: ease-out;
+  --animation-easing-out: ease-out;
+  --animation-easing-in: ease-in;
+  
+  /* Minimal Spacing */
+  --minimal-spacing-xs: 2px;
+  --minimal-spacing-sm: 4px;
+  --minimal-spacing-md: 8px;
+  --minimal-spacing-lg: 16px;
+  --minimal-spacing-xl: 24px;
+  
+  /* Minimal Typography */
+  --minimal-font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --minimal-font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Minimal Core Classes */
+[data-theme-system='minimal'] .minimal-flat {
+  background-color: var(--color-surface);
+  border: none;
+  box-shadow: none;
+}
+
+[data-theme-system='minimal'] .minimal-border {
+  border: 1px solid var(--color-border);
+}
+
+[data-theme-system='minimal'] .minimal-border-strong {
+  border: 1px solid var(--color-border-strong);
+}
+
+/* Minimal Button Styles */
+[data-theme-system='minimal'] .btn-minimal {
+  background-color: transparent;
+  border: none;
+  border-radius: var(--radius-lg);
+  color: var(--color-text);
+  font-weight: 500;
+  padding: 8px 16px;
+  transition: all var(--animation-duration-fast) var(--animation-easing);
+}
+
+[data-theme-system='minimal'] .btn-minimal:hover {
+  background-color: var(--color-surface-secondary);
+}
+
+[data-theme-system='minimal'] .btn-minimal:active {
+  background-color: var(--color-border-light);
+}
+
+[data-theme-system='minimal'] .btn-minimal-primary {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+  border: none;
+}
+
+[data-theme-system='minimal'] .btn-minimal-primary:hover {
+  background-color: var(--color-primary-dark);
+}
+
+[data-theme-system='minimal'] .btn-minimal-outline {
+  background-color: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+[data-theme-system='minimal'] .btn-minimal-outline:hover {
+  background-color: var(--color-surface-secondary);
+  border-color: var(--color-border-strong);
+}
+
+/* Minimal Card Styles */
+[data-theme-system='minimal'] .card-minimal {
+  background-color: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  transition: all var(--animation-duration-fast) var(--animation-easing);
+}
+
+[data-theme-system='minimal'] .card-minimal:hover {
+  background-color: var(--color-surface);
+  border-color: var(--color-border-strong);
+}
+
+[data-theme-system='minimal'] .card-minimal-flat {
+  background-color: var(--color-surface);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+}
+
+[data-theme-system='minimal'] .card-minimal-flat:hover {
+  background-color: var(--color-surface-secondary);
+}
+
+/* Minimal Input Styles */
+[data-theme-system='minimal'] .input-minimal {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
+  color: var(--color-text);
+  font-size: 15px;
+  transition: all var(--animation-duration-fast) var(--animation-easing);
+}
+
+[data-theme-system='minimal'] .input-minimal:focus {
+  background-color: var(--color-surface);
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+[data-theme-system='minimal'] .input-minimal::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Minimal Navigation */
+[data-theme-system='minimal'] .nav-minimal {
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: none;
+}
+
+[data-theme-system='minimal'] .nav-link-minimal {
+  color: var(--color-text-secondary);
+  padding: 16px;
+  border-bottom: 2px solid transparent;
+  transition: all var(--animation-duration-fast) var(--animation-easing);
+  font-weight: 500;
+}
+
+[data-theme-system='minimal'] .nav-link-minimal:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface-secondary);
+}
+
+[data-theme-system='minimal'] .nav-link-minimal.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+/* Minimal Modal */
+[data-theme-system='minimal'] .modal-minimal {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: none;
+}
+
+/* Minimal Badge */
+[data-theme-system='minimal'] .badge-minimal {
+  background-color: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+[data-theme-system='minimal'] .badge-minimal-primary {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+  border-color: var(--color-primary);
+}
+
+/* Minimal Progress Bar */
+[data-theme-system='minimal'] .progress-minimal {
+  background-color: var(--color-border-light);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  height: 4px;
+}
+
+[data-theme-system='minimal'] .progress-bar-minimal {
+  background-color: var(--color-primary);
+  transition: width var(--animation-duration-normal) var(--animation-easing);
+}
+
+/* Minimal Tab System */
+[data-theme-system='minimal'] .tab-minimal {
+  background-color: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-secondary);
+  padding: 16px;
+  transition: all var(--animation-duration-fast) var(--animation-easing);
+  font-weight: 500;
+}
+
+[data-theme-system='minimal'] .tab-minimal:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface-secondary);
+}
+
+[data-theme-system='minimal'] .tab-minimal.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+/* Minimal Dropdown */
+[data-theme-system='minimal'] .dropdown-minimal {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+[data-theme-system='minimal'] .dropdown-item-minimal {
+  padding: 12px 16px;
+  transition: background-color var(--animation-duration-fast) var(--animation-easing);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+[data-theme-system='minimal'] .dropdown-item-minimal:last-child {
+  border-bottom: none;
+}
+
+[data-theme-system='minimal'] .dropdown-item-minimal:hover {
+  background-color: var(--color-surface-secondary);
+}
+
+/* Minimal Tooltip */
+[data-theme-system='minimal'] .tooltip-minimal {
+  background-color: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text);
+  font-size: 14px;
+  padding: 8px 12px;
+  box-shadow: var(--shadow-hover);
+}
+
+/* Minimal Loading States */
+[data-theme-system='minimal'] .skeleton-minimal {
+  background-color: var(--color-border-light);
+  border-radius: var(--radius-lg);
+  animation: minimal-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes minimal-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+[data-theme-system='minimal'] .spinner-minimal {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-top: 2px solid var(--color-primary);
+  border-radius: 50%;
+  animation: minimal-spin 1s linear infinite;
+}
+
+@keyframes minimal-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Minimal Responsive Adjustments */
+@media (max-width: 768px) {
+  [data-theme-system='minimal'] {
+    --minimal-spacing-sm: 2px;
+    --minimal-spacing-md: 6px;
+    --minimal-spacing-lg: 12px;
+    --minimal-spacing-xl: 16px;
+  }
+}
+
+/* Minimal Compact Mode */
+[data-theme-system='minimal'][data-spacing-density='compact'] {
+  --minimal-spacing-xs: 1px;
+  --minimal-spacing-sm: 2px;
+  --minimal-spacing-md: 4px;
+  --minimal-spacing-lg: 8px;
+  --minimal-spacing-xl: 12px;
+}
+
+/* Minimal Spacious Mode */
+[data-theme-system='minimal'][data-spacing-density='spacious'] {
+  --minimal-spacing-xs: 4px;
+  --minimal-spacing-sm: 8px;
+  --minimal-spacing-md: 16px;
+  --minimal-spacing-lg: 24px;
+  --minimal-spacing-xl: 32px;
+}
+
+/* Minimal Hover States */
+[data-theme-system='minimal'] .hover-lift:hover {
+  transform: translateY(-1px);
+}
+
+[data-theme-system='minimal'] .hover-scale:hover {
+  transform: scale(1.02);
+}
+
+/* Minimal Focus States */
+[data-theme-system='minimal'] .focus-minimal:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Minimal Divider */
+[data-theme-system='minimal'] .divider-minimal {
+  height: 1px;
+  background-color: var(--color-border);
+  border: none;
+  margin: var(--minimal-spacing-lg) 0;
+}
+
+/* Minimal Avatar */
+[data-theme-system='minimal'] .avatar-minimal {
+  border-radius: 50%;
+  background-color: var(--color-surface-secondary);
+  border: 2px solid var(--color-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Minimal Icon Button */
+[data-theme-system='minimal'] .icon-btn-minimal {
+  background-color: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  transition: all var(--animation-duration-fast) var(--animation-easing);
+}
+
+[data-theme-system='minimal'] .icon-btn-minimal:hover {
+  background-color: var(--color-surface-secondary);
+  color: var(--color-text);
+}
+
+[data-theme-system='minimal'] .icon-btn-minimal:active {
+  background-color: var(--color-border-light);
+}
+
+/* Minimal Link */
+[data-theme-system='minimal'] .link-minimal {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--animation-duration-fast) var(--animation-easing);
+}
+
+[data-theme-system='minimal'] .link-minimal:hover {
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+/* Minimal Code */
+[data-theme-system='minimal'] .code-minimal {
+  background-color: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+
+/* Minimal Blockquote */
+[data-theme-system='minimal'] .blockquote-minimal {
+  border-left: 3px solid var(--color-primary);
+  padding-left: var(--minimal-spacing-lg);
+  margin: var(--minimal-spacing-lg) 0;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+/* Minimal Table */
+[data-theme-system='minimal'] .table-minimal {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--color-border);
+}
+
+[data-theme-system='minimal'] .table-minimal th,
+[data-theme-system='minimal'] .table-minimal td {
+  padding: var(--minimal-spacing-md);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+[data-theme-system='minimal'] .table-minimal th {
+  background-color: var(--color-surface-secondary);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+[data-theme-system='minimal'] .table-minimal tr:hover {
+  background-color: var(--color-surface-secondary);
+}

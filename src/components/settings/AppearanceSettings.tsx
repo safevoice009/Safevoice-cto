@@ -11,6 +11,7 @@ import {
 } from '../../lib/customizationStore';
 import { type FontProfile, type Theme } from '../../lib/themeStore';
 import ThemePreview from './ThemePreview';
+import { AdvancedAppearance } from './AdvancedAppearance';
 
 const themeOptions: { label: string; description: string; value: Theme }[] = [
   { label: 'Auto', description: 'Match device appearance automatically', value: 'auto' },
@@ -89,6 +90,7 @@ export default function AppearanceSettings() {
   const [importPayload, setImportPayload] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'basic' | 'advanced'>('basic');
 
   useEffect(() => {
     hydrate();
@@ -196,7 +198,34 @@ export default function AppearanceSettings() {
         {error && <span className="typography-caption text-danger">{error}</span>}
       </header>
 
-      <section className="spacing-stack-lg">
+      {/* Tab Navigation */}
+      <div className="flex border-b border-gray-200 mb-6">
+        <button
+          onClick={() => setActiveSettingsTab('basic')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+            activeSettingsTab === 'basic'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Basic Settings
+        </button>
+        <button
+          onClick={() => setActiveSettingsTab('advanced')}
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+            activeSettingsTab === 'advanced'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Advanced Designer
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeSettingsTab === 'basic' && (
+        <>
+          <section className="spacing-stack-lg">
         <h2 className="typography-title">Theme &amp; Color</h2>
         <div className="responsive-grid">
           <fieldset className="spacing-stack-sm card-surface" aria-labelledby="theme-choice">
@@ -479,7 +508,13 @@ export default function AppearanceSettings() {
         </div>
       </section>
 
-      <ThemePreview />
+          <ThemePreview />
+        </>
+      )}
+        
+      {activeSettingsTab === 'advanced' && (
+        <AdvancedAppearance />
+      )}
     </div>
   );
 }
