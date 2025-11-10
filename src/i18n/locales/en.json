@@ -233,5 +233,24 @@
       "failed": "Generation Failed",
       "verificationFailed": "Verification Failed"
     }
+  },
+  "audioRecorder": {
+    "selectQuality": "Select Audio Quality",
+    "standard": "Standard",
+    "standardDesc": "Balanced quality for most uses",
+    "highFidelity": "High Fidelity",
+    "highFidelityDesc": "Crystal clear audio with larger file size",
+    "lowData": "Low Data",
+    "lowDataDesc": "Compressed audio for minimal data usage",
+    "recording": "Recording",
+    "pause": "Pause recording",
+    "resume": "Resume recording",
+    "stop": "Stop recording",
+    "cancel": "Cancel",
+    "recordingWith": "Recording with {{preset}} preset",
+    "notSupported": "Audio recording not supported",
+    "notSupportedDesc": "Your browser doesn't support audio recording. Please use a modern browser like Chrome, Firefox, Safari, or Edge.",
+    "recordingFailed": "Failed to start recording",
+    "recordingSaved": "Recording saved successfully"
   }
   }
