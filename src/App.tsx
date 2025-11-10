@@ -80,6 +80,24 @@ function AnimatedRoutes() {
     };
   }, []);
 
+  // Initialize fingerprint privacy protections
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Import dynamically to avoid circular dependencies
+    import('./lib/privacy/middleware').then(({ initializePrivacyProtections }) => {
+      const storeActions = {
+        evaluateFingerprintRisk: useStore.getState().evaluateFingerprintRisk,
+        applyFingerprintMitigations: useStore.getState().applyFingerprintMitigations,
+        rotateFingerprintIdentity: useStore.getState().rotateFingerprintIdentity,
+      };
+      
+      initializePrivacyProtections(storeActions);
+    }).catch((error) => {
+      console.error('[Privacy] Failed to initialize fingerprint protections:', error);
+    });
+  }, []);
+
   const handleCrisisAcknowledge = (action: 'call_helpline' | 'continue') => {
     if (action === 'call_helpline') {
       toast.success(t('crisis.thankYou'));

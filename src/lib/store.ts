@@ -28,6 +28,25 @@ import type { EmotionAnalysisResult, EmotionType } from './emotionAnalysis';
 import { getCrisisQueueService, type CrisisRequest, type CrisisAuditEntry, type CrisisQueueEvent } from './crisisQueue';
 import type { ZKProofArtifacts, ZKProofResult } from './zkProof';
 import { generateZKProof, verifyZKProof, deserializeProof } from './zkProof';
+import type { 
+  FingerprintSnapshot, 
+  FingerprintMitigationPlan, 
+  SaltRotation 
+} from './privacy/fingerprint';
+import {
+  collectFingerprintSignals,
+  createFingerprintSnapshot,
+  evaluateFingerprintRisk as evaluateFingerprintRiskUtil,
+  createMitigationPlan,
+  rotateSalt as rotateSaltUtil,
+  generateSalt,
+  obfuscateAPIs,
+  restoreAPIs,
+  serializeFingerprintSnapshot,
+  deserializeFingerprintSnapshot,
+  serializeMitigationPlan,
+  deserializeMitigationPlan,
+} from './privacy/fingerprint';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -827,6 +846,23 @@ export interface StoreState {
 
   // Utility
   saveToLocalStorage: () => void;
+
+  // Fingerprint Privacy State
+  fingerprintSnapshot: FingerprintSnapshot | null;
+  fingerprintMitigationPlan: FingerprintMitigationPlan | null;
+  lastSaltRotation: SaltRotation | null;
+  fingerprintMitigationsActive: boolean;
+  currentFingerprintSalt: string | null;
+
+  // Fingerprint Privacy Actions
+  evaluateFingerprintRisk: () => Promise<{
+    riskLevel: 'low' | 'medium' | 'high';
+    riskScore: number;
+    trackers: string[];
+    recommendation: string;
+  }>;
+  applyFingerprintMitigations: (strategy?: 'aggressive' | 'balanced' | 'conservative') => Promise<FingerprintMitigationPlan | null>;
+  rotateFingerprintIdentity: (reason?: string) => Promise<SaltRotation | null>;
 }
 
 /**
@@ -871,6 +907,11 @@ const STORAGE_KEYS = {
   COMMUNITY_STATE_VERSION: 'safevoice_community_state_version', // Versioning for community data migrations
   CURRENT_COMMUNITY: 'safevoice_current_community',     // Last selected community
   CURRENT_CHANNEL: 'safevoice_current_channel',         // Last selected channel within community
+  FINGERPRINT_SNAPSHOT: 'safevoice_fingerprint_snapshot',    // Latest fingerprint snapshot
+  FINGERPRINT_MITIGATION_PLAN: 'safevoice_fingerprint_mitigation_plan', // Current mitigation plan
+  FINGERPRINT_SALT_ROTATION: 'safevoice_fingerprint_salt_rotation', // Last salt rotation
+  FINGERPRINT_MITIGATIONS_ACTIVE: 'safevoice_fingerprint_mitigations_active', // Whether mitigations are active
+  FINGERPRINT_CURRENT_SALT: 'safevoice_fingerprint_current_salt', // Current anonymization salt
 };
 
 const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
@@ -1026,6 +1067,146 @@ const persistNFTBadges = (badges: NFTBadge[]): void => {
 };
 
 const toISODate = (timestamp: number): string => new Date(timestamp).toISOString().slice(0, 10);
+
+// Fingerprint storage helpers
+const loadFingerprintSnapshot = (): FingerprintSnapshot | null => {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FINGERPRINT_SNAPSHOT);
+    if (!raw) return null;
+    return deserializeFingerprintSnapshot(raw);
+  } catch (error) {
+    console.error('Failed to load fingerprint snapshot:', error);
+    return null;
+  }
+};
+
+const saveFingerprintSnapshot = (snapshot: FingerprintSnapshot | null): void => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    if (snapshot) {
+      localStorage.setItem(STORAGE_KEYS.FINGERPRINT_SNAPSHOT, serializeFingerprintSnapshot(snapshot));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.FINGERPRINT_SNAPSHOT);
+    }
+  } catch (error) {
+    console.error('Failed to save fingerprint snapshot:', error);
+  }
+};
+
+const loadFingerprintMitigationPlan = (): FingerprintMitigationPlan | null => {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FINGERPRINT_MITIGATION_PLAN);
+    if (!raw) return null;
+    return deserializeMitigationPlan(raw);
+  } catch (error) {
+    console.error('Failed to load fingerprint mitigation plan:', error);
+    return null;
+  }
+};
+
+const saveFingerprintMitigationPlan = (plan: FingerprintMitigationPlan | null): void => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    if (plan) {
+      localStorage.setItem(STORAGE_KEYS.FINGERPRINT_MITIGATION_PLAN, serializeMitigationPlan(plan));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.FINGERPRINT_MITIGATION_PLAN);
+    }
+  } catch (error) {
+    console.error('Failed to save fingerprint mitigation plan:', error);
+  }
+};
+
+const loadSaltRotation = (): SaltRotation | null => {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FINGERPRINT_SALT_ROTATION);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'object' && parsed !== null && 
+        typeof parsed.previousSalt === 'string' && 
+        typeof parsed.newSalt === 'string' && 
+        typeof parsed.timestamp === 'number' && 
+        typeof parsed.reason === 'string') {
+      return parsed as SaltRotation;
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to load salt rotation:', error);
+    return null;
+  }
+};
+
+const saveSaltRotation = (rotation: SaltRotation | null): void => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    if (rotation) {
+      localStorage.setItem(STORAGE_KEYS.FINGERPRINT_SALT_ROTATION, JSON.stringify(rotation));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.FINGERPRINT_SALT_ROTATION);
+    }
+  } catch (error) {
+    console.error('Failed to save salt rotation:', error);
+  }
+};
+
+const loadFingerprintSalt = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FINGERPRINT_CURRENT_SALT);
+    if (!raw) return null;
+    return raw;
+  } catch (error) {
+    console.error('Failed to load fingerprint salt:', error);
+    return null;
+  }
+};
+
+const saveFingerprintSalt = (salt: string | null): void => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    if (salt) {
+      localStorage.setItem(STORAGE_KEYS.FINGERPRINT_CURRENT_SALT, salt);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.FINGERPRINT_CURRENT_SALT);
+    }
+  } catch (error) {
+    console.error('Failed to save fingerprint salt:', error);
+  }
+};
+
+const loadFingerprintMitigationsActive = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FINGERPRINT_MITIGATIONS_ACTIVE);
+    if (!raw) return false;
+    return raw === 'true';
+  } catch (error) {
+    console.error('Failed to load fingerprint mitigations active:', error);
+    return false;
+  }
+};
+
+const saveFingerprintMitigationsActive = (active: boolean): void => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem(STORAGE_KEYS.FINGERPRINT_MITIGATIONS_ACTIVE, active.toString());
+  } catch (error) {
+    console.error('Failed to save fingerprint mitigations active:', error);
+  }
+};
 
 const createDefaultCommunityEvents = (): CommunityEvent[] => {
   const now = Date.now();
@@ -1996,6 +2177,13 @@ export const useStore = create<StoreState>((set, get) => {
     referralCode: initialReferralState.code,
     referredByCode: initialReferralState.referredByCode,
     referredFriends: initialReferralState.friends,
+
+    // Fingerprint Privacy state
+    fingerprintSnapshot: loadFingerprintSnapshot(),
+    fingerprintMitigationPlan: loadFingerprintMitigationPlan(),
+    lastSaltRotation: loadSaltRotation(),
+    fingerprintMitigationsActive: loadFingerprintMitigationsActive(),
+    currentFingerprintSalt: loadFingerprintSalt() || generateSalt(),
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -3384,6 +3572,13 @@ export const useStore = create<StoreState>((set, get) => {
     } else {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_CHANNEL);
     }
+
+    // Save fingerprint privacy data
+    saveFingerprintSnapshot(state.fingerprintSnapshot);
+    saveFingerprintMitigationPlan(state.fingerprintMitigationPlan);
+    saveSaltRotation(state.lastSaltRotation);
+    saveFingerprintMitigationsActive(state.fingerprintMitigationsActive);
+    saveFingerprintSalt(state.currentFingerprintSalt);
   },
 
   addPost: (
@@ -6335,6 +6530,165 @@ export const useStore = create<StoreState>((set, get) => {
     toast.success('Data backup downloaded successfully! 💾', {
       duration: 4000,
     });
+  },
+
+  // Fingerprint Privacy Actions
+  evaluateFingerprintRisk: async () => {
+    const { currentFingerprintSalt } = get();
+    
+    if (!currentFingerprintSalt) {
+      const newSalt = generateSalt();
+      set({ currentFingerprintSalt: newSalt });
+      saveFingerprintSalt(newSalt);
+    }
+
+    try {
+      const salt = get().currentFingerprintSalt || generateSalt();
+      const signals = collectFingerprintSignals(salt);
+      const snapshot = createFingerprintSnapshot(signals, salt);
+      
+      // Save snapshot to state and localStorage
+      set({ fingerprintSnapshot: snapshot });
+      saveFingerprintSnapshot(snapshot);
+      
+      // Evaluate risk
+      const riskEvaluation = evaluateFingerprintRiskUtil(snapshot);
+      
+      // Log audit entry if tied to crisis queue metadata
+      const crisisService = getCrisisQueueService();
+      if (crisisService.isSupabaseAvailable()) {
+        const crisisSnapshot = crisisService.getSnapshot();
+        const ownCrisisRequests = crisisSnapshot.filter(req => req.studentId === get().studentId);
+        
+        if (ownCrisisRequests.length > 0) {
+          console.info('[Fingerprint] Risk evaluation logged for crisis queue metadata', {
+            riskLevel: riskEvaluation.riskLevel,
+            riskScore: riskEvaluation.riskScore,
+            trackers: riskEvaluation.trackers,
+            timestamp: Date.now(),
+          });
+        }
+      }
+      
+      return riskEvaluation;
+    } catch (error) {
+      console.error('[Fingerprint] Failed to evaluate fingerprint risk:', error);
+      toast.error('Failed to evaluate fingerprint risk');
+      return {
+        riskLevel: 'low' as const,
+        riskScore: 0,
+        trackers: [],
+        recommendation: 'Risk evaluation failed, please try again',
+      };
+    }
+  },
+
+  applyFingerprintMitigations: async (strategy = 'balanced') => {
+    const { fingerprintSnapshot } = get();
+    
+    if (!fingerprintSnapshot) {
+      toast.error('No fingerprint snapshot available. Please evaluate risk first.');
+      return null;
+    }
+
+    try {
+      // Create mitigation plan
+      const mitigationPlan = createMitigationPlan(fingerprintSnapshot, strategy);
+      
+      // Apply API obfuscations
+      obfuscateAPIs();
+      
+      // Save mitigation plan to state and localStorage
+      set({ 
+        fingerprintMitigationPlan: mitigationPlan,
+        fingerprintMitigationsActive: true 
+      });
+      saveFingerprintMitigationPlan(mitigationPlan);
+      saveFingerprintMitigationsActive(true);
+      
+      // Log audit entry if tied to crisis queue metadata
+      const crisisService = getCrisisQueueService();
+      if (crisisService.isSupabaseAvailable()) {
+        const crisisSnapshot = crisisService.getSnapshot();
+        const ownCrisisRequests = crisisSnapshot.filter(req => req.studentId === get().studentId);
+        
+        if (ownCrisisRequests.length > 0) {
+          console.info('[Fingerprint] Mitigations applied for crisis queue metadata', {
+            strategy,
+            successCount: mitigationPlan.successCount,
+            failureCount: mitigationPlan.failureCount,
+            timestamp: Date.now(),
+          });
+        }
+      }
+      
+      toast.success(`Fingerprint mitigations applied (${mitigationPlan.successCount}/${mitigationPlan.mitigations.length} successful)`);
+      return mitigationPlan;
+    } catch (error) {
+      console.error('[Fingerprint] Failed to apply mitigations:', error);
+      toast.error('Failed to apply fingerprint mitigations');
+      return null;
+    }
+  },
+
+  rotateFingerprintIdentity: async (reason = 'manual') => {
+    const { currentFingerprintSalt, fingerprintMitigationsActive } = get();
+    
+    if (!currentFingerprintSalt) {
+      toast.error('No current salt available');
+      return null;
+    }
+
+    try {
+      // Rotate salt
+      const saltRotation = rotateSaltUtil(currentFingerprintSalt, reason);
+      
+      // Generate new salt
+      const newSalt = generateSalt();
+      
+      // Clear existing mitigations
+      if (fingerprintMitigationsActive) {
+        restoreAPIs();
+        set({ 
+          fingerprintMitigationsActive: false,
+          fingerprintMitigationPlan: null 
+        });
+        saveFingerprintMitigationsActive(false);
+        saveFingerprintMitigationPlan(null);
+      }
+      
+      // Update state
+      set({ 
+        currentFingerprintSalt: newSalt,
+        lastSaltRotation: saltRotation,
+        fingerprintSnapshot: null 
+      });
+      saveFingerprintSalt(newSalt);
+      saveSaltRotation(saltRotation);
+      saveFingerprintSnapshot(null);
+      
+      // Log audit entry if tied to crisis queue metadata
+      const crisisService = getCrisisQueueService();
+      if (crisisService.isSupabaseAvailable()) {
+        const crisisSnapshot = crisisService.getSnapshot();
+        const ownCrisisRequests = crisisSnapshot.filter(req => req.studentId === get().studentId);
+        
+        if (ownCrisisRequests.length > 0) {
+          console.info('[Fingerprint] Identity rotated for crisis queue metadata', {
+            reason,
+            previousSalt: saltRotation.previousSalt.substring(0, 8) + '...',
+            timestamp: Date.now(),
+          });
+        }
+      }
+      
+      toast.success('Fingerprint identity rotated successfully');
+      return saltRotation;
+    } catch (error) {
+      console.error('[Fingerprint] Failed to rotate identity:', error);
+      toast.error('Failed to rotate fingerprint identity');
+      return null;
+    }
   },
 
 
