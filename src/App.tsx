@@ -33,6 +33,7 @@ import PostLifecycleManager from './lib/postLifecycleManager';
 import { wagmiConfig, chains } from './lib/wagmiConfig';
 import { useThemeStore } from './lib/themeStore';
 import { useCustomizationStore } from './lib/customizationStore';
+import { ThemeProvider, useThemeSystemStore } from './components/ui/ThemeProvider';
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ function AnimatedRoutes() {
   const grantDailyLoginBonus = useStore((state) => state.grantDailyLoginBonus);
   const hydrateTheme = useThemeStore((state) => state.hydrate);
   const hydrateAppearance = useCustomizationStore((state) => state.hydrate);
+  const hydrateThemeSystem = useThemeSystemStore((state: any) => state.hydrate);
   const lifecycleManagerRef = useRef<PostLifecycleManager | null>(null);
   const { t } = useTranslation();
 
@@ -58,7 +60,8 @@ function AnimatedRoutes() {
     }
     hydrateTheme();
     hydrateAppearance();
-  }, [initStudentId, hydrateTheme, hydrateAppearance]);
+    hydrateThemeSystem();
+  }, [initStudentId, hydrateTheme, hydrateAppearance, hydrateThemeSystem]);
 
   useEffect(() => {
     loadWalletData();
@@ -147,8 +150,10 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider chains={chains} coolMode>
           <BrowserRouter basename={import.meta.env.DEV ? '/' : '/Safevoice-cto'}>
-            <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
-            <AnimatedRoutes />
+            <ThemeProvider>
+              <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
+              <AnimatedRoutes />
+            </ThemeProvider>
           </BrowserRouter>
         </RainbowKitProvider>
       </QueryClientProvider>
