@@ -899,6 +899,12 @@ export interface StoreState {
   addCrisisAuditEntry: (entry: Omit<CrisisAuditEntry, 'id' | 'timestamp'>) => void;
   cleanupExpiredAuditEntries: () => void;
 
+  // Mentor reviews
+  mentorReviews: MentorReview[];
+  submitMentorReview: (matchId: string, mentorId: string, menteeId: string, rating: number, feedback?: string) => void;
+  getMentorReviewSummary: (mentorId: string) => MentorReviewSummary;
+  getMentorReviewsByMatch: (matchId: string) => MentorReview[];
+
   // ZK Proofs
   zkProofs: Record<string, ZKProofState>;
   prepareZKProof: (requestId: string, witness: string | Uint8Array) => Promise<ZKProofResult>;
