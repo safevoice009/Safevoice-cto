@@ -1,4 +1,4 @@
-import { createContext, useEffect, useLayoutEffect, useState, type ReactNode, type HTMLAttributes } from 'react';
+import { createContext, useEffect, useLayoutEffect, useState, type ReactNode, type ComponentPropsWithoutRef } from 'react';
 
 export type LayoutBreakpoint = 'mobile' | 'tablet' | 'desktop';
 export type Orientation = 'portrait' | 'landscape';
@@ -9,7 +9,7 @@ interface ResponsiveLayoutProps {
   bottomNavigation?: ReactNode;
   children: ReactNode;
   className?: string;
-  mainProps?: HTMLAttributes<HTMLDivElement>;
+  mainProps?: ComponentPropsWithoutRef<'main'>;
 }
 
 interface LayoutContextValue {
@@ -96,8 +96,10 @@ export default function ResponsiveLayout({
     <ResponsiveLayoutContext.Provider value={{ breakpoint, orientation, width, height }}>
       <div className={containerClassName} data-layout-breakpoint={breakpoint} data-orientation={orientation}>
         {header}
-        <div className="safe-area-layout" {...restMainProps}>
-          <div className={mainClassName}>{children}</div>
+        <div className="safe-area-layout">
+          <main className={mainClassName} {...restMainProps}>
+            {children}
+          </main>
         </div>
         {footer}
         {bottomNavigation}

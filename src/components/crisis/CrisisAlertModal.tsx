@@ -35,6 +35,8 @@ export default function CrisisAlertModal({
 
   const zkProofState = requestId ? zkProofs[requestId] : undefined;
   const witnessData = getWitnessData();
+  const dialogTitleId = requestId ? `crisis-alert-title-${requestId}` : 'crisis-alert-title';
+  const dialogDescriptionId = requestId ? `crisis-alert-description-${requestId}` : 'crisis-alert-description';
 
   return (
     <AnimatePresence>
@@ -46,6 +48,7 @@ export default function CrisisAlertModal({
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50"
             onClick={(e) => e.stopPropagation()}
+            aria-hidden="true"
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -54,15 +57,21 @@ export default function CrisisAlertModal({
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="glass max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-2xl border-2 border-red-500/30">
+            <div
+              className="glass max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-2xl border-2 border-red-500/30"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={dialogTitleId}
+              aria-describedby={dialogDescriptionId}
+            >
               <div className="sticky top-0 glass p-6 border-b border-white/10 flex items-start justify-between">
                 <div className="flex items-start space-x-3">
                   <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0 mt-1" />
                   <div>
-                    <h2 className="text-2xl font-bold text-white mb-1">
+                    <h2 className="text-2xl font-bold text-white mb-1" id={dialogTitleId}>
                       🆘 We're Here to Help
                     </h2>
-                    <p className="text-gray-300 text-sm">
+                    <p className="text-gray-300 text-sm" id={dialogDescriptionId}>
                       If you're thinking about suicide or need immediate support, you're not
                       alone. Help is available 24/7.
                     </p>

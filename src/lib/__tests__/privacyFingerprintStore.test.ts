@@ -24,6 +24,17 @@ import {
   FINGERPRINT_DEFAULTS,
 } from '../privacy/fingerprint';
 import { getCrisisQueueService } from '../crisisQueue';
+import type { CrisisRequest } from '../crisisQueue';
+
+
+type CrisisService = ReturnType<typeof getCrisisQueueService>;
+
+const createMockCrisisService = (
+  requests: CrisisRequest[]
+): Pick<CrisisService, 'isSupabaseAvailable' | 'getSnapshot'> => ({
+  isSupabaseAvailable: vi.fn(() => true),
+  getSnapshot: vi.fn(() => requests),
+});
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -159,22 +170,22 @@ describe('Privacy Fingerprint Store Integration', () => {
       const store = result.current;
 
       // Mock crisis queue service
-      const mockCrisisService = {
-        isSupabaseAvailable: vi.fn(() => true),
-        getSnapshot: vi.fn(() => [
-          {
-            id: 'crisis-1',
-            studentId: store.studentId,
-            crisisLevel: 'high' as const,
-            status: 'pending' as const,
-            timestamp: Date.now(),
-            expiresAt: Date.now() + 60 * 60 * 1000,
-            ttl: 60 * 60 * 1000,
-            metadata: {},
-          },
-        ]),
-      };
-      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
+      const crisisRequests: CrisisRequest[] = [
+        {
+          id: 'crisis-1',
+          studentId: store.studentId,
+          crisisLevel: 'high' as CrisisRequest['crisisLevel'],
+          status: 'pending',
+          timestamp: Date.now(),
+          expiresAt: Date.now() + 60 * 60 * 1000,
+          ttl: 60 * 60 * 1000,
+          metadata: {},
+          volunteerId: undefined,
+          postId: undefined,
+        },
+      ];
+      const mockCrisisService = createMockCrisisService(crisisRequests);
+      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as unknown as CrisisService);
 
       const riskEvaluation = await act(async () => {
         return await store.evaluateFingerprintRisk();
@@ -257,22 +268,22 @@ describe('Privacy Fingerprint Store Integration', () => {
       const store = result.current;
 
       // Mock crisis queue service
-      const mockCrisisService = {
-        isSupabaseAvailable: vi.fn(() => true),
-        getSnapshot: vi.fn(() => [
-          {
-            id: 'crisis-1',
-            studentId: store.studentId,
-            crisisLevel: 'high' as const,
-            status: 'pending' as const,
-            timestamp: Date.now(),
-            expiresAt: Date.now() + 60 * 60 * 1000,
-            ttl: 60 * 60 * 1000,
-            metadata: {},
-          },
-        ]),
-      };
-      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
+      const crisisRequests: CrisisRequest[] = [
+        {
+          id: 'crisis-1',
+          studentId: store.studentId,
+          crisisLevel: 'high' as CrisisRequest['crisisLevel'],
+          status: 'pending',
+          timestamp: Date.now(),
+          expiresAt: Date.now() + 60 * 60 * 1000,
+          ttl: 60 * 60 * 1000,
+          metadata: {},
+          volunteerId: undefined,
+          postId: undefined,
+        },
+      ];
+      const mockCrisisService = createMockCrisisService(crisisRequests);
+      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as unknown as CrisisService);
 
       const mitigationPlan = await act(async () => {
         return await store.applyFingerprintMitigations('balanced');
@@ -345,22 +356,22 @@ describe('Privacy Fingerprint Store Integration', () => {
       const store = result.current;
 
       // Mock crisis queue service
-      const mockCrisisService = {
-        isSupabaseAvailable: vi.fn(() => true),
-        getSnapshot: vi.fn(() => [
-          {
-            id: 'crisis-1',
-            studentId: store.studentId,
-            crisisLevel: 'high' as const,
-            status: 'pending' as const,
-            timestamp: Date.now(),
-            expiresAt: Date.now() + 60 * 60 * 1000,
-            ttl: 60 * 60 * 1000,
-            metadata: {},
-          },
-        ]),
-      };
-      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
+      const crisisRequests: CrisisRequest[] = [
+        {
+          id: 'crisis-1',
+          studentId: store.studentId,
+          crisisLevel: 'high' as CrisisRequest['crisisLevel'],
+          status: 'pending',
+          timestamp: Date.now(),
+          expiresAt: Date.now() + 60 * 60 * 1000,
+          ttl: 60 * 60 * 1000,
+          metadata: {},
+          volunteerId: undefined,
+          postId: undefined,
+        },
+      ];
+      const mockCrisisService = createMockCrisisService(crisisRequests);
+      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as unknown as CrisisService);
 
       const saltRotation = await act(async () => {
         return await store.rotateFingerprintIdentity('test rotation');
@@ -564,22 +575,22 @@ describe('Privacy Fingerprint Store Integration', () => {
       const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
 
       // Mock crisis queue with user requests
-      const mockCrisisService = {
-        isSupabaseAvailable: vi.fn(() => true),
-        getSnapshot: vi.fn(() => [
-          {
-            id: 'crisis-1',
-            studentId: store.studentId,
-            crisisLevel: 'high' as const,
-            status: 'pending' as const,
-            timestamp: Date.now(),
-            expiresAt: Date.now() + 60 * 60 * 1000,
-            ttl: 60 * 60 * 1000,
-            metadata: {},
-          },
-        ]),
-      };
-      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
+      const crisisRequests: CrisisRequest[] = [
+        {
+          id: 'crisis-1',
+          studentId: store.studentId,
+          crisisLevel: 'high' as CrisisRequest['crisisLevel'],
+          status: 'pending',
+          timestamp: Date.now(),
+          expiresAt: Date.now() + 60 * 60 * 1000,
+          ttl: 60 * 60 * 1000,
+          metadata: {},
+          volunteerId: undefined,
+          postId: undefined,
+        },
+      ];
+      const mockCrisisService = createMockCrisisService(crisisRequests);
+      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as unknown as CrisisService);
 
       await act(async () => {
         await store.evaluateFingerprintRisk();
@@ -606,22 +617,22 @@ describe('Privacy Fingerprint Store Integration', () => {
       const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
 
       // Mock crisis queue without user requests
-      const mockCrisisService = {
-        isSupabaseAvailable: vi.fn(() => true),
-        getSnapshot: vi.fn(() => [
-          {
-            id: 'crisis-1',
-            studentId: 'other-student-id',
-            crisisLevel: 'high' as const,
-            status: 'pending' as const,
-            timestamp: Date.now(),
-            expiresAt: Date.now() + 60 * 60 * 1000,
-            ttl: 60 * 60 * 1000,
-            metadata: {},
-          },
-        ]),
-      };
-      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
+      const crisisRequests: CrisisRequest[] = [
+        {
+          id: 'crisis-1',
+          studentId: 'other-student-id',
+          crisisLevel: 'high' as CrisisRequest['crisisLevel'],
+          status: 'pending',
+          timestamp: Date.now(),
+          expiresAt: Date.now() + 60 * 60 * 1000,
+          ttl: 60 * 60 * 1000,
+          metadata: {},
+          volunteerId: undefined,
+          postId: undefined,
+        },
+      ];
+      const mockCrisisService = createMockCrisisService(crisisRequests);
+      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as unknown as CrisisService);
 
       await act(async () => {
         await store.evaluateFingerprintRisk();

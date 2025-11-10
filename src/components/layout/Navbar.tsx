@@ -37,6 +37,13 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const mobileMenuId = 'mobile-navigation';
+  const navLabel = t('nav.primaryNavigation', { defaultValue: 'Primary navigation' });
+  const mobileMenuLabel = t('nav.mobileMenu', { defaultValue: 'Mobile navigation menu' });
+  const toggleMenuLabel = isOpen
+    ? t('nav.closeMenu', { defaultValue: 'Close menu' })
+    : t('nav.openMenu', { defaultValue: 'Open menu' });
+
   useEffect(() => {
     const controlNavbar = () => {
       const currentScroll = window.scrollY;
@@ -82,6 +89,7 @@ export default function Navbar() {
       animate={{ y: visible ? 0 : -100 }}
       transition={{ duration: 0.3 }}
       className="fixed top-0 left-0 right-0 z-50 glass"
+      aria-label={navLabel}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
@@ -147,6 +155,11 @@ export default function Navbar() {
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="lg:hidden text-white"
+            aria-expanded={isOpen}
+            aria-controls={mobileMenuId}
+            aria-label={toggleMenuLabel}
+            title={toggleMenuLabel}
+            type="button"
           >
             {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -160,6 +173,9 @@ export default function Navbar() {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             className="lg:hidden bg-surface/95 backdrop-blur-xl border-t border-white/10"
+            id={mobileMenuId}
+            role="region"
+            aria-label={mobileMenuLabel}
           >
             <div className="px-4 py-4 space-y-3">
               <div className="flex justify-end gap-2">

@@ -78,6 +78,14 @@
 - ✅ Referrer Policy: Strict referrer policy recommended
 - ✅ Timing Attacks: Constant-time operations documented
 
+## Accessibility Testing (AAA)
+- **Tooling:** Vitest + jest-axe configured to enforce WCAG 2.2 AAA rules.
+- **Coverage:** Global layout (App), primary navigation, crisis alert workflow, and feed timeline content in both light/dark themes plus dyslexic font mode.
+- **Run locally:**
+  1. `npm test -- --run accessibility` — executes only the new accessibility suite.
+  2. `npm test` — runs the full test matrix including accessibility checks.
+- **What fails the suite:** Any axe violation, missing required ARIA landmarks, or regressions in theme/font accessibility safeguards.
+
 ### Lint Check
 - **Status:** ✅ PASS (Zero errors)
 - **Warnings:** 0
