@@ -18,6 +18,8 @@ import MessagingPanel from '../components/messaging/MessagingPanel';
 
 export default function Feed() {
   const { posts, isModerator, initializeStore } = useStore();
+  const shouldShowPrivacyOnboarding = useStore((state) => state.shouldShowPrivacyOnboarding);
+  const openPrivacyOnboarding = useStore((state) => state.openPrivacyOnboarding);
   const [showSearch, setShowSearch] = useState(false);
   const [showMediaUploader, setShowMediaUploader] = useState(false);
   const [showMessaging, setShowMessaging] = useState(false);

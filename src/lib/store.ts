@@ -100,6 +100,16 @@ export interface TipEvent {
   isAnonymous?: boolean;
 }
 
+export type PrivacyOnboardingStep = 1 | 2 | 3;
+
+export interface PrivacyOnboardingState {
+  currentStep: PrivacyOnboardingStep;
+  isCompleted: boolean;
+  isOpen: boolean;
+  snoozedUntil: number | null;
+  startedAt: number | null;
+}
+
 export type PostLifetime = '1h' | '6h' | '24h' | '7d' | '30d' | 'custom' | 'never';
 
 export interface EncryptionMeta {
@@ -8847,14 +8857,123 @@ export const useStore = create<StoreState>((set, get) => {
         }
       }
       
-      toast.success('Fingerprint identity rotated successfully');
-      return saltRotation;
-    } catch (error) {
-      console.error('[Fingerprint] Failed to rotate identity:', error);
-      toast.error('Failed to rotate fingerprint identity');
-      return null;
-    }
-  },
+       toast.success('Fingerprint identity rotated successfully');
+       return saltRotation;
+     } catch (error) {
+       console.error('[Fingerprint] Failed to rotate identity:', error);
+       toast.error('Failed to rotate fingerprint identity');
+       return null;
+     }
+   },
+
+   // Privacy Onboarding actions
+   openPrivacyOnboarding: () => {
+     set((state) => {
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isOpen: true,
+         startedAt: state.privacyOnboarding.startedAt || Date.now(),
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   closePrivacyOnboarding: () => {
+     set((state) => {
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isOpen: false,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   advancePrivacyOnboardingStep: () => {
+     set((state) => {
+       const nextStep: PrivacyOnboardingStep = state.privacyOnboarding.currentStep === 3
+         ? 3
+         : (state.privacyOnboarding.currentStep + 1) as PrivacyOnboardingStep;
+
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         currentStep: nextStep,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   goBackPrivacyOnboardingStep: () => {
+     set((state) => {
+       const nextStep: PrivacyOnboardingStep = state.privacyOnboarding.currentStep === 1
+         ? 1
+         : (state.privacyOnboarding.currentStep - 1) as PrivacyOnboardingStep;
+
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         currentStep: nextStep,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   completePrivacyOnboarding: () => {
+     set((state) => {
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isCompleted: true,
+         isOpen: false,
+         currentStep: 1,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+     toast.success('Privacy controls guide completed!');
+   },
+
+   snoozePrivacyOnboarding: (daysUntil = 30) => {
+     set((state) => {
+       const snoozedUntil = Date.now() + (daysUntil * 24 * 60 * 60 * 1000);
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isOpen: false,
+         snoozedUntil,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   resetPrivacyOnboarding: () => {
+     set(() => {
+       const updated: PrivacyOnboardingState = {
+         currentStep: 1,
+         isCompleted: false,
+         isOpen: false,
+         snoozedUntil: null,
+         startedAt: null,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   shouldShowPrivacyOnboarding: () => {
+     const { privacyOnboarding } = get();
+
+     if (privacyOnboarding.isCompleted) {
+       return false;
+     }
+
+     if (privacyOnboarding.snoozedUntil && Date.now() < privacyOnboarding.snoozedUntil) {
+       return false;
+     }
+
+     return true;
+   },
 
   // Privacy Onboarding Actions
   openPrivacyOnboarding: () => {
@@ -9770,7 +9889,7 @@ export const useStore = create<StoreState>((set, get) => {
     toast.success('System unlocked. Please re-run audit to verify clean state.');
   },
 
-};
+      };
 });
 
 // Helper function to get emoji for reaction type
