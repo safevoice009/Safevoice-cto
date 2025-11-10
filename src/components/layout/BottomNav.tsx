@@ -18,19 +18,30 @@ export default function BottomNav() {
   const { t } = useTranslation();
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-lg md:hidden safe-area-inset">
+    <nav 
+      className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-lg md:hidden safe-area-inset"
+      role="navigation"
+      aria-label={t('nav.bottomNavigation')}
+    >
       <div className="glass flex flex-wrap justify-between gap-4 py-3 px-4">
         {navItems.map((item) => {
           const isActive = location.pathname === item.to;
           const Icon = item.icon;
           return (
-            <Link key={item.labelKey} to={item.to} className="flex-1 min-w-[88px] flex justify-center">
+            <Link 
+              key={item.labelKey} 
+              to={item.to} 
+              className="flex-1 min-w-[88px] flex justify-center"
+              aria-current={isActive ? 'page' : undefined}
+            >
               <motion.div
                 whileHover={{ scale: 1.06 }}
                 whileTap={{ scale: 0.95 }}
-                className={`flex flex-col items-center space-y-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                className={`flex flex-col items-center space-y-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
                   isActive ? 'bg-info/10 text-info' : 'text-text-muted'
                 }`}
+                tabIndex={0}
+                role="button"
               >
                 <Icon className="w-5 h-5" />
                 <span>{t(item.labelKey)}</span>
@@ -39,6 +50,6 @@ export default function BottomNav() {
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 }

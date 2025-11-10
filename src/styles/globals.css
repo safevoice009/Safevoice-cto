@@ -304,6 +304,84 @@ button:disabled {
   box-shadow: 0 0 0 3px var(--color-focus-outline);
 }
 
+/* Enhanced focus styles for WCAG AAA compliance */
+:focus-visible {
+  outline: 3px solid var(--color-focus-outline);
+  outline-offset: 2px;
+}
+
+/* High contrast focus styles */
+[data-theme*='hc'] :focus-visible {
+  outline-width: 4px;
+  outline-offset: 3px;
+}
+
+/* Skip link target indicator */
+[data-skip-link-target] {
+  position: relative;
+}
+
+[data-skip-link-target]::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 3px solid var(--color-focus-outline);
+  border-radius: var(--radius-lg);
+  background: var(--color-focus-outline);
+  opacity: 0.2;
+  animation: skipLinkPulse 2s ease-in-out;
+  pointer-events: none;
+  z-index: 10;
+}
+
+@keyframes skipLinkPulse {
+  0% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.2;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* Screen reader only class */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Enhanced focus for interactive elements */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--color-focus-outline);
+  outline-offset: 2px;
+}
+
+/* High contrast mode focus enhancements */
+[data-theme*='hc'] button:focus-visible,
+[data-theme*='hc'] input:focus-visible,
+[data-theme*='hc'] textarea:focus-visible,
+[data-theme*='hc'] select:focus-visible,
+[data-theme*='hc'] a:focus-visible {
+  outline-width: 4px;
+  outline-offset: 3px;
+}
+
 .rounded-lg {
   border-radius: var(--radius-lg) !important;
 }

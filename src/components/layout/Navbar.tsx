@@ -32,6 +32,8 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [visible, setVisible] = useState(true);
   const lastScrollYRef = useRef(0);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const { t } = useTranslation();
   const { studentId, isModerator, toggleModeratorMode, setShowCrisisModal } = useStore();
   const navigate = useNavigate();
@@ -75,6 +77,35 @@ export default function Navbar() {
       scrollToSection(link.value);
     }
   };
+
+  // Keyboard event handlers for mobile menu
+  const handleMenuKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setIsOpen(!isOpen);
+    } else if (event.key === 'Escape' && isOpen) {
+      setIsOpen(false);
+      menuButtonRef.current?.focus();
+    }
+  };
+
+  // Close menu on escape key when open
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
 
   return (
     <motion.nav
@@ -145,8 +176,13 @@ export default function Navbar() {
           </div>
 
           <button
+            ref={menuButtonRef}
             onClick={() => setIsOpen(!isOpen)}
-            className="lg:hidden text-white"
+            onKeyDown={handleMenuKeyDown}
+            className="lg:hidden text-white p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary"
+            aria-expanded={isOpen}
+            aria-controls="mobile-menu"
+            aria-label={isOpen ? t('nav.closeMenu') : t('nav.openMenu')}
           >
             {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -156,10 +192,14 @@ export default function Navbar() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            ref={mobileMenuRef}
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             className="lg:hidden bg-surface/95 backdrop-blur-xl border-t border-white/10"
+            id="mobile-menu"
+            role="navigation"
+            aria-label={t('nav.mainNavigation')}
           >
             <div className="px-4 py-4 space-y-3">
               <div className="flex justify-end gap-2">
@@ -167,48 +207,55 @@ export default function Navbar() {
                 <ThemeSwitcher />
                 <FontSwitcher />
               </div>
-              {navLinks.map((link) => {
-                const isActive =
-                  link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
-                return (
-                  <button
-                    key={link.labelKey}
-                    onClick={() => handleNavClick(link)}
-                    className={`block w-full text-left nav-link py-2 ${isActive ? 'text-info font-semibold' : ''}`}
-                    type="button"
-                    aria-current={isActive ? 'page' : undefined}
+              <nav role="menu" aria-label={t('nav.mainNavigation')}>
+                {navLinks.map((link) => {
+                  const isActive =
+                    link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
+                  return (
+                    <button
+                      key={link.labelKey}
+                      onClick={() => handleNavClick(link)}
+                      className={`block w-full text-left nav-link py-2 ${isActive ? 'text-info font-semibold' : ''}`}
+                      type="button"
+                      role="menuitem"
+                      aria-current={isActive ? 'page' : undefined}
+                    >
+                      {t(link.labelKey)}
+                    </button>
+                  );
+                })}
+                <div className="pt-3 border-t border-white/10">
+                  <motion.button
+                    onClick={() => {
+                      setShowCrisisModal(true);
+                      closeMenu();
+                    }}
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    title={t('nav.getCrisisHelp')}
+                    role="menuitem"
                   >
-                    {t(link.labelKey)}
-                  </button>
-                );
-              })}
-              <motion.button
-                onClick={() => {
-                  setShowCrisisModal(true);
-                  closeMenu();
-                }}
-                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                title={t('nav.getCrisisHelp')}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                <span>{t('nav.crisisHelp')}</span>
-              </motion.button>
-              <motion.button
-                onClick={() => {
-                  toggleModeratorMode();
-                }}
-                className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-all ${
-                  isModerator ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'
-                }`}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                title={t(isModerator ? 'moderator.modeOn' : 'moderator.modeOff')}
-              >
-                <Shield className="w-4 h-4" />
-                <span>{t(isModerator ? 'moderator.disable' : 'moderator.enable')}</span>
-              </motion.button>
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>{t('nav.crisisHelp')}</span>
+                  </motion.button>
+                  <motion.button
+                    onClick={() => {
+                      toggleModeratorMode();
+                    }}
+                    className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                      isModerator ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'
+                    }`}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    title={t(isModerator ? 'moderator.modeOn' : 'moderator.modeOff')}
+                    role="menuitem"
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>{t(isModerator ? 'moderator.disable' : 'moderator.enable')}</span>
+                  </motion.button>
+                </div>
+              </nav>
               <div className="pt-3 border-t border-white/10 space-y-3">
                 <NotificationDropdown />
                 <div className="text-text-muted font-medium">{studentId}</div>
