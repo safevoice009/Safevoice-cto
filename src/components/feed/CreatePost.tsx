@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Send, X, Lock, Clock, Database } from 'lucide-react';
-import { useStore, type PostLifetime } from '../../lib/store';
+import { Send, X, Lock, Clock, Database, Mic } from 'lucide-react';
+import { useStore, type PostLifetime, type PostEmotionAnalysis } from '../../lib/store';
 import { encryptContent } from '../../lib/encryption';
 import { moderateContent } from '../../lib/contentModeration';
 import { detectCrisis, getCrisisSeverity } from '../../lib/crisisDetection';
 import { uploadToIPFS } from '../../lib/ipfs';
 import toast from 'react-hot-toast';
+import VoiceRecorder from './VoiceRecorder';
 
 const categories = [
   'Mental Health',
@@ -38,6 +39,8 @@ export default function CreatePost() {
   const [isEncrypted, setIsEncrypted] = useState(false);
   const [storeOnIPFS, setStoreOnIPFS] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [emotionAnalysis, setEmotionAnalysis] = useState<PostEmotionAnalysis | null>(null);
 
   const addPost = useStore((state) => state.addPost);
   const addEncryptionKey = useStore((state) => state.addEncryptionKey);
@@ -45,6 +48,18 @@ export default function CreatePost() {
   const studentId = useStore((state) => state.studentId);
   const setPendingPost = useStore((state) => state.setPendingPost);
   const setShowCrisisModal = useStore((state) => state.setShowCrisisModal);
+
+  const handleVoiceRecordingComplete = (transcript: string, analysis: PostEmotionAnalysis) => {
+    setContent(transcript);
+    setEmotionAnalysis(analysis);
+    setIsRecording(false);
+    handleSubmit(new Event('submit') as unknown as React.FormEvent);
+  };
+
+  const handleVoiceRecorderCancel = () => {
+    setIsRecording(false);
+    setEmotionAnalysis(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,6 +135,7 @@ export default function CreatePost() {
           encryptionData: encryptedData,
           moderationData,
           ipfsCid: ipfsCid ?? null,
+          emotionAnalysis: emotionAnalysis ?? undefined,
         });
         setShowCrisisModal(true);
         setIsSubmitting(false);
@@ -136,7 +152,7 @@ export default function CreatePost() {
         moderationData,
         undefined,
         undefined,
-        null,
+        emotionAnalysis ?? null,
         ipfsCid
       );
       setPendingPost(null);
@@ -148,6 +164,7 @@ export default function CreatePost() {
       setIsEncrypted(false);
       setStoreOnIPFS(false);
       setIsExpanded(false);
+      setEmotionAnalysis(null);
     } catch (error) {
       console.error('Failed to create post:', error);
       toast.error('Failed to create post. Please try again.');
@@ -155,6 +172,16 @@ export default function CreatePost() {
       setIsSubmitting(false);
     }
   };
+
+  if (isRecording) {
+    return (
+      <VoiceRecorder
+        onRecordingComplete={handleVoiceRecordingComplete}
+        onCancel={handleVoiceRecorderCancel}
+        isSubmitting={isSubmitting}
+      />
+    );
+  }
 
   return (
     <motion.div
@@ -173,6 +200,7 @@ export default function CreatePost() {
               setLifetime('24h');
               setCustomHours(24);
               setIsEncrypted(false);
+              setEmotionAnalysis(null);
             }}
             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
@@ -182,15 +210,27 @@ export default function CreatePost() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onFocus={() => setIsExpanded(true)}
-          placeholder="What's on your mind? Your story can inspire and help others..."
-          className="w-full bg-surface border border-white/10 rounded-lg p-4 text-white placeholder-gray-500 resize-none focus:outline-none focus:border-primary transition-colors"
-          rows={isExpanded ? 5 : 3}
-          maxLength={1000}
-        />
+        <div className="flex items-center space-x-2">
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onFocus={() => setIsExpanded(true)}
+            placeholder="What's on your mind? Your story can inspire and help others..."
+            className="flex-1 bg-surface border border-white/10 rounded-lg p-4 text-white placeholder-gray-500 resize-none focus:outline-none focus:border-primary transition-colors"
+            rows={isExpanded ? 5 : 3}
+            maxLength={1000}
+          />
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            type="button"
+            onClick={() => setIsRecording(true)}
+            title="Record voice message"
+            className="p-3 mt-1 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 border border-primary/50 transition-all"
+          >
+            <Mic className="w-5 h-5" />
+          </motion.button>
+        </div>
 
         {isExpanded && (
           <motion.div
