@@ -20,6 +20,7 @@ import {
   deserializeFingerprintSnapshot,
   serializeMitigationPlan,
   deserializeMitigationPlan,
+  restoreAPIs,
   FINGERPRINT_DEFAULTS,
 } from '../privacy/fingerprint';
 import { getCrisisQueueService } from '../crisisQueue';
@@ -164,9 +165,11 @@ describe('Privacy Fingerprint Store Integration', () => {
           {
             id: 'crisis-1',
             studentId: store.studentId,
+            crisisLevel: 'high' as const,
             status: 'pending' as const,
             timestamp: Date.now(),
             expiresAt: Date.now() + 60 * 60 * 1000,
+            ttl: 60 * 60 * 1000,
             metadata: {},
           },
         ]),
@@ -260,9 +263,11 @@ describe('Privacy Fingerprint Store Integration', () => {
           {
             id: 'crisis-1',
             studentId: store.studentId,
+            crisisLevel: 'high' as const,
             status: 'pending' as const,
             timestamp: Date.now(),
             expiresAt: Date.now() + 60 * 60 * 1000,
+            ttl: 60 * 60 * 1000,
             metadata: {},
           },
         ]),
@@ -346,9 +351,11 @@ describe('Privacy Fingerprint Store Integration', () => {
           {
             id: 'crisis-1',
             studentId: store.studentId,
+            crisisLevel: 'high' as const,
             status: 'pending' as const,
             timestamp: Date.now(),
             expiresAt: Date.now() + 60 * 60 * 1000,
+            ttl: 60 * 60 * 1000,
             metadata: {},
           },
         ]),
@@ -563,9 +570,11 @@ describe('Privacy Fingerprint Store Integration', () => {
           {
             id: 'crisis-1',
             studentId: store.studentId,
+            crisisLevel: 'high' as const,
             status: 'pending' as const,
             timestamp: Date.now(),
             expiresAt: Date.now() + 60 * 60 * 1000,
+            ttl: 60 * 60 * 1000,
             metadata: {},
           },
         ]),
@@ -603,9 +612,11 @@ describe('Privacy Fingerprint Store Integration', () => {
           {
             id: 'crisis-1',
             studentId: 'other-student-id',
+            crisisLevel: 'high' as const,
             status: 'pending' as const,
             timestamp: Date.now(),
             expiresAt: Date.now() + 60 * 60 * 1000,
+            ttl: 60 * 60 * 1000,
             metadata: {},
           },
         ]),
