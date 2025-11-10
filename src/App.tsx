@@ -20,6 +20,7 @@ import PostDetail from './pages/PostDetail';
 import HelplinesPage from './pages/Helplines';
 import GuidelinesPage from './pages/Guidelines';
 import MemorialWallPage from './pages/MemorialWall';
+import PrivacyEducationPage from './pages/PrivacyEducation';
 import TokenMarketplace from './pages/TokenMarketplace';
 import LeaderboardPage from './pages/Leaderboard';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
@@ -189,6 +190,7 @@ function AnimatedRoutes() {
             <Route path="/post/:postId" element={<PostDetail />} />
             <Route path="/helplines" element={<HelplinesPage />} />
             <Route path="/guidelines" element={<GuidelinesPage />} />
+            <Route path="/privacy" element={<PrivacyEducationPage />} />
             <Route path="/memorial" element={<MemorialWallPage />} />
             <Route path="/marketplace" element={<TokenMarketplace />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />

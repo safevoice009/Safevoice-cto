@@ -97,5 +97,86 @@
       "failed": "तयार करणे अयशस्वी",
       "verificationFailed": "सत्यापन अयशस्वी"
     }
+  },
+  "privacyHub": {
+    "title": "Privacy Education Hub",
+    "hero": {
+      "title": "Your Privacy, Our Priority",
+      "subtitle": "SafeVoice is built from the ground up for privacy. Learn how we protect your identity and data, and how you can maximize your privacy with our tools.",
+      "features": {
+        "anonymous": "Completely Anonymous",
+        "anonymousDesc": "No real name, email, or phone number needed",
+        "encrypted": "Fully Encrypted",
+        "encryptedDesc": "AES-256 encryption for your local data",
+        "tracking": "Zero Tracking",
+        "trackingDesc": "No analytics, cookies, or fingerprinting"
+      },
+      "cta": "Start Using SafeVoice",
+      "settings": "Adjust Privacy Settings"
+    },
+    "features": {
+      "title": "Privacy Features",
+      "subtitle": "Built-in protections that keep you anonymous by default",
+      "encryption": "End-to-End Encryption",
+      "encryptionDesc": "Your data is encrypted locally before storage",
+      "analytics": "Zero Analytics",
+      "analyticsDesc": "No tracking scripts, no user profiling",
+      "cookies": "No Cookies",
+      "cookiesDesc": "Complete cookie-free experience",
+      "fingerprint": "Fingerprint Protection",
+      "fingerprintDesc": "Monitor and block browser fingerprinting",
+      "network": "Network Security",
+      "networkDesc": "Allowlist-validated network requests",
+      "instant": "Instant Privacy",
+      "instantDesc": "Privacy enabled by default",
+      "ipfs": "IPFS Integration",
+      "ipfsDesc": "Optional decentralized backup",
+      "opensource": "Open Source",
+      "opensourceDesc": "Transparent, auditable code"
+    },
+    "dataFlow": {
+      "title": "How Your Data Flows",
+      "subtitle": "Your data journey from creation to storage",
+      "steps": {
+        "you": "You",
+        "youDesc": "Your device - where all data starts",
+        "encryption": "Encryption",
+        "encryptionStep": "Data encrypted locally (AES-256)",
+        "storage": "Local Storage",
+        "storageDesc": "Encrypted storage on your device",
+        "noServer": "No Server Upload",
+        "noServerDesc": "Data stays on your device by default",
+        "ipfs": "Optional IPFS",
+        "ipfsDesc": "Decentralized backup (anonymous)"
+      },
+      "default": "By Default",
+      "defaultContent": "Data encrypted locally, Stored on your device, No transmission anywhere, Maximum privacy",
+      "optional": "When You Choose",
+      "optionalContent": "Backup to IPFS network, Decentralized storage, No identity link, Still anonymous"
+    },
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "search": "Search FAQs...",
+      "category": {
+        "all": "All Questions",
+        "general": "General Questions",
+        "tracking": "Tracking & Fingerprinting",
+        "encryption": "Encryption & Storage",
+        "onboarding": "Getting Started",
+        "technical": "Technical Details"
+      },
+      "tip": "Tip: Use the search bar to find answers to specific questions, or browse by category to learn about a particular privacy topic."
+    },
+    "cta": {
+      "title": "Ready to Protect Your Privacy?",
+      "subtitle": "Take the next step with SafeVoice. Whether you're just starting out or looking to enhance your privacy, we have options for every comfort level.",
+      "contribute": "Start Contributing",
+      "contributeDesc": "Share your thoughts anonymously with the community",
+      "customize": "Customize Privacy",
+      "customizeDesc": "Fine-tune your privacy settings and protections",
+      "learn": "Learn More",
+      "learnDesc": "Explore documentation and privacy guides",
+      "getStarted": "Get Started"
+    }
   }
   }
