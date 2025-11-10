@@ -26,7 +26,36 @@
     "language": "भाषा",
     "selectLanguage": "भाषा निवडा",
     "changeLanguage": "भाषा बदला",
-    "languageChanged": "भाषा यशस्वीरित्या बदलली"
+    "languageChanged": "भाषा यशस्वीरित्या बदलली",
+    "fingerprint": {
+      "title": "ब्राउझर फिंगरप्रिंट संरक्षण",
+      "description": "ट्रॅकर्स द्वारे वापरल्या जाणाऱ्या ब्राउझर फिंगरप्रिंटिंग तंत्राचे निरीक्षण करा आणि संरक्षण करा.",
+      "riskLevel": {
+        "low": "जोखीम स्तर: कमी",
+        "medium": "जोखीम स्तर: मध्यम",
+        "high": "जोखीम स्तर: उच्च"
+      },
+      "notDetected": "शोधले नाही",
+      "riskScore": "जोखीम स्कोअर:",
+      "signalsDetected": "सिग्नल शोधले:",
+      "lastChecked": "शेवटची तपासणी:",
+      "trackersDetected": "उच्च जोखीम ट्रॅकिंग सिग्नल शोधले",
+      "detectionToggle": "फिंगरप्रिंट शोध",
+      "detectionDesc": "ब्राउझर फिंगरप्रिंटिंग सिग्नलचे निरीक्षण करा आणि आपला गोपनीयता जोखीम स्कोअर ट्रॅक करा.",
+      "toggleDetection": "फिंगरप्रिंट शोध टॉगल करा",
+      "mitigationToggle": "स्वयंचलित शमन",
+      "mitigationDesc": "उच्च जोखीम फिंगरप्रिंटिंग शोधल्यावर स्वयंचलितपणे प्रतिकार लागू करा.",
+      "mitigationActive": "शमन सक्रिय",
+      "toggleMitigation": "स्वयंचलित शमन टॉगल करा",
+      "saltRotation": "अनामिकीकरण मीठ",
+      "saltRotationDesc": "आपली फिंगरप्रिंट स्वाक्षरी रिफ्रेश करण्यासाठी अनामिकीकरण मीठ फिरवा.",
+      "lastRotation": "शेवटची फेरफटका:",
+      "rotateSalt": "मीठ फिरवा",
+      "rotateNow": "आता फिरवा",
+      "refreshDetection": "शोध रिफ्रेश करा",
+      "refreshNow": "शोध रिफ्रेश करा",
+      "never": "कधीही नाही"
+    }
   },
   "moderator": {
     "modeOn": "मॉडरेटर मोड चालू",

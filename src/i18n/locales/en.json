@@ -120,6 +120,35 @@
       "web3NoticeDesc": "Connecting a wallet exposes your blockchain address. Your Student ID stays anonymous.",
       "commitment": "We are committed to protecting your privacy and staying transparent about our practices.",
       "opensource": "SafeVoice is open source. Audit our code any time."
+    },
+    "fingerprint": {
+      "title": "Browser Fingerprint Protection",
+      "description": "Monitor and protect against browser fingerprinting techniques used by trackers to identify you across websites.",
+      "riskLevel": {
+        "low": "Risk Level: LOW",
+        "medium": "Risk Level: MEDIUM",
+        "high": "Risk Level: HIGH"
+      },
+      "notDetected": "Not Detected",
+      "riskScore": "Risk Score:",
+      "signalsDetected": "Signals Detected:",
+      "lastChecked": "Last Checked:",
+      "trackersDetected": "High-Risk Tracking Signals Detected",
+      "detectionToggle": "Fingerprint Detection",
+      "detectionDesc": "Monitor browser fingerprinting signals and track your privacy risk score.",
+      "toggleDetection": "Toggle fingerprint detection",
+      "mitigationToggle": "Auto-Mitigation",
+      "mitigationDesc": "Automatically apply countermeasures when high-risk fingerprinting is detected.",
+      "mitigationActive": "Mitigation active",
+      "toggleMitigation": "Toggle auto-mitigation",
+      "saltRotation": "Anonymization Salt",
+      "saltRotationDesc": "Rotate the anonymization salt to refresh your fingerprint signature.",
+      "lastRotation": "Last rotated:",
+      "rotateSalt": "Rotate salt",
+      "rotateNow": "Rotate Now",
+      "refreshDetection": "Refresh detection",
+      "refreshNow": "Refresh Detection",
+      "never": "Never"
     }
   },
   "crisis": {
