@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Shield } from 'lucide-react';
 import { useStore, type PostSearchFilters } from '../lib/store';
 import CreatePost from '../components/feed/CreatePost';
 import PostCard from '../components/feed/PostCard';
@@ -14,6 +15,8 @@ import ModerationLogDisplay from '../components/community/ModerationLogDisplay';
 
 export default function Feed() {
   const { posts, isModerator, initializeStore } = useStore();
+  const shouldShowPrivacyOnboarding = useStore((state) => state.shouldShowPrivacyOnboarding);
+  const openPrivacyOnboarding = useStore((state) => state.openPrivacyOnboarding);
   const [showSearch, setShowSearch] = useState(false);
   const [initialSearchFilters, setInitialSearchFilters] = useState<Partial<PostSearchFilters> | undefined>();
 
@@ -80,6 +83,23 @@ export default function Feed() {
         </motion.section>
 
         <aside className="hidden lg:flex lg:w-80 xl:w-96 lg:flex-col gap-6 lg:sticky lg:top-28">
+          {shouldShowPrivacyOnboarding() && (
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={openPrivacyOnboarding}
+              className="glass p-6 rounded-xl space-y-3 text-left border border-primary/30 hover:border-primary/60 transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
+                <h3 className="font-semibold text-white">Privacy Controls Guide</h3>
+              </div>
+              <p className="text-sm text-gray-400 leading-relaxed">
+                Learn how SafeVoice protects your privacy and master your data controls.
+              </p>
+              <p className="text-xs text-primary font-medium">Start tour →</p>
+            </motion.button>
+          )}
           <CommunityDiscoveryPanel onRequestSearch={handleRequestSearch} />
           <CommunityEvents />
           <ModerationLogDisplay />

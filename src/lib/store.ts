@@ -73,6 +73,16 @@ export interface TipEvent {
   isAnonymous?: boolean;
 }
 
+export type PrivacyOnboardingStep = 1 | 2 | 3;
+
+export interface PrivacyOnboardingState {
+  currentStep: PrivacyOnboardingStep;
+  isCompleted: boolean;
+  isOpen: boolean;
+  snoozedUntil: number | null;
+  startedAt: number | null;
+}
+
 export type PostLifetime = '1h' | '6h' | '24h' | '7d' | '30d' | 'custom' | 'never';
 
 export interface EncryptionMeta {
@@ -863,7 +873,20 @@ export interface StoreState {
   }>;
   applyFingerprintMitigations: (strategy?: 'aggressive' | 'balanced' | 'conservative') => Promise<FingerprintMitigationPlan | null>;
   rotateFingerprintIdentity: (reason?: string) => Promise<SaltRotation | null>;
-}
+
+  // Privacy Onboarding State
+  privacyOnboarding: PrivacyOnboardingState;
+
+  // Privacy Onboarding Actions
+  openPrivacyOnboarding: () => void;
+  closePrivacyOnboarding: () => void;
+  advancePrivacyOnboardingStep: () => void;
+  goBackPrivacyOnboardingStep: () => void;
+  completePrivacyOnboarding: () => void;
+  snoozePrivacyOnboarding: (daysUntil?: number) => void;
+  resetPrivacyOnboarding: () => void;
+  shouldShowPrivacyOnboarding: () => boolean;
+  }
 
 /**
  * localStorage keys used by the SafeVoice community system.
@@ -912,7 +935,8 @@ const STORAGE_KEYS = {
   FINGERPRINT_SALT_ROTATION: 'safevoice_fingerprint_salt_rotation', // Last salt rotation
   FINGERPRINT_MITIGATIONS_ACTIVE: 'safevoice_fingerprint_mitigations_active', // Whether mitigations are active
   FINGERPRINT_CURRENT_SALT: 'safevoice_fingerprint_current_salt', // Current anonymization salt
-};
+  PRIVACY_ONBOARDING_STATE: 'safevoice_privacy_onboarding_state', // Privacy onboarding state
+  };
 
 const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
 const EMOTION_SOURCES: readonly EmotionAnalysisResult['source'][] = ['api', 'offline', 'manual'];
@@ -1205,6 +1229,60 @@ const saveFingerprintMitigationsActive = (active: boolean): void => {
     localStorage.setItem(STORAGE_KEYS.FINGERPRINT_MITIGATIONS_ACTIVE, active.toString());
   } catch (error) {
     console.error('Failed to save fingerprint mitigations active:', error);
+  }
+};
+
+// Privacy Onboarding helpers
+const loadPrivacyOnboardingState = (): PrivacyOnboardingState => {
+  if (typeof window === 'undefined') {
+    return {
+      currentStep: 1,
+      isCompleted: false,
+      isOpen: false,
+      snoozedUntil: null,
+      startedAt: null,
+    };
+  }
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.PRIVACY_ONBOARDING_STATE);
+    if (!raw) {
+      return {
+        currentStep: 1,
+        isCompleted: false,
+        isOpen: false,
+        snoozedUntil: null,
+        startedAt: null,
+      };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<PrivacyOnboardingState>;
+    return {
+      currentStep: (parsed.currentStep === 1 || parsed.currentStep === 2 || parsed.currentStep === 3) ? parsed.currentStep : 1,
+      isCompleted: typeof parsed.isCompleted === 'boolean' ? parsed.isCompleted : false,
+      isOpen: typeof parsed.isOpen === 'boolean' ? parsed.isOpen : false,
+      snoozedUntil: typeof parsed.snoozedUntil === 'number' ? parsed.snoozedUntil : null,
+      startedAt: typeof parsed.startedAt === 'number' ? parsed.startedAt : null,
+    };
+  } catch (error) {
+    console.error('Failed to load privacy onboarding state:', error);
+    return {
+      currentStep: 1,
+      isCompleted: false,
+      isOpen: false,
+      snoozedUntil: null,
+      startedAt: null,
+    };
+  }
+};
+
+const savePrivacyOnboardingState = (state: PrivacyOnboardingState): void => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.PRIVACY_ONBOARDING_STATE, JSON.stringify(state));
+  } catch (error) {
+    console.error('Failed to save privacy onboarding state:', error);
   }
 };
 
@@ -2184,6 +2262,9 @@ export const useStore = create<StoreState>((set, get) => {
     lastSaltRotation: loadSaltRotation(),
     fingerprintMitigationsActive: loadFingerprintMitigationsActive(),
     currentFingerprintSalt: loadFingerprintSalt() || generateSalt(),
+
+    // Privacy Onboarding state
+    privacyOnboarding: loadPrivacyOnboardingState(),
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -6682,17 +6763,126 @@ export const useStore = create<StoreState>((set, get) => {
         }
       }
       
-      toast.success('Fingerprint identity rotated successfully');
-      return saltRotation;
-    } catch (error) {
-      console.error('[Fingerprint] Failed to rotate identity:', error);
-      toast.error('Failed to rotate fingerprint identity');
-      return null;
-    }
-  },
+       toast.success('Fingerprint identity rotated successfully');
+       return saltRotation;
+     } catch (error) {
+       console.error('[Fingerprint] Failed to rotate identity:', error);
+       toast.error('Failed to rotate fingerprint identity');
+       return null;
+     }
+   },
+
+   // Privacy Onboarding actions
+   openPrivacyOnboarding: () => {
+     set((state) => {
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isOpen: true,
+         startedAt: state.privacyOnboarding.startedAt || Date.now(),
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   closePrivacyOnboarding: () => {
+     set((state) => {
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isOpen: false,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   advancePrivacyOnboardingStep: () => {
+     set((state) => {
+       const nextStep: PrivacyOnboardingStep = state.privacyOnboarding.currentStep === 3
+         ? 3
+         : (state.privacyOnboarding.currentStep + 1) as PrivacyOnboardingStep;
+
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         currentStep: nextStep,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   goBackPrivacyOnboardingStep: () => {
+     set((state) => {
+       const nextStep: PrivacyOnboardingStep = state.privacyOnboarding.currentStep === 1
+         ? 1
+         : (state.privacyOnboarding.currentStep - 1) as PrivacyOnboardingStep;
+
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         currentStep: nextStep,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   completePrivacyOnboarding: () => {
+     set((state) => {
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isCompleted: true,
+         isOpen: false,
+         currentStep: 1,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+     toast.success('Privacy controls guide completed!');
+   },
+
+   snoozePrivacyOnboarding: (daysUntil = 30) => {
+     set((state) => {
+       const snoozedUntil = Date.now() + (daysUntil * 24 * 60 * 60 * 1000);
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isOpen: false,
+         snoozedUntil,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   resetPrivacyOnboarding: () => {
+     set(() => {
+       const updated: PrivacyOnboardingState = {
+         currentStep: 1,
+         isCompleted: false,
+         isOpen: false,
+         snoozedUntil: null,
+         startedAt: null,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   shouldShowPrivacyOnboarding: () => {
+     const { privacyOnboarding } = get();
+
+     if (privacyOnboarding.isCompleted) {
+       return false;
+     }
+
+     if (privacyOnboarding.snoozedUntil && Date.now() < privacyOnboarding.snoozedUntil) {
+       return false;
+     }
+
+     return true;
+   },
 
 
-};
+      };
 });
 
 // Helper function to get emoji for reaction type

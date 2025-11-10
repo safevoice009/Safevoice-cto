@@ -233,5 +233,44 @@
       "failed": "Generation Failed",
       "verificationFailed": "Verification Failed"
     }
+  },
+  "privacyOnboarding": {
+    "title": "Privacy Controls Guide",
+    "description": "Learn how SafeVoice keeps your data private and secure",
+    "skipButton": "Dismiss",
+    "nextButton": "Next",
+    "backButton": "Back",
+    "startButton": "Start Tour",
+    "completeButton": "Complete",
+    "step1": {
+      "title": "Welcome to Privacy Controls",
+      "description": "SafeVoice is designed with your privacy as the top priority. Let's walk through the key protections that keep your data safe.",
+      "highlights": [
+        "Your posts stay on your device - never sent to remote servers",
+        "All data is encrypted using military-grade AES-256",
+        "We never use tracking cookies or analytics services",
+        "Your anonymous identity stays separate from any wallet connection"
+      ]
+    },
+    "step2": {
+      "title": "Privacy Settings Walkthrough",
+      "description": "Visit Privacy & Security in settings to explore:",
+      "highlights": [
+        "Fingerprint Protection - Monitor and block browser tracking signals",
+        "Secure Network Requests - Only trusted domains allowed",
+        "Local Data Storage - Understand how your data is protected",
+        "Security Headers - Advanced protections explained"
+      ]
+    },
+    "step3": {
+      "title": "Advanced Protections",
+      "description": "For privacy-conscious users, SafeVoice offers advanced tools:",
+      "highlights": [
+        "Browser Fingerprint Detection - See how trackers try to identify you",
+        "Auto-Mitigation - Automatically apply countermeasures",
+        "Salt Rotation - Refresh your anonymization signature",
+        "Audit Trail - Full transparency of all privacy actions"
+      ]
+    }
   }
   }

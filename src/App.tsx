@@ -28,6 +28,7 @@ import SearchPage from './pages/Search';
 import AppearanceSettings from './components/settings/AppearanceSettings';
 import ResponsiveLayout from './components/responsive/ResponsiveLayout';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
+import PrivacyOnboardingModal from './components/privacy/PrivacyOnboardingModal';
 import AchievementToastContainer from './components/wallet/AchievementToastContainer';
 import { useStore } from './lib/store';
 import PostLifecycleManager from './lib/postLifecycleManager';
@@ -201,6 +202,7 @@ function AnimatedRoutes() {
           isOpen={showCrisisModal}
           onAcknowledge={handleCrisisAcknowledge}
         />
+        <PrivacyOnboardingModal />
       </ResponsiveLayout>
     </>
   );
