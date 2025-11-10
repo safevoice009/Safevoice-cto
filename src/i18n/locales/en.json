@@ -233,5 +233,34 @@
       "failed": "Generation Failed",
       "verificationFailed": "Verification Failed"
     }
+  },
+  "recorderPrivacy": {
+    "title": "Privacy Check",
+    "subtitle": "Review privacy settings before sharing",
+    "crisisSubtitle": "We take extra care with your sensitive information.",
+    "privacyStatus": "Your Privacy Status",
+    "webrtcProtection": "WebRTC IP leak protection",
+    "cookiesBlocked": "Cookies blocked",
+    "httpsEnforced": "HTTPS enforced",
+    "fingerprintRisk": "Fingerprint Risk",
+    "acknowledgmentsRequired": "Acknowledgments Required",
+    "dataHandlingTitle": "Data Handling Transparency",
+    "dataHandlingDesc": "Your content is encrypted, stored locally, and never sold. We collect no behavioral tracking data.",
+    "anonymizationTitle": "Anonymization & Privacy",
+    "anonymizationDesc": "Your identity remains protected. We use cryptographic techniques to verify authenticity without exposing who you are.",
+    "fingerprintProtectionTitle": "Browser Fingerprint Protection",
+    "fingerprintProtectionDesc": "Status: {status}",
+    "fingerprintProtectionHint": "Enable in Settings → Privacy → Browser Fingerprint Protection",
+    "active": "Active",
+    "disabled": "Disabled",
+    "continueRecording": "Continue to Recording",
+    "continueCrisisSupport": "Continue to Crisis Support",
+    "cancel": "Cancel",
+    "acknowledgWarning": "Please acknowledge all privacy terms before proceeding.",
+    "privacyFooter": "Your privacy is protected by SafeVoice's end-to-end encryption and zero-tracking policies.",
+    "crisisFootnote": "Crisis support is confidential.",
+    "riskLow": "Your fingerprint looks unique but stable. Standard protections apply.",
+    "riskMedium": "Some tracking signals detected. Enhanced protections recommended.",
+    "riskHigh": "Multiple tracking signals detected. Consider enabling additional protections."
   }
   }

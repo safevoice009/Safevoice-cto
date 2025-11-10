@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Send, X, Lock, Clock, Database } from 'lucide-react';
-import { useStore, type PostLifetime } from '../../lib/store';
+import { useStore, type PostLifetime, type PostModerationIssue } from '../../lib/store';
 import { encryptContent } from '../../lib/encryption';
 import { moderateContent } from '../../lib/contentModeration';
 import { detectCrisis, getCrisisSeverity } from '../../lib/crisisDetection';
 import { uploadToIPFS } from '../../lib/ipfs';
 import toast from 'react-hot-toast';
+import RecorderPrivacyGate from './RecorderPrivacyGate';
+import { useRecorderPrivacyStore } from '../../lib/recorderPrivacyStore';
 
 const categories = [
   'Mental Health',
@@ -38,6 +40,27 @@ export default function CreatePost() {
   const [isEncrypted, setIsEncrypted] = useState(false);
   const [storeOnIPFS, setStoreOnIPFS] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPrivacyGate, setShowPrivacyGate] = useState(false);
+  interface PendingSubmitData {
+    content: string;
+    category?: string;
+    lifetime?: PostLifetime;
+    customHours?: number;
+    isEncrypted?: boolean;
+    encryptedData?: { encrypted: string; iv: string; keyId: string };
+    moderationData?: {
+      issues?: PostModerationIssue[];
+      needsReview?: boolean;
+      contentBlurred?: boolean;
+      blurReason?: string | null;
+      isCrisisFlagged?: boolean;
+      crisisLevel?: 'high' | 'critical';
+    };
+    isCrisis?: boolean;
+    ipfsCid?: string | null;
+  }
+
+  const [pendingSubmitData, setPendingSubmitData] = useState<PendingSubmitData | null>(null);
 
   const addPost = useStore((state) => state.addPost);
   const addEncryptionKey = useStore((state) => state.addEncryptionKey);
@@ -45,6 +68,73 @@ export default function CreatePost() {
   const studentId = useStore((state) => state.studentId);
   const setPendingPost = useStore((state) => state.setPendingPost);
   const setShowCrisisModal = useStore((state) => state.setShowCrisisModal);
+  const resetDecision = useRecorderPrivacyStore((state) => state.resetDecision);
+
+  const handlePrivacyGateApproved = async () => {
+    if (!pendingSubmitData) {
+      setShowPrivacyGate(false);
+      return;
+    }
+
+    setShowPrivacyGate(false);
+    setIsSubmitting(true);
+
+    try {
+      const {
+        content: trimmedContent,
+        isCrisis,
+        moderationData,
+        encryptedData,
+        ipfsCid,
+      } = pendingSubmitData;
+
+      if (isCrisis) {
+        setPendingPost({
+          content: trimmedContent,
+          category: category || undefined,
+          expiresAt: null,
+          lifetime,
+          customLifetimeHours: lifetime === 'custom' ? customHours : null,
+          isEncrypted,
+          encryptionData: encryptedData,
+          moderationData,
+          ipfsCid: ipfsCid ?? null,
+        });
+        setShowCrisisModal(true);
+      } else {
+        addPost(
+          trimmedContent,
+          category || undefined,
+          lifetime,
+          lifetime === 'custom' ? customHours : undefined,
+          isEncrypted,
+          encryptedData,
+          moderationData,
+          undefined,
+          undefined,
+          null,
+          ipfsCid
+        );
+        setPendingPost(null);
+      }
+
+      setContent('');
+      setCategory('');
+      setLifetime('24h');
+      setCustomHours(24);
+      setIsEncrypted(false);
+      setStoreOnIPFS(false);
+      setIsExpanded(false);
+      setPendingSubmitData(null);
+      resetDecision();
+      toast.success('✓ Privacy checks passed and post submitted');
+    } catch (error) {
+      console.error('Failed to finalize post:', error);
+      toast.error('Failed to finalize post. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,49 +199,25 @@ export default function CreatePost() {
         }
       }
 
-      if (isCrisis) {
-        setPendingPost({
-          content: trimmedContent,
-          category: category || undefined,
-          expiresAt: null,
-          lifetime,
-          customLifetimeHours: lifetime === 'custom' ? customHours : null,
-          isEncrypted,
-          encryptionData: encryptedData,
-          moderationData,
-          ipfsCid: ipfsCid ?? null,
-        });
-        setShowCrisisModal(true);
-        setIsSubmitting(false);
-        return;
-      }
-
-      addPost(
-        trimmedContent,
-        category || undefined,
+      // Store pending data and show privacy gate
+      setPendingSubmitData({
+        content: trimmedContent,
+        category: category || undefined,
         lifetime,
-        lifetime === 'custom' ? customHours : undefined,
+        customHours: lifetime === 'custom' ? customHours : undefined,
         isEncrypted,
         encryptedData,
         moderationData,
-        undefined,
-        undefined,
-        null,
-        ipfsCid
-      );
-      setPendingPost(null);
+        isCrisis,
+        ipfsCid: ipfsCid ?? null,
+      });
 
-      setContent('');
-      setCategory('');
-      setLifetime('24h');
-      setCustomHours(24);
-      setIsEncrypted(false);
-      setStoreOnIPFS(false);
-      setIsExpanded(false);
+      resetDecision();
+      setShowPrivacyGate(true);
+      setIsSubmitting(false);
     } catch (error) {
-      console.error('Failed to create post:', error);
-      toast.error('Failed to create post. Please try again.');
-    } finally {
+      console.error('Failed to prepare post:', error);
+      toast.error('Failed to prepare post. Please try again.');
       setIsSubmitting(false);
     }
   };
@@ -334,6 +400,16 @@ export default function CreatePost() {
           </motion.div>
         )}
       </form>
+
+      <RecorderPrivacyGate
+        isOpen={showPrivacyGate}
+        onApproved={handlePrivacyGateApproved}
+        onDismissed={() => {
+          setShowPrivacyGate(false);
+          setPendingSubmitData(null);
+        }}
+        isCrisisMode={pendingSubmitData?.isCrisis || false}
+      />
     </motion.div>
   );
 }
