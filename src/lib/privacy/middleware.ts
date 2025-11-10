@@ -272,7 +272,35 @@ export function blockCookies(): void {
   }
 }
 
-export function initializePrivacyProtections(): void {
+export function initializePrivacyProtections(storeActions?: {
+  evaluateFingerprintRisk?: () => Promise<{
+    riskLevel: 'low' | 'medium' | 'high';
+    riskScore: number;
+    trackers: string[];
+    recommendation: string;
+  }>;
+  applyFingerprintMitigations?: (strategy?: 'aggressive' | 'balanced' | 'conservative') => Promise<{
+    snapshotId: string;
+    timestamp: number;
+    mitigations: Array<{
+      signalId: string;
+      strategy: 'spoof' | 'obfuscate' | 'deny' | 'randomize';
+      originalValue: string | string[];
+      mitigatedValue: string | string[];
+      applied: boolean;
+      error?: string;
+    }>;
+    strategy: 'aggressive' | 'balanced' | 'conservative';
+    successCount: number;
+    failureCount: number;
+  } | null>;
+  rotateFingerprintIdentity?: (reason?: string) => Promise<{
+    previousSalt: string;
+    newSalt: string;
+    timestamp: number;
+    reason: string;
+  } | null>;
+}): void {
   console.info('[Privacy] Initializing privacy protections...');
 
   installWebRTCPrivacyShim();
@@ -286,6 +314,44 @@ export function initializePrivacyProtections(): void {
   }
 
   setPrivacyFetchExecutorForTesting();
+
+  // Initialize fingerprint protections if store actions are available
+  if (storeActions) {
+    console.info('[Privacy] Initializing fingerprint privacy protections...');
+    
+    // Evaluate fingerprint risk on initialization
+    if (storeActions.evaluateFingerprintRisk) {
+      storeActions.evaluateFingerprintRisk()
+        .then((riskEvaluation) => {
+          console.info('[Privacy] Fingerprint risk evaluation completed', {
+            riskLevel: riskEvaluation.riskLevel,
+            riskScore: riskEvaluation.riskScore,
+            trackers: riskEvaluation.trackers,
+          });
+
+          // Auto-apply mitigations for high-risk fingerprints
+          if (riskEvaluation.riskLevel === 'high' && storeActions.applyFingerprintMitigations) {
+            console.info('[Privacy] High-risk fingerprint detected, applying mitigations...');
+            storeActions.applyFingerprintMitigations('balanced')
+              .then((plan) => {
+                if (plan) {
+                  console.info('[Privacy] Auto-mitigations applied successfully', {
+                    strategy: plan.strategy,
+                    successCount: plan.successCount,
+                    failureCount: plan.failureCount,
+                  });
+                }
+              })
+              .catch((error) => {
+                console.error('[Privacy] Failed to apply auto-mitigations:', error);
+              });
+          }
+        })
+        .catch((error) => {
+          console.error('[Privacy] Failed to evaluate fingerprint risk:', error);
+        });
+    }
+  }
 
   console.info('[Privacy] Privacy protections initialized successfully');
 }

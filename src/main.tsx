@@ -6,7 +6,8 @@ import './i18n/config'
 import App from './App.tsx'
 import { initializePrivacyProtections } from './lib/privacy/middleware'
 
-// Initialize privacy protections before rendering
+// Initialize basic privacy protections before rendering
+// Fingerprint protections will be initialized in App.tsx when store is available
 initializePrivacyProtections()
 
 createRoot(document.getElementById('root')!).render(
