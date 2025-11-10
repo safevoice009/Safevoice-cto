@@ -176,7 +176,7 @@ export default function AppearanceSettings() {
   };
 
   return (
-    <div className="spacing-stack-xl pb-16">
+    <div className="spacing-stack-xl pb-16 mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
       <header className="spacing-stack-sm">
         <h1 className="typography-hero">Design System Controls</h1>
         <p className="typography-body text-text-muted max-w-3xl">

@@ -235,7 +235,7 @@ export default function CommunityListPanel({ isLoading = false }: CommunityListP
         ) : (
           <motion.div
             layout
-            className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
+            className="auto-grid"
           >
             <AnimatePresence mode="popLayout">
               {filteredAndSortedCommunities.map((community) => (

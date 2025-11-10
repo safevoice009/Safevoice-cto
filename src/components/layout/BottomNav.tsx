@@ -28,7 +28,9 @@ export default function BottomNav() {
               <motion.div
                 whileHover={{ scale: 1.06 }}
                 whileTap={{ scale: 0.95 }}
-                className={`flex flex-col items-center space-y-1 text-xs font-medium ${isActive ? 'text-primary' : 'text-text-muted'}`}
+                className={`flex flex-col items-center space-y-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                  isActive ? 'bg-info/10 text-info' : 'text-text-muted'
+                }`}
               >
                 <Icon className="w-5 h-5" />
                 <span>{t(item.labelKey)}</span>

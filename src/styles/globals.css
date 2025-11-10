@@ -313,6 +313,10 @@ button:disabled {
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-base);
   transition: background-color 150ms ease, color 150ms ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .nav-link:hover,

@@ -86,11 +86,11 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center space-x-2" onClick={closeMenu}>
-            <Lock className="w-6 h-6 text-primary" />
+            <Lock className="w-6 h-6 text-info" />
             <span className="text-xl font-bold text-white">{t('common.appName')}</span>
           </Link>
 
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden lg:flex flex-1 items-center justify-center gap-6 xl:gap-8">
             {navLinks.map((link) => {
               const isActive =
                 link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
@@ -98,7 +98,7 @@ export default function Navbar() {
                 <button
                   key={link.labelKey}
                   onClick={() => handleNavClick(link)}
-                  className={`nav-link relative ${isActive ? 'text-primary font-semibold' : ''}`}
+                  className={`nav-link relative ${isActive ? 'text-info font-semibold' : ''}`}
                   type="button"
                   aria-current={isActive ? 'page' : undefined}
                 >
@@ -109,10 +109,12 @@ export default function Navbar() {
             })}
           </div>
 
-          <div className="hidden md:flex items-center space-x-4">
-            <LanguageSwitcher />
-            <ThemeSwitcher />
-            <FontSwitcher />
+          <div className="hidden lg:flex items-center gap-3 xl:gap-4">
+            <div className="hidden xl:flex items-center gap-3">
+              <LanguageSwitcher />
+              <ThemeSwitcher />
+              <FontSwitcher />
+            </div>
             <NotificationDropdown />
             <motion.button
               onClick={() => setShowCrisisModal(true)}
@@ -138,13 +140,13 @@ export default function Navbar() {
               <Shield className="w-4 h-4" />
               {isModerator && <span className="text-xs">MOD</span>}
             </motion.button>
-            <span className="text-primary font-medium">{studentId}</span>
+            <span className="text-text-muted font-medium">{studentId}</span>
             <ConnectWalletButton />
           </div>
 
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden text-white"
+            className="lg:hidden text-white"
           >
             {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -157,7 +159,7 @@ export default function Navbar() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-surface/95 backdrop-blur-xl border-t border-white/10"
+            className="lg:hidden bg-surface/95 backdrop-blur-xl border-t border-white/10"
           >
             <div className="px-4 py-4 space-y-3">
               <div className="flex justify-end gap-2">
@@ -172,7 +174,7 @@ export default function Navbar() {
                   <button
                     key={link.labelKey}
                     onClick={() => handleNavClick(link)}
-                    className={`block w-full text-left nav-link py-2 ${isActive ? 'text-primary font-semibold' : ''}`}
+                    className={`block w-full text-left nav-link py-2 ${isActive ? 'text-info font-semibold' : ''}`}
                     type="button"
                     aria-current={isActive ? 'page' : undefined}
                   >
@@ -209,7 +211,7 @@ export default function Navbar() {
               </motion.button>
               <div className="pt-3 border-t border-white/10 space-y-3">
                 <NotificationDropdown />
-                <div className="text-primary font-medium">{studentId}</div>
+                <div className="text-text-muted font-medium">{studentId}</div>
                 <div className="flex justify-start">
                   <ConnectWalletButton />
                 </div>
