@@ -499,3 +499,68 @@ export function cleanupInactiveMatches(matches: MentorMatch[]): {
 
   return { active, cleaned };
 }
+
+// Mentor review
+export interface MentorReview {
+  id: string;
+  matchId: string;
+  mentorId: string;
+  menteeId: string;
+  rating: number; // 1-5 scale
+  feedback?: string;
+  submittedAt: number;
+}
+
+// Mentor aggregate review data
+export interface MentorReviewSummary {
+  mentorId: string;
+  averageRating: number;
+  totalReviews: number;
+  recentReviews: MentorReview[];
+}
+
+// Create a new mentor review
+export function createMentorReview(
+  matchId: string,
+  mentorId: string,
+  menteeId: string,
+  rating: number,
+  feedback?: string
+): MentorReview {
+  // Validate rating is between 1 and 5
+  const validatedRating = Math.max(1, Math.min(5, rating));
+  
+  return {
+    id: crypto.randomUUID(),
+    matchId,
+    mentorId,
+    menteeId,
+    rating: validatedRating,
+    feedback: feedback?.trim(),
+    submittedAt: Date.now(),
+  };
+}
+
+// Calculate aggregate review statistics for a mentor
+export function calculateMentorReviewSummary(
+  mentorId: string,
+  reviews: MentorReview[]
+): MentorReviewSummary {
+  const mentorReviews = reviews.filter((r) => r.mentorId === mentorId);
+  
+  const averageRating = mentorReviews.length > 0
+    ? mentorReviews.reduce((sum, r) => sum + r.rating, 0) / mentorReviews.length
+    : 0;
+  
+  // Get most recent 3 reviews
+  const recentReviews = mentorReviews
+    .sort((a, b) => b.submittedAt - a.submittedAt)
+    .slice(0, 3);
+  
+  return {
+    mentorId,
+    averageRating: Number(averageRating.toFixed(2)),
+    totalReviews: mentorReviews.length,
+    recentReviews,
+  };
+}

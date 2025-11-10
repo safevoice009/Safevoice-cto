@@ -25,6 +25,7 @@ import LeaderboardPage from './pages/Leaderboard';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
 import CommunitiesPage from './pages/Communities';
 import SearchPage from './pages/Search';
+import MentorDashboard from './pages/MentorDashboard';
 import AppearanceSettings from './components/settings/AppearanceSettings';
 import ResponsiveLayout from './components/responsive/ResponsiveLayout';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
@@ -187,6 +188,7 @@ function AnimatedRoutes() {
             <Route path="/search" element={<SearchPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/post/:postId" element={<PostDetail />} />
+            <Route path="/mentors" element={<MentorDashboard />} />
             <Route path="/helplines" element={<HelplinesPage />} />
             <Route path="/guidelines" element={<GuidelinesPage />} />
             <Route path="/memorial" element={<MemorialWallPage />} />

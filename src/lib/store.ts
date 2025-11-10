@@ -26,6 +26,8 @@ import type {
 import { createDefaultCommunities } from './communities/defaults';
 import type { EmotionAnalysisResult, EmotionType } from './emotionAnalysis';
 import { getCrisisQueueService, type CrisisRequest, type CrisisAuditEntry, type CrisisQueueEvent } from './crisisQueue';
+import type { MentorReview, MentorReviewSummary } from './mentorship';
+import { createMentorReview, calculateMentorReviewSummary } from './mentorship';
 import type { ZKProofArtifacts, ZKProofResult } from './zkProof';
 import { generateZKProof, verifyZKProof, deserializeProof } from './zkProof';
 import type { 
@@ -548,6 +550,12 @@ export interface StoreState {
   unsubscribeFromQueue: () => void;
   addCrisisAuditEntry: (entry: Omit<CrisisAuditEntry, 'id' | 'timestamp'>) => void;
   cleanupExpiredAuditEntries: () => void;
+
+  // Mentor reviews
+  mentorReviews: MentorReview[];
+  submitMentorReview: (matchId: string, mentorId: string, menteeId: string, rating: number, feedback?: string) => void;
+  getMentorReviewSummary: (mentorId: string) => MentorReviewSummary;
+  getMentorReviewsByMatch: (matchId: string) => MentorReview[];
 
   // ZK Proofs
   zkProofs: Record<string, ZKProofState>;
@@ -2155,6 +2163,9 @@ export const useStore = create<StoreState>((set, get) => {
     // ZK Proofs state
     zkProofs: {},
 
+    // Mentor reviews state
+    mentorReviews: [],
+
     // Community moderation state
     communityAnnouncements: [],
     communityModerationLogs: [],
@@ -2589,6 +2600,26 @@ export const useStore = create<StoreState>((set, get) => {
         delete nextProofs[requestId];
         return { zkProofs: nextProofs };
       });
+    },
+
+    submitMentorReview: (matchId: string, mentorId: string, menteeId: string, rating: number, feedback?: string): void => {
+      const review = createMentorReview(matchId, mentorId, menteeId, rating, feedback);
+      
+      set((state) => ({
+        mentorReviews: [...state.mentorReviews, review],
+      }));
+      
+      toast.success('Review submitted! Thank you for your feedback.');
+    },
+
+    getMentorReviewSummary: (mentorId: string): MentorReviewSummary => {
+      const state = get();
+      return calculateMentorReviewSummary(mentorId, state.mentorReviews);
+    },
+
+    getMentorReviewsByMatch: (matchId: string): MentorReview[] => {
+      const state = get();
+      return state.mentorReviews.filter((r) => r.matchId === matchId);
     },
 
     toggleEventRsvp: (eventId: string) => {
