@@ -1,4 +1,4 @@
-import { createContext, useEffect, useState, type ReactNode, type HTMLAttributes } from 'react';
+import { createContext, useEffect, useLayoutEffect, useState, type ReactNode, type HTMLAttributes } from 'react';
 
 export type LayoutBreakpoint = 'mobile' | 'tablet' | 'desktop';
 export type Orientation = 'portrait' | 'landscape';
@@ -36,6 +36,8 @@ function computeOrientation(width: number, height: number): Orientation {
   return width >= height ? 'landscape' : 'portrait';
 }
 
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
 export default function ResponsiveLayout({
   header,
   footer,
@@ -54,7 +56,7 @@ export default function ResponsiveLayout({
         : 'portrait',
   }));
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (typeof window === 'undefined') return;
 
     const update = () => {

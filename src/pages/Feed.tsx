@@ -45,10 +45,10 @@ export default function Feed() {
   };
 
   return (
-    <div className="relative min-h-screen px-4 py-8">
-      <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr,400px]">
+    <div className="relative min-h-screen py-10">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 sm:px-6 lg:flex-row lg:items-start lg:px-8">
         <motion.section
-          className="space-y-6"
+          className="w-full space-y-6 mx-auto lg:mx-0 lg:max-w-3xl"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -79,14 +79,14 @@ export default function Feed() {
           )}
         </motion.section>
 
-        <aside className="hidden space-y-6 lg:block">
+        <aside className="hidden lg:flex lg:w-80 xl:w-96 lg:flex-col gap-6 lg:sticky lg:top-28">
           <CommunityDiscoveryPanel onRequestSearch={handleRequestSearch} />
           <CommunityEvents />
-          <ModerationLogDisplay className="mt-6" />
+          <ModerationLogDisplay />
         </aside>
       </div>
 
-      <div className="mt-8 space-y-6 lg:hidden">
+      <div className="mt-10 space-y-6 px-4 sm:px-6 lg:hidden mx-auto w-full max-w-6xl">
         <CommunityDiscoveryPanel onRequestSearch={handleRequestSearch} />
         <CommunityEvents />
       </div>
