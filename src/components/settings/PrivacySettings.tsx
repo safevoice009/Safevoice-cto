@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Shield, Eye, Cookie, Globe, Lock, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getPrivacyStatus } from '../../lib/privacy/middleware';
+import FingerprintControls from './FingerprintControls';
 
 export default function PrivacySettings() {
   const { t } = useTranslation();
@@ -177,6 +178,11 @@ export default function PrivacySettings() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Fingerprint Protection Controls */}
+      <div className="p-4 bg-surface/30 rounded-lg border border-white/10">
+        <FingerprintControls />
       </div>
 
       {/* Security Headers */}
