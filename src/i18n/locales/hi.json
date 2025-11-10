@@ -19,7 +19,11 @@
     "leaders": "लीडर्स",
     "customize": "कस्टमाइज़",
     "crisisHelp": "संकट सहायता",
-    "getCrisisHelp": "संकट सहायता प्राप्त करें"
+    "getCrisisHelp": "संकट सहायता प्राप्त करें",
+    "mainNavigation": "मुख्य नेविगेशन",
+    "bottomNavigation": "निचला नेविगेशन",
+    "openMenu": "मेनू खोलें",
+    "closeMenu": "मेनू बंद करें"
   },
   "settings": {
     "title": "सेटिंग्स",

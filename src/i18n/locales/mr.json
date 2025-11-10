@@ -19,7 +19,11 @@
     "leaders": "नेते",
     "customize": "सानुकूल करा",
     "crisisHelp": "संकट मदत",
-    "getCrisisHelp": "संकट मदत मिळवा"
+    "getCrisisHelp": "संकट मदत मिळवा",
+    "mainNavigation": "मुख्य नेव्हिगेशन",
+    "bottomNavigation": "तळाचे नेव्हिगेशन",
+    "openMenu": "मेनू उघडा",
+    "closeMenu": "मेनू बंद करा"
   },
   "settings": {
     "title": "सेटिंग्ज",
