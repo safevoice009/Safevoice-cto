@@ -1,13 +1,7 @@
-import { createContext, useContext, useEffect } from 'react';
+import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { useThemeSystemStore, teardownThemeSystemListeners } from '../../lib/themeSystemStore';
-
-interface ThemeContextType {
-  // Theme system state is available through the store
-  // This context is mainly for provider pattern consistency
-}
-
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+import { ThemeContext } from './ThemeContext';
 
 interface ThemeProviderProps {
   children: ReactNode;
@@ -26,7 +20,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     };
   }, [hydrate]);
 
-  const contextValue: ThemeContextType = {};
+  const contextValue: Record<string, never> = {};
 
   return (
     <ThemeContext.Provider value={contextValue}>
@@ -34,14 +28,3 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     </ThemeContext.Provider>
   );
 }
-
-export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return context;
-}
-
-// Export store hook for direct access to theme state
-export { useThemeSystemStore } from '../lib/themeSystemStore';

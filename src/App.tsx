@@ -33,7 +33,8 @@ import PostLifecycleManager from './lib/postLifecycleManager';
 import { wagmiConfig, chains } from './lib/wagmiConfig';
 import { useThemeStore } from './lib/themeStore';
 import { useCustomizationStore } from './lib/customizationStore';
-import { ThemeProvider, useThemeSystemStore } from './components/ui/ThemeProvider';
+import { ThemeProvider } from './components/ui/ThemeProvider';
+import { useThemeSystemStore } from './lib/themeSystemStore';
 
 const queryClient = new QueryClient();
 
@@ -49,7 +50,7 @@ function AnimatedRoutes() {
   const grantDailyLoginBonus = useStore((state) => state.grantDailyLoginBonus);
   const hydrateTheme = useThemeStore((state) => state.hydrate);
   const hydrateAppearance = useCustomizationStore((state) => state.hydrate);
-  const hydrateThemeSystem = useThemeSystemStore((state: any) => state.hydrate);
+  const hydrateThemeSystem = useThemeSystemStore((state) => state.hydrate);
   const lifecycleManagerRef = useRef<PostLifecycleManager | null>(null);
   const { t } = useTranslation();
 
