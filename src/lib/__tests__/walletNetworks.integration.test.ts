@@ -103,11 +103,11 @@ const mockWeb3Bridge = vi.hoisted(() => {
         type: 'claim',
         status: 'submitted',
         timestamp: Date.now(),
-        hash: '0x' + Math.random().toString(16).substr(2, 64),
+        hash: ('0x' + Math.random().toString(16).substr(2, 64)) as `0x${string}`,
         metadata: {
           type: 'claim',
           amount,
-          recipient: recipient || '0x1234567890123456789012345678901234567890',
+          recipient: (recipient || '0x1234567890123456789012345678901234567890') as `0x${string}`,
           reason: 'Test claim',
         },
         optimisticUpdate: {
@@ -135,11 +135,11 @@ const mockWeb3Bridge = vi.hoisted(() => {
         type: 'burn',
         status: 'submitted',
         timestamp: Date.now(),
-        hash: '0x' + Math.random().toString(16).substr(2, 64),
+        hash: ('0x' + Math.random().toString(16).substr(2, 64)) as `0x${string}`,
         metadata: {
           type: 'burn',
           amount,
-          from: from || '0x1234567890123456789012345678901234567890',
+          from: (from || '0x1234567890123456789012345678901234567890') as `0x${string}`,
           reason,
         },
         optimisticUpdate: {
@@ -606,19 +606,19 @@ describe('Wallet Networks Integration Tests', () => {
 
   describe('Unsupported Network Detection', () => {
     it('should detect unsupported networks', () => {
-      const unsupportedChainId = 999999;
-      
-      const isSupported = [mainnet.id, polygon.id, base.id, arbitrum.id].includes(unsupportedChainId);
-      
-      expect(isSupported).toBe(false);
-    });
+       const unsupportedChainId: number = 999999;
 
-    it('should fallback to default chain for unsupported networks', () => {
-      const defaultChainId = getDefaultChainId();
-      const unsupportedChainId = 999999;
+       const isSupported = [mainnet.id, polygon.id, base.id, arbitrum.id].includes(unsupportedChainId as never);
+
+       expect(isSupported).toBe(false);
+     });
+
+     it('should fallback to default chain for unsupported networks', () => {
+       const defaultChainId = getDefaultChainId();
+       const unsupportedChainId: number = 999999;
       
-      const fallbackChainId = [mainnet.id, polygon.id, base.id, arbitrum.id].includes(unsupportedChainId) 
-        ? unsupportedChainId 
+      const fallbackChainId = [mainnet.id, polygon.id, base.id, arbitrum.id].includes(unsupportedChainId as never)
+        ? (unsupportedChainId as 1 | 137 | 42161 | 8453)
         : defaultChainId;
       
       expect(fallbackChainId).toBe(defaultChainId);
