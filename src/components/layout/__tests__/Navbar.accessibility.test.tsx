@@ -181,8 +181,7 @@ describe('Navbar Accessibility', () => {
   });
 
   describe('Visual Accessibility', () => {
-    it('should have visible focus indicators', async () => {
-      const user = userEvent.setup();
+    it('should have visible focus indicators', () => {
       renderComponent();
       
       const menuButton = screen.getByRole('button', { name: /open menu/i });

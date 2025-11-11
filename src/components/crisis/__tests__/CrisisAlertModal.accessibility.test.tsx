@@ -6,7 +6,7 @@ import i18n from '../../../i18n/config';
 
 // Mock ZKProofPrompt and ZKProofStatusBadge
 vi.mock('../ZKProofPrompt', () => ({
-  default: ({ onProofComplete }: any) => (
+  default: ({ onProofComplete }: { onProofComplete: (value: boolean) => void }) => (
     <button onClick={() => onProofComplete(true)}>Mock ZK Proof</button>
   ),
 }));
@@ -60,8 +60,7 @@ describe('CrisisAlertModal Accessibility', () => {
   });
 
   describe('Focus Management', () => {
-    it('should trap focus within modal when open', async () => {
-      const user = userEvent.setup();
+    it('should trap focus within modal when open', () => {
       renderComponent();
       
       // Modal should be in the document
@@ -223,8 +222,7 @@ describe('CrisisAlertModal Accessibility', () => {
       expect(onAcknowledge).toHaveBeenCalledWith('continue');
     });
 
-    it('should navigate through all interactive elements', async () => {
-      const user = userEvent.setup();
+    it('should navigate through all interactive elements', () => {
       renderComponent();
       
       const modal = screen.getByRole('dialog');
@@ -301,8 +299,7 @@ describe('CrisisAlertModal Accessibility', () => {
       });
     });
 
-    it('should have visible focus indicators', async () => {
-      const user = userEvent.setup();
+    it('should have visible focus indicators', () => {
       renderComponent();
       
       const firstButton = screen.getByRole('button');

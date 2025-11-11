@@ -8,7 +8,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mainnet, polygon, base, arbitrum } from 'viem/chains';
 import { useStore } from '../store';
-import { Web3Bridge } from '../web3/bridge';
 import { createWeb3Config, getDefaultChainId } from '../web3/config';
 import type { QueuedTransaction, Web3Config } from '../web3/types';
 import type { ChainBalance } from '../wallet/types';
@@ -227,7 +226,6 @@ vi.stubEnv('VITE_POLYGON_VOICE_TOKEN', mockEnv.VITE_POLYGON_VOICE_TOKEN);
 vi.stubEnv('VITE_BASE_VOICE_TOKEN', mockEnv.VITE_BASE_VOICE_TOKEN);
 
 describe('Wallet Networks Integration Tests', () => {
-  let store: ReturnType<typeof useStore>;
   let mockBridge: InstanceType<typeof mockWeb3Bridge.MockWeb3Bridge>;
 
   beforeEach(() => {
@@ -278,7 +276,7 @@ describe('Wallet Networks Integration Tests', () => {
     });
     
     // Initialize store
-    store = useStore.getState();
+    useStore.getState();
   });
 
   afterEach(() => {
@@ -550,8 +548,6 @@ describe('Wallet Networks Integration Tests', () => {
     });
 
     it('should handle optimistic updates correctly', async () => {
-      const initialBalance = 1000;
-      
       const result = await mockBridge.claimRewards(100);
       
       expect(result.optimistic).toBe(true);
