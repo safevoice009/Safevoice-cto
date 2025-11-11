@@ -60,17 +60,17 @@ describe('CrisisAlertModal Accessibility', () => {
   });
 
   describe('Focus Management', () => {
-    it('should trap focus within modal when open', () => {
-      renderComponent();
-      
-      // Modal should be in the document
-      const modal = screen.getByRole('dialog');
-      expect(modal).toBeInTheDocument();
-      
-      // Focus should move to first focusable element
-      await waitFor(() => {
-        expect(document.activeElement).toBeInstanceOf(HTMLElement);
-      });
+    it('should trap focus within modal when open', async () => {
+       renderComponent();
+
+       // Modal should be in the document
+       const modal = screen.getByRole('dialog');
+       expect(modal).toBeInTheDocument();
+
+       // Focus should move to first focusable element
+       await waitFor(() => {
+         expect(document.activeElement).toBeInstanceOf(HTMLElement);
+       });
       
       // Get all focusable elements in modal
       const focusableElements = modal.querySelectorAll(
