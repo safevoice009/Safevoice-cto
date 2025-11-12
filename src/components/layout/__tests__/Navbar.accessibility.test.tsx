@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import Navbar from '../Navbar';
@@ -181,8 +181,7 @@ describe('Navbar Accessibility', () => {
   });
 
   describe('Visual Accessibility', () => {
-    it('should have visible focus indicators', async () => {
-      const user = userEvent.setup();
+    it('should have visible focus indicators', () => {
       renderComponent();
       
       const menuButton = screen.getByRole('button', { name: /open menu/i });

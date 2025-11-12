@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CrisisAlertModal from '../CrisisAlertModal';
 import i18n from '../../../i18n/config';
 
 // Mock ZKProofPrompt and ZKProofStatusBadge
 vi.mock('../ZKProofPrompt', () => ({
-  default: ({ onProofComplete }: any) => (
+  default: ({ onProofComplete }: { onProofComplete: (value: boolean) => void }) => (
     <button onClick={() => onProofComplete(true)}>Mock ZK Proof</button>
   ),
 }));
@@ -61,17 +61,16 @@ describe('CrisisAlertModal Accessibility', () => {
 
   describe('Focus Management', () => {
     it('should trap focus within modal when open', async () => {
-      const user = userEvent.setup();
-      renderComponent();
-      
-      // Modal should be in the document
-      const modal = screen.getByRole('dialog');
-      expect(modal).toBeInTheDocument();
-      
-      // Focus should move to first focusable element
-      await waitFor(() => {
-        expect(document.activeElement).toBeInstanceOf(HTMLElement);
-      });
+       renderComponent();
+
+       // Modal should be in the document
+       const modal = screen.getByRole('dialog');
+       expect(modal).toBeInTheDocument();
+
+       // Focus should move to first focusable element
+       await waitFor(() => {
+         expect(document.activeElement).toBeInstanceOf(HTMLElement);
+       });
       
       // Get all focusable elements in modal
       const focusableElements = modal.querySelectorAll(
@@ -223,8 +222,7 @@ describe('CrisisAlertModal Accessibility', () => {
       expect(onAcknowledge).toHaveBeenCalledWith('continue');
     });
 
-    it('should navigate through all interactive elements', async () => {
-      const user = userEvent.setup();
+    it('should navigate through all interactive elements', () => {
       renderComponent();
       
       const modal = screen.getByRole('dialog');
@@ -301,8 +299,7 @@ describe('CrisisAlertModal Accessibility', () => {
       });
     });
 
-    it('should have visible focus indicators', async () => {
-      const user = userEvent.setup();
+    it('should have visible focus indicators', () => {
       renderComponent();
       
       const firstButton = screen.getByRole('button');

@@ -54,7 +54,7 @@ function AnimatedRoutes() {
   const hydrateAppearance = useCustomizationStore((state) => state.hydrate);
   const hydrateThemeSystem = useThemeSystemStore((state) => state.hydrate);
   const lifecycleManagerRef = useRef<PostLifecycleManager | null>(null);
-  const mainContentRef = useRef<HTMLElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
