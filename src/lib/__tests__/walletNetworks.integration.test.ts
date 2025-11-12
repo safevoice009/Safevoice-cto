@@ -8,7 +8,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mainnet, polygon, base, arbitrum } from 'viem/chains';
 import { useStore } from '../store';
-import { Web3Bridge } from '../web3/bridge';
 import { createWeb3Config, getDefaultChainId } from '../web3/config';
 import type { QueuedTransaction, Web3Config } from '../web3/types';
 import type { ChainBalance } from '../wallet/types';
@@ -104,11 +103,11 @@ const mockWeb3Bridge = vi.hoisted(() => {
         type: 'claim',
         status: 'submitted',
         timestamp: Date.now(),
-        hash: '0x' + Math.random().toString(16).substr(2, 64),
+        hash: ('0x' + Math.random().toString(16).substr(2, 64)) as `0x${string}`,
         metadata: {
           type: 'claim',
           amount,
-          recipient: recipient || '0x1234567890123456789012345678901234567890',
+          recipient: (recipient || '0x1234567890123456789012345678901234567890') as `0x${string}`,
           reason: 'Test claim',
         },
         optimisticUpdate: {
@@ -136,11 +135,11 @@ const mockWeb3Bridge = vi.hoisted(() => {
         type: 'burn',
         status: 'submitted',
         timestamp: Date.now(),
-        hash: '0x' + Math.random().toString(16).substr(2, 64),
+        hash: ('0x' + Math.random().toString(16).substr(2, 64)) as `0x${string}`,
         metadata: {
           type: 'burn',
           amount,
-          from: from || '0x1234567890123456789012345678901234567890',
+          from: (from || '0x1234567890123456789012345678901234567890') as `0x${string}`,
           reason,
         },
         optimisticUpdate: {
@@ -227,7 +226,6 @@ vi.stubEnv('VITE_POLYGON_VOICE_TOKEN', mockEnv.VITE_POLYGON_VOICE_TOKEN);
 vi.stubEnv('VITE_BASE_VOICE_TOKEN', mockEnv.VITE_BASE_VOICE_TOKEN);
 
 describe('Wallet Networks Integration Tests', () => {
-  let store: ReturnType<typeof useStore>;
   let mockBridge: InstanceType<typeof mockWeb3Bridge.MockWeb3Bridge>;
 
   beforeEach(() => {
@@ -278,7 +276,7 @@ describe('Wallet Networks Integration Tests', () => {
     });
     
     // Initialize store
-    store = useStore.getState();
+    useStore.getState();
   });
 
   afterEach(() => {
@@ -550,8 +548,6 @@ describe('Wallet Networks Integration Tests', () => {
     });
 
     it('should handle optimistic updates correctly', async () => {
-      const initialBalance = 1000;
-      
       const result = await mockBridge.claimRewards(100);
       
       expect(result.optimistic).toBe(true);
@@ -610,19 +606,19 @@ describe('Wallet Networks Integration Tests', () => {
 
   describe('Unsupported Network Detection', () => {
     it('should detect unsupported networks', () => {
-      const unsupportedChainId = 999999;
-      
-      const isSupported = [mainnet.id, polygon.id, base.id, arbitrum.id].includes(unsupportedChainId);
-      
-      expect(isSupported).toBe(false);
-    });
+       const unsupportedChainId: number = 999999;
 
-    it('should fallback to default chain for unsupported networks', () => {
-      const defaultChainId = getDefaultChainId();
-      const unsupportedChainId = 999999;
+       const isSupported = [mainnet.id, polygon.id, base.id, arbitrum.id].includes(unsupportedChainId as never);
+
+       expect(isSupported).toBe(false);
+     });
+
+     it('should fallback to default chain for unsupported networks', () => {
+       const defaultChainId = getDefaultChainId();
+       const unsupportedChainId: number = 999999;
       
-      const fallbackChainId = [mainnet.id, polygon.id, base.id, arbitrum.id].includes(unsupportedChainId) 
-        ? unsupportedChainId 
+      const fallbackChainId = [mainnet.id, polygon.id, base.id, arbitrum.id].includes(unsupportedChainId as never)
+        ? (unsupportedChainId as 1 | 137 | 42161 | 8453)
         : defaultChainId;
       
       expect(fallbackChainId).toBe(defaultChainId);

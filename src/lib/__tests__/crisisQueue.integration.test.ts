@@ -49,7 +49,7 @@ describe('Crisis Queue Service Integration', () => {
 
     // Disable BroadcastChannel by default to avoid duplicate events
     const originalBroadcastChannel = globalThis.BroadcastChannel;
-    globalThis.BroadcastChannel = undefined;
+    globalThis.BroadcastChannel = undefined as any;
     
     // Get fresh service instance
     service = getCrisisQueueService();
@@ -327,22 +327,25 @@ describe('Crisis Queue Service Integration', () => {
     it('should detect BroadcastChannel availability', () => {
       // Test with BroadcastChannel available
       globalThis.BroadcastChannel = class MockBroadcastChannel {
-        constructor(public readonly name: string) {}
+        name: string;
+        constructor(name: string) {
+          this.name = name;
+        }
         addEventListener = vi.fn();
         removeEventListener = vi.fn();
         postMessage = vi.fn();
         close = vi.fn();
-      } as unknown;
-      
+      } as any;
+
       destroyCrisisQueueService();
       service = getCrisisQueueService();
-      
-      expect(service.isBroadcastChannelAvailable()).toBe(true);
-    });
 
-    it('should handle BroadcastChannel unavailable gracefully', () => {
+      expect(service.isBroadcastChannelAvailable()).toBe(true);
+      });
+
+      it('should handle BroadcastChannel unavailable gracefully', () => {
       // Test with BroadcastChannel unavailable
-      globalThis.BroadcastChannel = undefined as unknown;
+      globalThis.BroadcastChannel = undefined as any;
       destroyCrisisQueueService();
       service = getCrisisQueueService();
       unsubscribe = service.subscribe('test-subscriber', (event) => {
