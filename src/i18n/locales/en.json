@@ -21,6 +21,7 @@
     "search": "Search",
     "leaderboard": "Leaderboard",
     "marketplace": "Marketplace",
+    "analytics": "Analytics",
     "helplines": "Helplines",
     "guidelines": "Guidelines",
     "memorial": "Memorial",
@@ -252,5 +253,34 @@
     "notSupportedDesc": "Your browser doesn't support audio recording. Please use a modern browser like Chrome, Firefox, Safari, or Edge.",
     "recordingFailed": "Failed to start recording",
     "recordingSaved": "Recording saved successfully"
+  },
+  "analytics": {
+    "title": "Analytics Dashboard",
+    "subtitle": "Privacy-safe metrics and engagement tracking",
+    "optedOut": "Analytics Tracking Disabled",
+    "optedOutMessage": "You have opted out of analytics tracking. Your privacy is protected.",
+    "mau": "Monthly Active Users",
+    "dau": "Daily Active Users",
+    "avgSession": "Avg. Session Duration",
+    "totalSessions": "Total Sessions",
+    "dailyActivity": "Daily Activity",
+    "posts": "Posts",
+    "comments": "Comments",
+    "reactions": "Reactions",
+    "communities": "Communities Joined",
+    "featureAdoption": "Feature Adoption",
+    "noFeatureData": "No feature usage data available yet",
+    "communityHealth": "Community Health",
+    "totalPosts": "Total Posts",
+    "avgPostsPerDay": "Avg. Posts per Day",
+    "engagementRate": "Engagement Rate",
+    "privacyNotice": "Privacy-Safe Analytics",
+    "privacyMessage": "All analytics are privacy-safe. No personally identifiable information (PII) is collected. User IDs are hashed, and all metrics are aggregated.",
+    "timeRange": {
+      "7d": "Last 7 Days",
+      "30d": "Last 30 Days",
+      "90d": "Last 90 Days",
+      "all": "All Time"
+    }
   }
   }
