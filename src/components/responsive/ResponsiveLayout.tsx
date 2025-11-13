@@ -1,4 +1,4 @@
-import { createContext, useEffect, useLayoutEffect, useState, type ReactNode, type HTMLAttributes } from 'react';
+import { createContext, useEffect, useLayoutEffect, useState, type ReactNode, type HTMLAttributes, type Ref } from 'react';
 
 export type LayoutBreakpoint = 'mobile' | 'tablet' | 'desktop';
 export type Orientation = 'portrait' | 'landscape';
@@ -9,7 +9,7 @@ interface ResponsiveLayoutProps {
   bottomNavigation?: ReactNode;
   children: ReactNode;
   className?: string;
-  mainProps?: ReactAttributes<HTMLElement>;
+  mainProps?: HTMLAttributes<HTMLDivElement> & { ref?: Ref<HTMLDivElement> };
 }
 
 interface LayoutContextValue {

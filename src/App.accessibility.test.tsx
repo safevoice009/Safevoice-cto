@@ -19,7 +19,7 @@ vi.mock('./components/layout/BottomNav', () => ({
 }));
 
 vi.mock('./components/responsive/ResponsiveLayout', () => ({
-  default: ({ children, mainProps }: any) => (
+  default: ({ children, mainProps }: { children: React.ReactNode; mainProps?: Record<string, unknown> }) => (
     <div>
       <div data-testid="responsive-layout">
         <main {...mainProps} data-testid="main-content">
@@ -31,7 +31,7 @@ vi.mock('./components/responsive/ResponsiveLayout', () => ({
 }));
 
 vi.mock('./components/crisis/CrisisAlertModal', () => ({
-  default: ({ isOpen, onAcknowledge }: any) => 
+  default: ({ isOpen, onAcknowledge }: { isOpen: boolean; onAcknowledge: (action: string) => void }) => 
     isOpen ? (
       <div role="dialog" aria-modal="true" data-testid="crisis-modal">
         <button onClick={() => onAcknowledge('continue')}>Close</button>
@@ -99,7 +99,7 @@ vi.mock('./lib/wagmiConfig', () => ({
 }));
 
 vi.mock('./components/ui/ThemeProvider', () => ({
-  ThemeProvider: ({ children }: any) => <div>{children}</div>,
+  ThemeProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 // Mock Toaster
@@ -213,8 +213,7 @@ describe('App Accessibility', () => {
       expect(skipLink).toHaveAttribute('href', '#main-content');
     });
 
-    it('should make skip link visible on focus', async () => {
-      const user = userEvent.setup();
+    it('should make skip link visible on focus', () => {
       renderApp();
       
       const skipLink = screen.getByRole('link', { name: /skip to main content/i });
@@ -277,7 +276,6 @@ describe('App Accessibility', () => {
     it('should focus main content elements', () => {
       renderApp();
       
-      const mainContent = screen.getByTestId('main-content');
       const heading = screen.getByRole('heading');
       
       expect(heading).toBeInTheDocument();
@@ -307,6 +305,7 @@ describe('App Accessibility', () => {
       vi.doMock('./lib/store', () => ({
         useStore: () => ({
           showCrisisModal: true,
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
           ...vi.mocked(require('./lib/store')).useStore(),
         }),
       }));

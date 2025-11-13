@@ -174,7 +174,8 @@ describe('Privacy Fingerprint Store Integration', () => {
           },
         ]),
       };
-      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
 
       const riskEvaluation = await act(async () => {
         return await store.evaluateFingerprintRisk();
@@ -272,7 +273,8 @@ describe('Privacy Fingerprint Store Integration', () => {
           },
         ]),
       };
-      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
 
       const mitigationPlan = await act(async () => {
         return await store.applyFingerprintMitigations('balanced');
@@ -360,7 +362,8 @@ describe('Privacy Fingerprint Store Integration', () => {
           },
         ]),
       };
-      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
 
       const saltRotation = await act(async () => {
         return await store.rotateFingerprintIdentity('test rotation');
@@ -579,7 +582,8 @@ describe('Privacy Fingerprint Store Integration', () => {
           },
         ]),
       };
-      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
 
       await act(async () => {
         await store.evaluateFingerprintRisk();
@@ -621,7 +625,8 @@ describe('Privacy Fingerprint Store Integration', () => {
           },
         ]),
       };
-      vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       vi.mocked(getCrisisQueueService).mockReturnValue(mockCrisisService as any);
 
       await act(async () => {
         await store.evaluateFingerprintRisk();
