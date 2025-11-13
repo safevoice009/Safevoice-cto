@@ -10,7 +10,7 @@
  * - Service teardown cleanup (timers, channels, listeners)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { getCrisisQueueService, destroyCrisisQueueService } from '../crisisQueue';
 import type { CrisisRequest, CrisisQueueEvent } from '../crisisQueue';
 
@@ -49,7 +49,11 @@ describe('Crisis Queue Service Integration', () => {
 
     // Disable BroadcastChannel by default to avoid duplicate events
     const originalBroadcastChannel = globalThis.BroadcastChannel;
-    globalThis.BroadcastChannel = undefined;
+    Object.defineProperty(globalThis, 'BroadcastChannel', {
+      value: undefined,
+      writable: true,
+      configurable: true,
+    });
     
     // Get fresh service instance
     service = getCrisisQueueService();
@@ -255,7 +259,7 @@ describe('Crisis Queue Service Integration', () => {
       // Find the expiration event
       const expirationEvent = events.find(e => 
         e.type === 'upsert' && e.request.status === 'expired'
-      );
+      ) as { type: 'upsert'; request: CrisisRequest } | undefined;
       expect(expirationEvent).toBeDefined();
       expect(expirationEvent?.request.id).toBe(request.id);
 
@@ -280,7 +284,7 @@ describe('Crisis Queue Service Integration', () => {
       // Find the expiration event
       const expirationEvent = events.find(e => 
         e.type === 'upsert' && e.request.status === 'expired'
-      );
+      ) as { type: 'upsert'; request: CrisisRequest } | undefined;
       expect(expirationEvent).toBeDefined();
       expect(expirationEvent?.request.id).toBe(request.id);
     });
@@ -327,22 +331,29 @@ describe('Crisis Queue Service Integration', () => {
     it('should detect BroadcastChannel availability', () => {
       // Test with BroadcastChannel available
       globalThis.BroadcastChannel = class MockBroadcastChannel {
-        constructor(public readonly name: string) {}
+        name: string;
+        constructor(name: string) {
+          this.name = name;
+        }
         addEventListener = vi.fn();
         removeEventListener = vi.fn();
         postMessage = vi.fn();
         close = vi.fn();
-      } as unknown;
-      
+      } as unknown as typeof BroadcastChannel;
+
       destroyCrisisQueueService();
       service = getCrisisQueueService();
-      
-      expect(service.isBroadcastChannelAvailable()).toBe(true);
-    });
 
-    it('should handle BroadcastChannel unavailable gracefully', () => {
+      expect(service.isBroadcastChannelAvailable()).toBe(true);
+      });
+
+      it('should handle BroadcastChannel unavailable gracefully', () => {
       // Test with BroadcastChannel unavailable
-      globalThis.BroadcastChannel = undefined as unknown;
+      Object.defineProperty(globalThis, 'BroadcastChannel', {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      });
       destroyCrisisQueueService();
       service = getCrisisQueueService();
       unsubscribe = service.subscribe('test-subscriber', (event) => {
@@ -387,7 +398,7 @@ describe('Crisis Queue Service Integration', () => {
         'not-an-object', // Invalid entry
       ];
 
-      (window.localStorage.getItem as vi.Mock).mockReturnValue(JSON.stringify(malformedData));
+      (window.localStorage.getItem as Mock).mockReturnValue(JSON.stringify(malformedData));
 
       destroyCrisisQueueService();
       service = getCrisisQueueService();
@@ -449,11 +460,11 @@ describe('Crisis Queue Service Integration', () => {
       const request = await service.createRequest(studentId, 'high', { metadata });
 
       expect(request.metadata).toEqual(metadata);
-      expect(request.metadata.emotionAnalysis).toEqual(emotionAnalysis);
-      expect(request.metadata.ipfsCid).toBe(ipfsCid);
+      expect(request.metadata?.emotionAnalysis).toEqual(emotionAnalysis);
+      expect(request.metadata?.ipfsCid).toBe(ipfsCid);
 
       // Verify persistence maintains metadata structure
-      const setItemCall = (window.localStorage.setItem as vi.Mock).mock.calls[0];
+      const setItemCall = (window.localStorage.setItem as Mock).mock.calls[0];
       const storedData = JSON.parse(setItemCall[1]);
       const storedRequest = storedData.find((r: CrisisRequest) => r.id === request.id);
       
@@ -564,7 +575,8 @@ describe('Crisis Queue Service Integration', () => {
       
       // First event should be creation
       expect(events[0].type).toBe('upsert');
-      expect(events[0].request.id).toBe(request1.id);
+      const firstEvent = events[0] as { type: 'upsert'; request: CrisisRequest };
+      expect(firstEvent.request.id).toBe(request1.id);
       
       // Last event should be deletion
       const deleteEvents = events.filter(e => e.type === 'delete');
