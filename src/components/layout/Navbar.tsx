@@ -22,6 +22,7 @@ const navLinks: NavLink[] = [
   { labelKey: 'nav.search', value: '/search', type: 'route' },
   { labelKey: 'nav.leaderboard', value: '/leaderboard', type: 'route' },
   { labelKey: 'nav.marketplace', value: '/marketplace', type: 'route' },
+  { labelKey: 'nav.analytics', value: '/analytics', type: 'route' },
   { labelKey: 'nav.helplines', value: '/helplines', type: 'route' },
   { labelKey: 'nav.guidelines', value: '/guidelines', type: 'route' },
   { labelKey: 'nav.memorial', value: '/memorial', type: 'route' },

@@ -26,6 +26,7 @@ import TransactionHistoryPage from './pages/TransactionHistoryPage';
 import CommunitiesPage from './pages/Communities';
 import SearchPage from './pages/Search';
 import MentorDashboard from './pages/MentorDashboard';
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import AppearanceSettings from './components/settings/AppearanceSettings';
 import ResponsiveLayout from './components/responsive/ResponsiveLayout';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
@@ -37,6 +38,7 @@ import { useThemeStore } from './lib/themeStore';
 import { useCustomizationStore } from './lib/customizationStore';
 import { ThemeProvider } from './components/ui/ThemeProvider';
 import { useThemeSystemStore } from './lib/themeSystemStore';
+import { initializeAnalytics } from './lib/analytics';
 
 const queryClient = new QueryClient();
 
@@ -65,6 +67,11 @@ function AnimatedRoutes() {
     hydrateTheme();
     hydrateAppearance();
     hydrateThemeSystem();
+    
+    // Initialize analytics with student ID
+    if (storedId) {
+      initializeAnalytics(storedId);
+    }
   }, [initStudentId, hydrateTheme, hydrateAppearance, hydrateThemeSystem]);
 
   useEffect(() => {
@@ -195,6 +202,7 @@ function AnimatedRoutes() {
             <Route path="/marketplace" element={<TokenMarketplace />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/transactions" element={<TransactionHistoryPage />} />
+            <Route path="/analytics" element={<AnalyticsDashboard />} />
             <Route path="/settings/appearance" element={<AppearanceSettings />} />
           </Routes>
         </AnimatePresence>
