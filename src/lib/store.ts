@@ -405,6 +405,17 @@ export interface ZKProofState {
   timestamp: number;
 }
 
+// Privacy Onboarding Types
+export type PrivacyOnboardingStep = 1 | 2 | 3;
+
+export interface PrivacyOnboardingState {
+  currentStep: PrivacyOnboardingStep;
+  isCompleted: boolean;
+  isOpen: boolean;
+  snoozedUntil: number | null;
+  startedAt: number | null;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
