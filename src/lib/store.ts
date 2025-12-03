@@ -53,6 +53,17 @@ import {
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
 
+// Re-export community types
+export type { 
+  Community,
+  CommunityChannel, 
+  CommunityMembership,
+  CommunityNotificationSettings,
+  CommunityPostMeta,
+  CommunityActivity,
+  PostVisibility
+};
+
 // Types
 export interface Reaction {
   heart: number;
@@ -1786,6 +1797,62 @@ const clampLimit = (limit?: number, fallback = 5): number => {
   if (!limit || limit <= 0) return fallback;
   return Math.min(limit, 25);
 };
+
+// Memoization cache for community posts to avoid repeated filtering
+interface CommunityPostsCache {
+  communityId: string;
+  channelId?: string;
+  postsHash: string;
+  result: Post[];
+  timestamp: number;
+}
+
+const communityPostsCache = new Map<string, CommunityPostsCache>();
+const COMMUNITY_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+function getCachedCommunityPosts(
+  posts: Post[],
+  communityId: string,
+  channelId?: string,
+  filterFn?: (post: Post) => boolean
+): Post[] | null {
+  const cacheKey = `${communityId}:${channelId || 'all'}:${filterFn?.name || 'default'}`;
+  const cached = communityPostsCache.get(cacheKey);
+  const postsHash = posts.map(p => `${p.id}:${p.createdAt}:${p.editedAt || 0}`).join('|');
+  
+  if (
+    cached &&
+    cached.postsHash === postsHash &&
+    Date.now() - cached.timestamp < COMMUNITY_CACHE_TTL
+  ) {
+    return cached.result;
+  }
+  
+  return null;
+}
+
+function setCachedCommunityPosts(
+  posts: Post[],
+  communityId: string,
+  channelId: string | undefined,
+  result: Post[],
+  filterFn?: (post: Post) => boolean
+): void {
+  const cacheKey = `${communityId}:${channelId || 'all'}:${filterFn?.name || 'default'}`;
+  const postsHash = posts.map(p => `${p.id}:${p.createdAt}:${p.editedAt || 0}`).join('|');
+  
+  communityPostsCache.set(cacheKey, {
+    communityId,
+    channelId,
+    postsHash,
+    result,
+    timestamp: Date.now(),
+  });
+}
+
+export function invalidateCommunityPostsCache(): void {
+  communityPostsCache.clear();
+}
 
 export const useStore = create<StoreState>((set, get) => {
   const syncRewardState = async () => {
@@ -3757,6 +3824,16 @@ export const useStore = create<StoreState>((set, get) => {
       };
     });
 
+    // Invalidate caches when posts change
+    invalidateCommunityPostsCache();
+    
+    // Import and invalidate search cache dynamically to avoid circular dependencies
+    import('./search/searchEngine').then(({ invalidateSearchCache }) => {
+      invalidateSearchCache();
+    }).catch(() => {
+      // Ignore if search engine is not available
+    });
+
     if (isFirstPost && !storeState.firstPostAwarded) {
       set({ firstPostAwarded: true });
     }
@@ -3910,6 +3987,13 @@ export const useStore = create<StoreState>((set, get) => {
         return updatedPost;
       }),
     }));
+    
+    // Invalidate caches when posts change
+    invalidateCommunityPostsCache();
+    import('./search/searchEngine').then(({ invalidateSearchCache }) => {
+      invalidateSearchCache();
+    }).catch(() => {});
+    
     get().saveToLocalStorage();
     toast.success('Post updated! ✏️');
   },
@@ -3926,6 +4010,13 @@ export const useStore = create<StoreState>((set, get) => {
       posts: state.posts.filter((post) => post.id !== postId),
       bookmarkedPosts: state.bookmarkedPosts.filter((id) => id !== postId),
     }));
+    
+    // Invalidate caches when posts change
+    invalidateCommunityPostsCache();
+    import('./search/searchEngine').then(({ invalidateSearchCache }) => {
+      invalidateSearchCache();
+    }).catch(() => {});
+    
     get().saveToLocalStorage();
 
     if (!options?.silent) {
@@ -5691,7 +5782,15 @@ export const useStore = create<StoreState>((set, get) => {
 
   getCommunityPosts: (communityId: string, channelId?: string) => {
     const state = get();
-    return state.posts
+    
+    // Check cache first
+    const cached = getCachedCommunityPosts(state.posts, communityId, channelId);
+    if (cached) {
+      return cached;
+    }
+    
+    // Compute result
+    const result = state.posts
       .filter((post) => {
         if (post.communityId !== communityId) return false;
         if (channelId && post.channelId !== channelId) return false;
@@ -5699,6 +5798,11 @@ export const useStore = create<StoreState>((set, get) => {
         return true;
       })
       .sort((a, b) => b.createdAt - a.createdAt);
+    
+    // Cache result
+    setCachedCommunityPosts(state.posts, communityId, channelId, result);
+    
+    return result;
   },
 
   getPinnedCommunityPosts: (communityId: string, channelId?: string) => {
