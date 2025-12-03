@@ -883,6 +883,16 @@ export interface StoreState {
   grantDailyLoginBonus: () => void;
   checkSubscriptionRenewals: () => void;
 
+  // Web3 Advanced Operations
+  stakeVoiceTokens: (amount: number, lockPeriod: number) => Promise<boolean>;
+  unstakeVoiceTokens: (amount: number) => Promise<boolean>;
+  claimStakingRewards: (stakeId?: number) => Promise<boolean>;
+  castGovernanceVote: (proposalId: number, support: number, reason?: string) => Promise<boolean>;
+  switchWeb3Chain: (chainId: number) => Promise<void>;
+  hydrateDeFiYields: () => Promise<void>;
+  refreshStakingPositions: () => Promise<void>;
+  refreshChainBalances: () => Promise<void>;
+
   // Premium subscriptions
   activatePremium: (feature: PremiumFeatureType, cost?: number) => Promise<boolean>;
   deactivatePremium: (feature: PremiumFeatureType) => Promise<boolean>;
