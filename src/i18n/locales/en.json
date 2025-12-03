@@ -281,6 +281,60 @@
       "30d": "Last 30 Days",
       "90d": "Last 90 Days",
       "all": "All Time"
+    },
+    "retention": {
+      "title": "User Retention",
+      "subtitle": "Track how users return over time",
+      "week1": "Week 1 Retention",
+      "week4": "Week 4 Retention",
+      "week12": "Week 12 Retention",
+      "churnRate": "Churn Rate",
+      "cohortSize": "Cohort Size",
+      "noData": "No retention data available yet",
+      "description": "Percentage of users who return after their first session"
+    },
+    "engagement": {
+      "title": "Engagement Trends",
+      "subtitle": "Daily and monthly active user patterns",
+      "stickiness": "Stickiness (DAU/MAU)",
+      "stickinessDescription": "How often users engage with the app",
+      "engagementScore": "Engagement Score",
+      "trend": "Trend",
+      "noData": "No engagement data available yet"
+    },
+    "heatmap": {
+      "title": "Feature Usage Heatmap",
+      "subtitle": "When features are most used",
+      "noData": "No heatmap data available yet",
+      "intensity": "Usage Intensity",
+      "lowUsage": "Low Usage",
+      "highUsage": "High Usage",
+      "hour": "Hour",
+      "dayOfWeek": "Day of Week",
+      "sunday": "Sun",
+      "monday": "Mon",
+      "tuesday": "Tue",
+      "wednesday": "Wed",
+      "thursday": "Thu",
+      "friday": "Fri",
+      "saturday": "Sat"
+    },
+    "export": {
+      "title": "Export Analytics",
+      "description": "Download your analytics data",
+      "formatCSV": "Export as CSV",
+      "formatJSON": "Export as JSON",
+      "includeRawEvents": "Include raw events",
+      "anonymize": "Anonymize data",
+      "downloading": "Downloading...",
+      "success": "Analytics exported successfully",
+      "error": "Failed to export analytics",
+      "noData": "No data available to export"
+    },
+    "emptyState": {
+      "title": "No Data Yet",
+      "description": "Start using SafeVoice to see your analytics",
+      "action": "Get Started"
     }
   }
   }

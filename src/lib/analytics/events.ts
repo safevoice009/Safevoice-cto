@@ -68,6 +68,9 @@ export interface AnalyticsEvent {
     value?: number;
     duration?: number;
     featureId?: string;
+    weekIndex?: number; // For retention cohort analysis
+    sessionLifespan?: number; // Session duration in ms
+    featureIdentifier?: string; // For heatmap tracking
     [key: string]: string | number | boolean | undefined;
   };
 }
@@ -122,6 +125,44 @@ export interface CommunityHealthMetrics {
   avgPostsPerDay: number;
   avgCommentsPerPost: number;
   engagementRate: number;
+}
+
+// Wave 3: Advanced Analytics Types
+
+export interface RetentionCohort {
+  cohortWeek: string; // ISO week date (e.g., "2024-W01")
+  cohortSize: number; // Number of users who started in this cohort
+  weeklyRetention: number[]; // Retention % for each week [week0, week1, week2, ...]
+  retentionCounts: number[]; // Actual user counts for each week
+}
+
+export interface EngagementTrends {
+  date: string; // YYYY-MM-DD
+  dau: number;
+  mau: number;
+  stickiness: number; // DAU/MAU ratio (0-1)
+  avgSessionDuration: number;
+  engagementScore: number; // Composite metric
+}
+
+export interface HeatmapCell {
+  featureId: string;
+  featureName: string;
+  dayOfWeek: number; // 0-6 (Sunday-Saturday)
+  hour: number; // 0-23
+  usageCount: number;
+  uniqueUsers: number;
+  intensity: number; // 0-1 normalized intensity
+}
+
+export interface RetentionReport {
+  cohorts: RetentionCohort[];
+  overallRetention: {
+    week1: number; // % retained after 1 week
+    week4: number; // % retained after 4 weeks
+    week12: number; // % retained after 12 weeks
+  };
+  churnRate: number; // % of users who stopped using the app
 }
 
 // Event creation helpers

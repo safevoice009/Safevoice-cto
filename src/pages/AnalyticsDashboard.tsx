@@ -9,6 +9,9 @@ import {
   Shield,
   Heart,
   MessageSquare,
+  Download,
+  TrendingUp,
+  Activity,
 } from 'lucide-react';
 import { useAnalyticsStore } from '../lib/analytics/analyticsStore';
 import type { FeatureAdoption } from '../lib/analytics/events';
@@ -21,6 +24,11 @@ export default function AnalyticsDashboard() {
     getMAU,
     getDAU,
     getAvgSessionDuration,
+    getRetentionReport,
+    getEngagementTrends,
+    getFeatureHeatmap,
+    getStickiness,
+    exportReport,
     selectedTimeRange,
     setTimeRange,
     trackingEnabled,
@@ -38,6 +46,10 @@ export default function AnalyticsDashboard() {
   const mau = getMAU();
   const dau = getDAU();
   const avgSessionDuration = getAvgSessionDuration();
+  const retention = getRetentionReport();
+  const engagementTrends = getEngagementTrends();
+  const featureHeatmap = getFeatureHeatmap();
+  const stickiness = getStickiness();
 
   // Format duration in minutes
   const formatDuration = (ms: number): string => {
@@ -205,7 +217,7 @@ export default function AnalyticsDashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6"
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8"
       >
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
           {t('analytics.communityHealth')}
@@ -226,12 +238,176 @@ export default function AnalyticsDashboard() {
         </div>
       </motion.div>
 
+      {/* Retention Analysis */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              {t('analytics.retention.title')}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {t('analytics.retention.subtitle')}
+            </p>
+          </div>
+          <TrendingUp className="h-6 w-6 text-primary-500" />
+        </div>
+        {retention && retention.cohorts.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <RetentionCard
+              label={t('analytics.retention.week1')}
+              value={`${retention.overallRetention.week1.toFixed(1)}%`}
+              color="green"
+            />
+            <RetentionCard
+              label={t('analytics.retention.week4')}
+              value={`${retention.overallRetention.week4.toFixed(1)}%`}
+              color="blue"
+            />
+            <RetentionCard
+              label={t('analytics.retention.week12')}
+              value={`${retention.overallRetention.week12.toFixed(1)}%`}
+              color="purple"
+            />
+            <RetentionCard
+              label={t('analytics.retention.churnRate')}
+              value={`${retention.churnRate.toFixed(1)}%`}
+              color="orange"
+            />
+          </div>
+        ) : (
+          <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+            {t('analytics.retention.noData')}
+          </p>
+        )}
+      </motion.div>
+
+      {/* Engagement Trends */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              {t('analytics.engagement.title')}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {t('analytics.engagement.subtitle')}
+            </p>
+          </div>
+          <Activity className="h-6 w-6 text-primary-500" />
+        </div>
+        {engagementTrends.length > 0 ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <EngagementMetric
+                label={t('analytics.engagement.stickiness')}
+                value={`${(stickiness * 100).toFixed(1)}%`}
+                description={t('analytics.engagement.stickinessDescription')}
+              />
+              <EngagementMetric
+                label={t('analytics.engagement.engagementScore')}
+                value={engagementTrends[engagementTrends.length - 1]?.engagementScore.toFixed(1) || '0'}
+                description={t('analytics.engagement.trend')}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+            {t('analytics.engagement.noData')}
+          </p>
+        )}
+      </motion.div>
+
+      {/* Feature Heatmap */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6 }}
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              {t('analytics.heatmap.title')}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {t('analytics.heatmap.subtitle')}
+            </p>
+          </div>
+        </div>
+        {featureHeatmap.length > 0 ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <span>{t('analytics.heatmap.lowUsage')}</span>
+              <div className="flex gap-1">
+                <div className="w-4 h-4 bg-primary-100 dark:bg-primary-900/20 rounded"></div>
+                <div className="w-4 h-4 bg-primary-300 dark:bg-primary-700/40 rounded"></div>
+                <div className="w-4 h-4 bg-primary-500 dark:bg-primary-500/60 rounded"></div>
+                <div className="w-4 h-4 bg-primary-700 dark:bg-primary-300 rounded"></div>
+              </div>
+              <span>{t('analytics.heatmap.highUsage')}</span>
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              {t('analytics.heatmap.noData')}
+            </div>
+          </div>
+        ) : (
+          <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+            {t('analytics.heatmap.noData')}
+          </p>
+        )}
+      </motion.div>
+
+      {/* Export Controls */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7 }}
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              {t('analytics.export.title')}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {t('analytics.export.description')}
+            </p>
+          </div>
+          <Download className="h-6 w-6 text-primary-500" />
+        </div>
+        <div className="flex gap-3 flex-wrap">
+          <button
+            onClick={() => exportReport('csv')}
+            className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            {t('analytics.export.formatCSV')}
+          </button>
+          <button
+            onClick={() => exportReport('json')}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            {t('analytics.export.formatJSON')}
+          </button>
+        </div>
+      </motion.div>
+
       {/* Privacy Notice */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
-        className="mt-8 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4"
+        transition={{ delay: 0.8 }}
+        className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4"
       >
         <div className="flex items-start gap-3">
           <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -334,6 +510,50 @@ function HealthMetric({ label, value }: { label: string; value: string | number 
         {value}
       </div>
       <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
+    </div>
+  );
+}
+
+// Retention Card Component
+function RetentionCard({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string;
+  color: 'green' | 'blue' | 'purple' | 'orange';
+}) {
+  const colorClasses = {
+    green: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-600 dark:text-green-400',
+    blue: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400',
+    purple: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-400',
+    orange: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400',
+  };
+
+  return (
+    <div className={`${colorClasses[color]} border rounded-lg p-4`}>
+      <div className="text-sm font-medium mb-1">{label}</div>
+      <div className="text-2xl font-bold">{value}</div>
+    </div>
+  );
+}
+
+// Engagement Metric Component
+function EngagementMetric({
+  label,
+  value,
+  description,
+}: {
+  label: string;
+  value: string;
+  description: string;
+}) {
+  return (
+    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+      <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">{label}</div>
+      <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{value}</div>
+      <div className="text-xs text-gray-500 dark:text-gray-400">{description}</div>
     </div>
   );
 }

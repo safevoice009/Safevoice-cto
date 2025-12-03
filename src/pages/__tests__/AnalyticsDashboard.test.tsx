@@ -20,19 +20,28 @@ describe('AnalyticsDashboard', () => {
     return render(<BrowserRouter>{component}</BrowserRouter>);
   };
 
+  // Helper to create mock store with default values
+  const createMockStore = (overrides = {}) => ({
+    getReport: vi.fn(() => null),
+    refreshReport: vi.fn(),
+    getMAU: vi.fn(() => 0),
+    getDAU: vi.fn(() => 0),
+    getAvgSessionDuration: vi.fn(() => 0),
+    getTimeSeriesData: vi.fn(() => []),
+    getRetentionReport: vi.fn(() => null),
+    getEngagementTrends: vi.fn(() => []),
+    getFeatureHeatmap: vi.fn(() => []),
+    getStickiness: vi.fn(() => 0),
+    exportReport: vi.fn(),
+    selectedTimeRange: '30d',
+    setTimeRange: vi.fn(),
+    trackingEnabled: true,
+    optedOut: false,
+    ...overrides,
+  });
+
   it('should render loading state initially', () => {
-    mockUseAnalyticsStore.mockReturnValue({
-      getReport: vi.fn(() => null),
-      refreshReport: vi.fn(),
-      getMAU: vi.fn(() => 0),
-      getDAU: vi.fn(() => 0),
-      getAvgSessionDuration: vi.fn(() => 0),
-      getTimeSeriesData: vi.fn(() => []),
-      selectedTimeRange: '30d',
-      setTimeRange: vi.fn(),
-      trackingEnabled: true,
-      optedOut: false,
-    });
+    mockUseAnalyticsStore.mockReturnValue(createMockStore());
 
     renderWithRouter(<AnalyticsDashboard />);
     
@@ -42,18 +51,10 @@ describe('AnalyticsDashboard', () => {
   });
 
   it('should show opted out message when opted out', async () => {
-    mockUseAnalyticsStore.mockReturnValue({
-      getReport: vi.fn(() => null),
-      refreshReport: vi.fn(),
-      getMAU: vi.fn(() => 0),
-      getDAU: vi.fn(() => 0),
-      getAvgSessionDuration: vi.fn(() => 0),
-      getTimeSeriesData: vi.fn(() => []),
-      selectedTimeRange: '30d',
-      setTimeRange: vi.fn(),
+    mockUseAnalyticsStore.mockReturnValue(createMockStore({
       trackingEnabled: false,
       optedOut: true,
-    });
+    }));
 
     renderWithRouter(<AnalyticsDashboard />);
     
@@ -112,18 +113,12 @@ describe('AnalyticsDashboard', () => {
       },
     };
 
-    mockUseAnalyticsStore.mockReturnValue({
+    mockUseAnalyticsStore.mockReturnValue(createMockStore({
       getReport: vi.fn(() => mockReport),
-      refreshReport: vi.fn(),
       getMAU: vi.fn(() => 25),
       getDAU: vi.fn(() => 10),
       getAvgSessionDuration: vi.fn(() => 300000),
-      getTimeSeriesData: vi.fn(() => []),
-      selectedTimeRange: '30d',
-      setTimeRange: vi.fn(),
-      trackingEnabled: true,
-      optedOut: false,
-    });
+    }));
 
     renderWithRouter(<AnalyticsDashboard />);
     
@@ -157,18 +152,9 @@ describe('AnalyticsDashboard', () => {
       dateRange: { start: '', end: '' },
     };
 
-    mockUseAnalyticsStore.mockReturnValue({
+    mockUseAnalyticsStore.mockReturnValue(createMockStore({
       getReport: vi.fn(() => mockReport),
-      refreshReport: vi.fn(),
-      getMAU: vi.fn(() => 0),
-      getDAU: vi.fn(() => 0),
-      getAvgSessionDuration: vi.fn(() => 0),
-      getTimeSeriesData: vi.fn(() => []),
-      selectedTimeRange: '30d',
-      setTimeRange: vi.fn(),
-      trackingEnabled: true,
-      optedOut: false,
-    });
+    }));
 
     renderWithRouter(<AnalyticsDashboard />);
     
@@ -206,18 +192,9 @@ describe('AnalyticsDashboard', () => {
       dateRange: { start: '', end: '' },
     };
 
-    mockUseAnalyticsStore.mockReturnValue({
+    mockUseAnalyticsStore.mockReturnValue(createMockStore({
       getReport: vi.fn(() => mockReport),
-      refreshReport: vi.fn(),
-      getMAU: vi.fn(() => 0),
-      getDAU: vi.fn(() => 0),
-      getAvgSessionDuration: vi.fn(() => 0),
-      getTimeSeriesData: vi.fn(() => []),
-      selectedTimeRange: '30d',
-      setTimeRange: vi.fn(),
-      trackingEnabled: true,
-      optedOut: false,
-    });
+    }));
 
     renderWithRouter(<AnalyticsDashboard />);
     
@@ -249,18 +226,9 @@ describe('AnalyticsDashboard', () => {
       dateRange: { start: '', end: '' },
     };
 
-    mockUseAnalyticsStore.mockReturnValue({
+    mockUseAnalyticsStore.mockReturnValue(createMockStore({
       getReport: vi.fn(() => mockReport),
-      refreshReport: vi.fn(),
-      getMAU: vi.fn(() => 0),
-      getDAU: vi.fn(() => 0),
-      getAvgSessionDuration: vi.fn(() => 0),
-      getTimeSeriesData: vi.fn(() => []),
-      selectedTimeRange: '30d',
-      setTimeRange: vi.fn(),
-      trackingEnabled: true,
-      optedOut: false,
-    });
+    }));
 
     renderWithRouter(<AnalyticsDashboard />);
     
@@ -289,18 +257,10 @@ describe('AnalyticsDashboard', () => {
       dateRange: { start: '', end: '' },
     };
 
-    mockUseAnalyticsStore.mockReturnValue({
+    mockUseAnalyticsStore.mockReturnValue(createMockStore({
       getReport: vi.fn(() => mockReport),
-      refreshReport: vi.fn(),
-      getMAU: vi.fn(() => 0),
-      getDAU: vi.fn(() => 0),
       getAvgSessionDuration: vi.fn(() => 3600000), // 1 hour
-      getTimeSeriesData: vi.fn(() => []),
-      selectedTimeRange: '30d',
-      setTimeRange: vi.fn(),
-      trackingEnabled: true,
-      optedOut: false,
-    });
+    }));
 
     renderWithRouter(<AnalyticsDashboard />);
     
