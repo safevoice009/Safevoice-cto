@@ -27,6 +27,7 @@ import CommunitiesPage from './pages/Communities';
 import SearchPage from './pages/Search';
 import MentorDashboard from './pages/MentorDashboard';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
+import AdminPanel from './pages/AdminPanel';
 import AppearanceSettings from './components/settings/AppearanceSettings';
 import ResponsiveLayout from './components/responsive/ResponsiveLayout';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
@@ -203,6 +204,7 @@ function AnimatedRoutes() {
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/transactions" element={<TransactionHistoryPage />} />
             <Route path="/analytics" element={<AnalyticsDashboard />} />
+            <Route path="/admin" element={<AdminPanel />} />
             <Route path="/settings/appearance" element={<AppearanceSettings />} />
           </Routes>
         </AnimatePresence>
