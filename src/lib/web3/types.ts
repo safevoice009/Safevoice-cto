@@ -188,3 +188,74 @@ export interface RPCConfig {
   base?: string;
   localhost?: string;
 }
+
+/**
+ * DeFi protocol types
+ */
+export type DeFiProtocolType = 'lending' | 'dex' | 'staking' | 'yield';
+
+/**
+ * DeFi protocol configuration
+ */
+export interface DeFiProtocol {
+  id: string;
+  name: string;
+  type: DeFiProtocolType;
+  chainId: number;
+  contractAddress: Address;
+  apy: number;
+  tvl: number;
+  logo?: string;
+}
+
+/**
+ * DeFi yield position
+ */
+export interface DeFiYield {
+  protocolId: string;
+  protocolName: string;
+  chainId: number;
+  deposited: number;
+  earned: number;
+  apy: number;
+  lastUpdated: number;
+}
+
+/**
+ * Enhanced staking position with tracking
+ */
+export interface StakingPositionDetail {
+  id: number;
+  amount: number;
+  lockPeriod: number;
+  stakedAt: number;
+  unlockAt: number;
+  rewards: number;
+  apy: number;
+  canWithdraw: boolean;
+  chainId: number;
+}
+
+/**
+ * Multi-chain balance tracking
+ */
+export interface ChainBalanceDetail {
+  chainId: number;
+  balance: number;
+  pending: number;
+  staked: number;
+  rewards: number;
+  lastUpdated: number;
+}
+
+/**
+ * Governance vote details
+ */
+export interface GovernanceVote {
+  proposalId: number;
+  voter: Address;
+  support: number;
+  votingPower: number;
+  reason?: string;
+  timestamp: number;
+}

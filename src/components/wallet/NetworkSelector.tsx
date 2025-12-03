@@ -4,16 +4,21 @@ import { Network, Check, ChevronDown, Loader2 } from 'lucide-react';
 import { useNetwork, useSwitchNetwork } from 'wagmi';
 import { mainnet, polygon, bsc, arbitrum, optimism, base } from 'wagmi/chains';
 import toast from 'react-hot-toast';
+import { useStore } from '../../lib/store';
 
 const SUPPORTED_CHAINS = [mainnet, polygon, bsc, arbitrum, optimism, base];
 
 export default function NetworkSelector() {
   const [isOpen, setIsOpen] = useState(false);
   const { chain } = useNetwork();
+  const switchWeb3Chain = useStore((state) => state.switchWeb3Chain);
+  
   const { switchNetwork, isLoading, pendingChainId } = useSwitchNetwork({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success(`Switched to ${data.name}`);
       setIsOpen(false);
+      // Also update our store's chain state
+      await switchWeb3Chain(data.id);
     },
     onError: (error) => {
       toast.error(`Failed to switch network: ${error.message}`);

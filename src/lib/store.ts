@@ -10,7 +10,7 @@ import { setSecureItem, getSecureItem, clearSecureItem } from './secureStorage';
 import { RewardEngine, type Achievement, type PremiumFeatureType, type SubscriptionState } from './tokens/RewardEngine';
 import { AchievementService, type RankDefinition } from './tokens/AchievementService';
 import { addAchievementToast } from './achievementToastBus';
-import type { BridgeStatus, QueuedTransaction } from './web3/types';
+import type { BridgeStatus, QueuedTransaction, DeFiYield } from './web3/types';
 import { Web3Bridge } from './web3/bridge';
 import { createWeb3Config, getDefaultChainId, isWeb3Enabled } from './web3/config';
 import type { ChainBalance, StakingPosition, GovernanceProposal, NFTAchievement } from './wallet/types';
@@ -499,6 +499,7 @@ export interface StoreState {
   governanceProposals: GovernanceProposal[];
   governanceVotingPower: number;
   nftAchievements: NFTAchievement[];
+  defiYields: DeFiYield[];
 
   firstPostAwarded: boolean;
 
@@ -524,6 +525,16 @@ export interface StoreState {
   loadWalletData: () => void;
   grantDailyLoginBonus: () => void;
   checkSubscriptionRenewals: () => void;
+
+  // Web3 Advanced Operations
+  stakeVoiceTokens: (amount: number, lockPeriod: number) => Promise<boolean>;
+  unstakeVoiceTokens: (amount: number) => Promise<boolean>;
+  claimStakingRewards: (stakeId?: number) => Promise<boolean>;
+  castGovernanceVote: (proposalId: number, support: number, reason?: string) => Promise<boolean>;
+  switchWeb3Chain: (chainId: number) => Promise<void>;
+  hydrateDeFiYields: () => Promise<void>;
+  refreshStakingPositions: () => Promise<void>;
+  refreshChainBalances: () => Promise<void>;
 
   // Premium subscriptions
   activatePremium: (feature: PremiumFeatureType, cost?: number) => Promise<boolean>;
@@ -2335,6 +2346,7 @@ export const useStore = create<StoreState>((set, get) => {
     governanceProposals: [],
     governanceVotingPower: 0,
     nftAchievements: [],
+    defiYields: [],
 
     setShowCrisisModal: (show: boolean) => set({ showCrisisModal: show }),
     setPendingPost: (post: AddPostPayload | null) => set({ pendingPost: post }),
@@ -2887,6 +2899,141 @@ export const useStore = create<StoreState>((set, get) => {
 
   isPremiumActive: (feature: PremiumFeatureType) => {
     return rewardEngine.isPremiumFeatureActive(feature);
+  },
+
+  // Web3 Advanced Operations
+  stakeVoiceTokens: async (amount: number, lockPeriod: number) => {
+    if (!isWeb3Enabled() || !web3Bridge) {
+      toast.error('Web3 not enabled');
+      return false;
+    }
+
+    const result = await web3Bridge.stakeTokens(amount, lockPeriod);
+    
+    if (result.success) {
+      // Optimistically update staking positions
+      get().refreshStakingPositions();
+      get().refreshChainBalances();
+      return true;
+    }
+    
+    return false;
+  },
+
+  unstakeVoiceTokens: async (amount: number) => {
+    if (!isWeb3Enabled() || !web3Bridge) {
+      toast.error('Web3 not enabled');
+      return false;
+    }
+
+    const result = await web3Bridge.unstakeTokens(amount);
+    
+    if (result.success) {
+      get().refreshStakingPositions();
+      get().refreshChainBalances();
+      return true;
+    }
+    
+    return false;
+  },
+
+  claimStakingRewards: async (stakeId?: number) => {
+    if (!isWeb3Enabled() || !web3Bridge) {
+      toast.error('Web3 not enabled');
+      return false;
+    }
+
+    const result = await web3Bridge.claimStakingRewards(stakeId);
+    
+    if (result.success) {
+      get().refreshStakingPositions();
+      get().refreshChainBalances();
+      return true;
+    }
+    
+    return false;
+  },
+
+  castGovernanceVote: async (proposalId: number, support: number, reason?: string) => {
+    if (!isWeb3Enabled() || !web3Bridge) {
+      toast.error('Web3 not enabled');
+      return false;
+    }
+
+    const result = await web3Bridge.submitVote(proposalId, support, reason);
+    return result.success;
+  },
+
+  switchWeb3Chain: async (chainId: number) => {
+    if (!isWeb3Enabled() || !web3Bridge) {
+      toast.error('Web3 not enabled');
+      return;
+    }
+
+    try {
+      const chainConfig = createWeb3Config(chainId);
+      web3Bridge.setActiveChain(chainId, chainConfig);
+      
+      set({ 
+        selectedChainId: chainId,
+        bridgeStatus: web3Bridge.getStatus(),
+      });
+      
+      // Refresh data for new chain
+      await get().refreshChainBalances();
+      await get().refreshStakingPositions();
+      await get().hydrateDeFiYields();
+    } catch (error) {
+      console.error('Failed to switch chain:', error);
+      toast.error('Failed to switch chain');
+    }
+  },
+
+  hydrateDeFiYields: async () => {
+    if (!isWeb3Enabled()) return;
+
+    const state = get();
+    const address = state.connectedAddress;
+    
+    if (!address) return;
+
+    try {
+      const { fetchDeFiYields } = await import('./web3/defiAdapters');
+      const yields = await fetchDeFiYields(address as `0x${string}`, [state.selectedChainId]);
+      set({ defiYields: yields });
+    } catch (error) {
+      console.error('Failed to fetch DeFi yields:', error);
+    }
+  },
+
+  refreshStakingPositions: async () => {
+    if (!isWeb3Enabled() || !web3Bridge) return;
+
+    try {
+      const positions = await web3Bridge.getStakingPositions();
+      set({ stakingPositions: positions });
+    } catch (error) {
+      console.error('Failed to refresh staking positions:', error);
+    }
+  },
+
+  refreshChainBalances: async () => {
+    if (!isWeb3Enabled() || !web3Bridge) return;
+
+    const state = get();
+    try {
+      const balance = await web3Bridge.getChainBalance(state.selectedChainId);
+      if (balance) {
+        set({
+          chainBalances: {
+            ...state.chainBalances,
+            [balance.chainId]: balance,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Failed to refresh chain balances:', error);
+    }
   },
 
   generateReferralCode: () => {

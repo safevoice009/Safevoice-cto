@@ -28,6 +28,8 @@ import type {
   TransactionMetadata,
   TransactionType,
   Web3Config,
+  StakingPositionDetail,
+  ChainBalanceDetail,
 } from './types';
 
 const STORAGE_KEY_PREFIX = 'web3_bridge_';
@@ -41,9 +43,13 @@ export class Web3Bridge {
   private transactionListeners: ((tx: QueuedTransaction) => void)[] = [];
   private pollInterval?: NodeJS.Timeout;
   private accountUnwatch?: () => void;
+  private activeChainId: number;
+  private chainConfigs: Map<number, Web3Config> = new Map();
 
   constructor(config: Web3Config) {
     this.config = config;
+    this.activeChainId = config.chainId;
+    this.chainConfigs.set(config.chainId, config);
     this.loadQueue();
     
     if (config.enabled) {
@@ -791,5 +797,212 @@ export class Web3Bridge {
   destroy() {
     this.stopPolling();
     this.listeners = [];
+  }
+
+  /**
+   * Set active chain for operations
+   */
+  setActiveChain(chainId: number, config?: Web3Config) {
+    if (config) {
+      this.chainConfigs.set(chainId, config);
+    }
+    
+    const chainConfig = this.chainConfigs.get(chainId);
+    if (!chainConfig) {
+      throw new Error(`Chain ${chainId} not configured`);
+    }
+
+    this.activeChainId = chainId;
+    this.config = chainConfig;
+
+    this.emit({
+      type: 'connected',
+      data: { chainId },
+      timestamp: Date.now(),
+    });
+
+    toast.success(`Switched to chain ${chainId}`);
+  }
+
+  /**
+   * Get active chain ID
+   */
+  getActiveChainId(): number {
+    return this.activeChainId;
+  }
+
+  /**
+   * Get staking positions for current address
+   */
+  async getStakingPositions(): Promise<StakingPositionDetail[]> {
+    if (!this.config.enabled || !this.config.contracts.voiceStaking) {
+      return [];
+    }
+
+    const address = this.getConnectedAddress();
+    if (!address) return [];
+
+    try {
+      const contract = createContract(
+        this.config.contracts.voiceStaking,
+        CONTRACTS.VoiceStaking.abi,
+        this.config.chainId,
+        this.config.rpcUrl,
+      );
+
+      // Mock implementation - in production, would query contract for user positions
+      const positionCount = await contract.read.call('getStakeCount', [address]) as bigint;
+      const positions: StakingPositionDetail[] = [];
+
+      for (let i = 0; i < Number(positionCount); i++) {
+        try {
+          const position = await contract.read.call('stakes', [address, i]) as [bigint, bigint, bigint, bigint];
+          const [amount, lockPeriod, stakedAt, rewards] = position;
+          
+          const unlockAt = Number(stakedAt) + Number(lockPeriod);
+          const canWithdraw = Date.now() / 1000 >= unlockAt;
+          
+          positions.push({
+            id: i,
+            amount: Number(amount) / 1e18,
+            lockPeriod: Number(lockPeriod),
+            stakedAt: Number(stakedAt),
+            unlockAt,
+            rewards: Number(rewards) / 1e18,
+            apy: 12.5, // Mock APY
+            canWithdraw,
+            chainId: this.config.chainId,
+          });
+        } catch (error) {
+          console.error(`Failed to fetch position ${i}:`, error);
+        }
+      }
+
+      return positions;
+    } catch (error) {
+      console.error('Failed to fetch staking positions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Claim staking rewards
+   */
+  async claimStakingRewards(stakeId?: number): Promise<BridgeResult> {
+    if (!this.config.enabled) {
+      return { success: false, error: 'Web3 bridge disabled' };
+    }
+
+    if (!this.config.contracts.voiceStaking) {
+      return { success: false, error: 'Staking contract not configured' };
+    }
+
+    const address = this.getConnectedAddress();
+    if (!address) {
+      return { success: false, error: 'Wallet not connected' };
+    }
+
+    try {
+      const contract = createContract(
+        this.config.contracts.voiceStaking,
+        CONTRACTS.VoiceStaking.abi,
+        this.config.chainId,
+        this.config.rpcUrl,
+      );
+
+      // Queue transaction
+      const txId = this.queueTransaction(
+        'claimStaking',
+        {
+          type: 'unstake',
+          stakeId: stakeId ?? 0,
+          amount: 0, // Amount will be determined by contract
+        },
+      );
+
+      // Submit transaction
+      const hash = stakeId !== undefined
+        ? await contract.write.call('claimRewards', [stakeId])
+        : await contract.write.call('claimAllRewards', []);
+
+      this.updateTransaction(txId, {
+        status: 'submitted',
+        hash,
+      });
+
+      toast.success('Claim rewards transaction submitted!');
+
+      return {
+        success: true,
+        transactionId: txId,
+        hash,
+        optimistic: true,
+      };
+    } catch (error) {
+      console.error('Failed to claim staking rewards:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Get balance for specific chain
+   */
+  async getChainBalance(chainId: number): Promise<ChainBalanceDetail | null> {
+    const chainConfig = this.chainConfigs.get(chainId);
+    if (!chainConfig || !chainConfig.enabled) {
+      return null;
+    }
+
+    const address = this.getConnectedAddress();
+    if (!address) return null;
+
+    try {
+      const contract = createContract(
+        chainConfig.contracts.voiceToken,
+        CONTRACTS.VoiceToken.abi,
+        chainId,
+        chainConfig.rpcUrl,
+      );
+
+      const balance = await contract.read.call('balanceOf', [address]) as bigint;
+      
+      // Get staking balance if staking contract exists
+      let staked = 0;
+      let rewards = 0;
+      
+      if (chainConfig.contracts.voiceStaking) {
+        try {
+          const stakingContract = createContract(
+            chainConfig.contracts.voiceStaking,
+            CONTRACTS.VoiceStaking.abi,
+            chainId,
+            chainConfig.rpcUrl,
+          );
+          
+          const stakedBalance = await stakingContract.read.call('stakedBalance', [address]) as bigint;
+          const pendingRewards = await stakingContract.read.call('pendingRewards', [address]) as bigint;
+          
+          staked = Number(stakedBalance) / 1e18;
+          rewards = Number(pendingRewards) / 1e18;
+        } catch (error) {
+          console.error('Failed to fetch staking balance:', error);
+        }
+      }
+
+      return {
+        chainId,
+        balance: Number(balance) / 1e18,
+        pending: 0,
+        staked,
+        rewards,
+        lastUpdated: Date.now(),
+      };
+    } catch (error) {
+      console.error(`Failed to fetch balance for chain ${chainId}:`, error);
+      return null;
+    }
   }
 }
