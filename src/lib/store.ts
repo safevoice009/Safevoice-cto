@@ -645,6 +645,14 @@ export interface ZKProofState {
   timestamp: number;
 }
 
+export interface PrivacyOnboardingState {
+  isOpen: boolean;
+  currentStep: number;
+  isCompleted: boolean;
+  snoozedUntil: number | null;
+  startedAt: number | null;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
