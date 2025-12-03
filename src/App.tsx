@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
@@ -9,25 +9,11 @@ import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiConfig } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SkipLink from './components/ui/SkipLink';
+import RouteLoader from './components/ui/RouteLoader';
 
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import BottomNav from './components/layout/BottomNav';
-import Landing from './pages/Landing';
-import Feed from './pages/Feed';
-import Profile from './pages/Profile';
-import PostDetail from './pages/PostDetail';
-import HelplinesPage from './pages/Helplines';
-import GuidelinesPage from './pages/Guidelines';
-import MemorialWallPage from './pages/MemorialWall';
-import TokenMarketplace from './pages/TokenMarketplace';
-import LeaderboardPage from './pages/Leaderboard';
-import TransactionHistoryPage from './pages/TransactionHistoryPage';
-import CommunitiesPage from './pages/Communities';
-import SearchPage from './pages/Search';
-import MentorDashboard from './pages/MentorDashboard';
-import AnalyticsDashboard from './pages/AnalyticsDashboard';
-import AppearanceSettings from './components/settings/AppearanceSettings';
 import ResponsiveLayout from './components/responsive/ResponsiveLayout';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
 import AchievementToastContainer from './components/wallet/AchievementToastContainer';
@@ -39,6 +25,23 @@ import { useCustomizationStore } from './lib/customizationStore';
 import { ThemeProvider } from './components/ui/ThemeProvider';
 import { useThemeSystemStore } from './lib/themeSystemStore';
 import { initializeAnalytics } from './lib/analytics';
+
+// Lazy load route components
+const Landing = lazy(() => import('./pages/Landing'));
+const Feed = lazy(() => import('./pages/Feed'));
+const Profile = lazy(() => import('./pages/Profile'));
+const PostDetail = lazy(() => import('./pages/PostDetail'));
+const HelplinesPage = lazy(() => import('./pages/Helplines'));
+const GuidelinesPage = lazy(() => import('./pages/Guidelines'));
+const MemorialWallPage = lazy(() => import('./pages/MemorialWall'));
+const TokenMarketplace = lazy(() => import('./pages/TokenMarketplace'));
+const LeaderboardPage = lazy(() => import('./pages/Leaderboard'));
+const TransactionHistoryPage = lazy(() => import('./pages/TransactionHistoryPage'));
+const CommunitiesPage = lazy(() => import('./pages/Communities'));
+const SearchPage = lazy(() => import('./pages/Search'));
+const MentorDashboard = lazy(() => import('./pages/MentorDashboard'));
+const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
+const AppearanceSettings = lazy(() => import('./components/settings/AppearanceSettings'));
 
 const queryClient = new QueryClient();
 
@@ -187,25 +190,27 @@ function AnimatedRoutes() {
           tabIndex: -1 // Make main content focusable
         }}
       >
-        <AnimatePresence mode="wait">
-          <Routes location={location} key={location.pathname}>
-            <Route path="/" element={<Landing />} />
-            <Route path="/feed" element={<Feed />} />
-            <Route path="/communities" element={<CommunitiesPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/post/:postId" element={<PostDetail />} />
-            <Route path="/mentors" element={<MentorDashboard />} />
-            <Route path="/helplines" element={<HelplinesPage />} />
-            <Route path="/guidelines" element={<GuidelinesPage />} />
-            <Route path="/memorial" element={<MemorialWallPage />} />
-            <Route path="/marketplace" element={<TokenMarketplace />} />
-            <Route path="/leaderboard" element={<LeaderboardPage />} />
-            <Route path="/transactions" element={<TransactionHistoryPage />} />
-            <Route path="/analytics" element={<AnalyticsDashboard />} />
-            <Route path="/settings/appearance" element={<AppearanceSettings />} />
-          </Routes>
-        </AnimatePresence>
+        <Suspense fallback={<RouteLoader />}>
+          <AnimatePresence mode="wait">
+            <Routes location={location} key={location.pathname}>
+              <Route path="/" element={<Landing />} />
+              <Route path="/feed" element={<Feed />} />
+              <Route path="/communities" element={<CommunitiesPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/post/:postId" element={<PostDetail />} />
+              <Route path="/mentors" element={<MentorDashboard />} />
+              <Route path="/helplines" element={<HelplinesPage />} />
+              <Route path="/guidelines" element={<GuidelinesPage />} />
+              <Route path="/memorial" element={<MemorialWallPage />} />
+              <Route path="/marketplace" element={<TokenMarketplace />} />
+              <Route path="/leaderboard" element={<LeaderboardPage />} />
+              <Route path="/transactions" element={<TransactionHistoryPage />} />
+              <Route path="/analytics" element={<AnalyticsDashboard />} />
+              <Route path="/settings/appearance" element={<AppearanceSettings />} />
+            </Routes>
+          </AnimatePresence>
+        </Suspense>
         <AchievementToastContainer />
         <CrisisAlertModal
           isOpen={showCrisisModal}

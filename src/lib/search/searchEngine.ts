@@ -30,6 +30,17 @@ export interface InvertedIndex {
   documents: Map<string, { type: 'post' | 'comment'; post: Post; comment?: Comment }>;
 }
 
+// Cache for inverted index to avoid rebuilding on every search
+interface IndexCacheEntry {
+  index: InvertedIndex;
+  postsHash: string;
+  includeComments: boolean;
+  timestamp: number;
+}
+
+let indexCache: IndexCacheEntry | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 const STOP_WORDS = new Set([
   'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has', 'he',
   'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the', 'to', 'was', 'will', 'with'
@@ -46,6 +57,13 @@ function tokenize(text: string): string[] {
     .replace(/[^\w\s]/g, ' ')
     .split(/\s+/)
     .filter(term => term.length > 2 && !STOP_WORDS.has(term));
+}
+
+/**
+ * Generate a simple hash for posts array to detect changes
+ */
+function hashPosts(posts: Post[]): string {
+  return posts.map(p => `${p.id}:${p.createdAt}:${p.editedAt || 0}:${p.commentCount}`).join('|');
 }
 
 /**
@@ -67,13 +85,34 @@ function hasPermission(post: Post, currentUserId: string): boolean {
 }
 
 /**
- * Build inverted index from posts and comments
+ * Invalidate search index cache
+ */
+export function invalidateSearchCache(): void {
+  indexCache = null;
+}
+
+/**
+ * Build inverted index from posts and comments with caching
  */
 export function buildInvertedIndex(
   posts: Post[],
   currentUserId: string,
   includeComments = true
 ): InvertedIndex {
+  const postsHash = hashPosts(posts);
+  const now = Date.now();
+  
+  // Check if we have a valid cached index
+  if (
+    indexCache &&
+    indexCache.postsHash === postsHash &&
+    indexCache.includeComments === includeComments &&
+    now - indexCache.timestamp < CACHE_TTL
+  ) {
+    return indexCache.index;
+  }
+  
+  // Build new index
   const index: InvertedIndex = {
     terms: new Map(),
     documents: new Map(),
@@ -158,6 +197,14 @@ export function buildInvertedIndex(
       });
     }
   });
+
+  // Cache the newly built index
+  indexCache = {
+    index,
+    postsHash,
+    includeComments,
+    timestamp: now,
+  };
 
   return index;
 }
