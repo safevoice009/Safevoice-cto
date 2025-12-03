@@ -1,8 +1,7 @@
 import { motion } from 'framer-motion';
-import type { PrivacyOnboardingStep } from '../../lib/store';
 
 interface PrivacyProgressBarProps {
-  currentStep: PrivacyOnboardingStep;
+  currentStep: number;
   totalSteps?: number;
 }
 

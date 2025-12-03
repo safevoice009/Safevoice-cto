@@ -405,6 +405,14 @@ export interface ZKProofState {
   timestamp: number;
 }
 
+export interface PrivacyOnboardingState {
+  isOpen: boolean;
+  currentStep: number;
+  isCompleted: boolean;
+  snoozedUntil: number | null;
+  startedAt: number | null;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -871,6 +879,19 @@ export interface StoreState {
   }>;
   applyFingerprintMitigations: (strategy?: 'aggressive' | 'balanced' | 'conservative') => Promise<FingerprintMitigationPlan | null>;
   rotateFingerprintIdentity: (reason?: string) => Promise<SaltRotation | null>;
+
+  // Privacy Onboarding State
+  privacyOnboarding: PrivacyOnboardingState;
+
+  // Privacy Onboarding Actions
+  openPrivacyOnboarding: () => void;
+  closePrivacyOnboarding: () => void;
+  advancePrivacyOnboardingStep: () => void;
+  goBackPrivacyOnboardingStep: () => void;
+  completePrivacyOnboarding: () => void;
+  snoozePrivacyOnboarding: (days: number) => void;
+  resetPrivacyOnboarding: () => void;
+  shouldShowPrivacyOnboarding: () => boolean;
 }
 
 /**
@@ -920,6 +941,7 @@ const STORAGE_KEYS = {
   FINGERPRINT_SALT_ROTATION: 'safevoice_fingerprint_salt_rotation', // Last salt rotation
   FINGERPRINT_MITIGATIONS_ACTIVE: 'safevoice_fingerprint_mitigations_active', // Whether mitigations are active
   FINGERPRINT_CURRENT_SALT: 'safevoice_fingerprint_current_salt', // Current anonymization salt
+  PRIVACY_ONBOARDING: 'safevoice_privacy_onboarding',        // Privacy onboarding state
 };
 
 const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
@@ -1213,6 +1235,68 @@ const saveFingerprintMitigationsActive = (active: boolean): void => {
     localStorage.setItem(STORAGE_KEYS.FINGERPRINT_MITIGATIONS_ACTIVE, active.toString());
   } catch (error) {
     console.error('Failed to save fingerprint mitigations active:', error);
+  }
+};
+
+// Privacy onboarding storage helpers
+const loadPrivacyOnboarding = (): PrivacyOnboardingState => {
+  if (typeof window === 'undefined') {
+    return {
+      isOpen: false,
+      currentStep: 1,
+      isCompleted: false,
+      snoozedUntil: null,
+      startedAt: null,
+    };
+  }
+  
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.PRIVACY_ONBOARDING);
+    if (!raw) {
+      return {
+        isOpen: false,
+        currentStep: 1,
+        isCompleted: false,
+        snoozedUntil: null,
+        startedAt: null,
+      };
+    }
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'object' && parsed !== null) {
+      return {
+        isOpen: typeof parsed.isOpen === 'boolean' ? parsed.isOpen : false,
+        currentStep: typeof parsed.currentStep === 'number' ? parsed.currentStep : 1,
+        isCompleted: typeof parsed.isCompleted === 'boolean' ? parsed.isCompleted : false,
+        snoozedUntil: typeof parsed.snoozedUntil === 'number' ? parsed.snoozedUntil : null,
+        startedAt: typeof parsed.startedAt === 'number' ? parsed.startedAt : null,
+      };
+    }
+    return {
+      isOpen: false,
+      currentStep: 1,
+      isCompleted: false,
+      snoozedUntil: null,
+      startedAt: null,
+    };
+  } catch (error) {
+    console.error('Failed to load privacy onboarding:', error);
+    return {
+      isOpen: false,
+      currentStep: 1,
+      isCompleted: false,
+      snoozedUntil: null,
+      startedAt: null,
+    };
+  }
+};
+
+const savePrivacyOnboarding = (state: PrivacyOnboardingState): void => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem(STORAGE_KEYS.PRIVACY_ONBOARDING, JSON.stringify(state));
+  } catch (error) {
+    console.error('Failed to save privacy onboarding:', error);
   }
 };
 
@@ -2195,6 +2279,9 @@ export const useStore = create<StoreState>((set, get) => {
     lastSaltRotation: loadSaltRotation(),
     fingerprintMitigationsActive: loadFingerprintMitigationsActive(),
     currentFingerprintSalt: loadFingerprintSalt() || generateSalt(),
+
+    // Privacy Onboarding state
+    privacyOnboarding: loadPrivacyOnboarding(),
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -6722,6 +6809,105 @@ export const useStore = create<StoreState>((set, get) => {
     }
   },
 
+  // Privacy Onboarding Actions
+  openPrivacyOnboarding: () => {
+    set((state) => {
+      const newState = {
+        ...state.privacyOnboarding,
+        isOpen: true,
+        startedAt: state.privacyOnboarding.startedAt || Date.now(),
+      };
+      savePrivacyOnboarding(newState);
+      return { privacyOnboarding: newState };
+    });
+  },
+
+  closePrivacyOnboarding: () => {
+    set((state) => {
+      const newState = {
+        ...state.privacyOnboarding,
+        isOpen: false,
+      };
+      savePrivacyOnboarding(newState);
+      return { privacyOnboarding: newState };
+    });
+  },
+
+  advancePrivacyOnboardingStep: () => {
+    set((state) => {
+      const newState = {
+        ...state.privacyOnboarding,
+        currentStep: Math.min(3, state.privacyOnboarding.currentStep + 1),
+      };
+      savePrivacyOnboarding(newState);
+      return { privacyOnboarding: newState };
+    });
+  },
+
+  goBackPrivacyOnboardingStep: () => {
+    set((state) => {
+      const newState = {
+        ...state.privacyOnboarding,
+        currentStep: Math.max(1, state.privacyOnboarding.currentStep - 1),
+      };
+      savePrivacyOnboarding(newState);
+      return { privacyOnboarding: newState };
+    });
+  },
+
+  completePrivacyOnboarding: () => {
+    set((state) => {
+      const newState = {
+        ...state.privacyOnboarding,
+        isCompleted: true,
+        isOpen: false,
+        currentStep: 1,
+      };
+      savePrivacyOnboarding(newState);
+      return { privacyOnboarding: newState };
+    });
+  },
+
+  snoozePrivacyOnboarding: (days: number) => {
+    set((state) => {
+      const newState = {
+        ...state.privacyOnboarding,
+        snoozedUntil: Date.now() + days * 24 * 60 * 60 * 1000,
+        isOpen: false,
+      };
+      savePrivacyOnboarding(newState);
+      return { privacyOnboarding: newState };
+    });
+  },
+
+  resetPrivacyOnboarding: () => {
+    const newState: PrivacyOnboardingState = {
+      isOpen: false,
+      currentStep: 1,
+      isCompleted: false,
+      snoozedUntil: null,
+      startedAt: null,
+    };
+    set({ privacyOnboarding: newState });
+    savePrivacyOnboarding(newState);
+  },
+
+  shouldShowPrivacyOnboarding: () => {
+    const { privacyOnboarding } = get();
+    
+    // Don't show if already completed
+    if (privacyOnboarding.isCompleted) {
+      return false;
+    }
+    
+    // Don't show if snoozed and snooze period hasn't passed
+    if (privacyOnboarding.snoozedUntil && privacyOnboarding.snoozedUntil > Date.now()) {
+      return false;
+    }
+    
+    // Show if not completed and not snoozed
+    return true;
+  },
 
 };
 });
