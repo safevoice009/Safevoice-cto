@@ -33,7 +33,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useStore } from '../store';
-import type { CommunityNotificationSettings, StoreState } from '../store';
+import type { StoreState } from '../store';
+import type { CommunityNotificationSettings } from '../communities/types';
 import { getCrisisQueueService, destroyCrisisQueueService } from '../crisisQueue';
 import { analyzeEmotion, clearEmotionCache } from '../emotionAnalysis';
 
@@ -305,7 +306,7 @@ describe('Posting Privacy Integration', () => {
       const post = useStore.getState().posts[0];
 
       expect(post.moderationIssues).toHaveLength(1);
-      expect(post.moderationIssues[0].severity).toBe('critical');
+      expect(post.moderationIssues?.[0]?.severity).toBe('critical');
       expect(post.contentBlurred).toBe(true);
     });
 
@@ -367,6 +368,7 @@ describe('Posting Privacy Integration', () => {
       useStore.setState({
         communityMemberships: [
           {
+            id: `membership-${memberId}`,
             studentId: memberId,
             communityId,
             joinedAt: Date.now(),
@@ -374,9 +376,15 @@ describe('Posting Privacy Integration', () => {
             isActive: true,
             isMuted: false,
             unreadCount: 0,
-            badges: [],
-            activityPoints: 0,
-            lastViewedAt: Date.now(),
+            isModerator: false,
+            lastVisitedAt: Date.now(),
+            channelUnreadCounts: {},
+            channelLastVisitedAt: {},
+            notificationPrefs: {
+              posts: true,
+              mentions: true,
+              digest: true,
+            },
           },
         ],
       });
@@ -436,6 +444,7 @@ describe('Posting Privacy Integration', () => {
       useStore.setState({
         communityMemberships: [
           {
+            id: 'membership-member-001',
             studentId: 'member-001',
             communityId,
             joinedAt: Date.now(),
@@ -443,9 +452,15 @@ describe('Posting Privacy Integration', () => {
             isActive: true,
             isMuted: false,
             unreadCount: 0,
-            badges: [],
-            activityPoints: 0,
-            lastViewedAt: Date.now(),
+            isModerator: false,
+            lastVisitedAt: Date.now(),
+            channelUnreadCounts: {},
+            channelLastVisitedAt: {},
+            notificationPrefs: {
+              posts: true,
+              mentions: true,
+              digest: true,
+            },
           },
         ],
       });
@@ -507,6 +522,7 @@ describe('Posting Privacy Integration', () => {
       useStore.setState({
         communityMemberships: [
           {
+            id: 'membership-member-001-2',
             studentId: 'member-001',
             communityId,
             joinedAt: Date.now(),
@@ -514,9 +530,15 @@ describe('Posting Privacy Integration', () => {
             isActive: true,
             isMuted: false,
             unreadCount: 0,
-            badges: [],
-            activityPoints: 0,
-            lastViewedAt: Date.now(),
+            isModerator: false,
+            lastVisitedAt: Date.now(),
+            channelUnreadCounts: {},
+            channelLastVisitedAt: {},
+            notificationPrefs: {
+              posts: true,
+              mentions: true,
+              digest: true,
+            },
           },
         ],
       });
@@ -573,6 +595,7 @@ describe('Posting Privacy Integration', () => {
         },
         communityMemberships: [
           {
+            id: `membership-${authorId}`,
             studentId: authorId,
             communityId,
             joinedAt: Date.now(),
@@ -580,9 +603,15 @@ describe('Posting Privacy Integration', () => {
             isActive: true,
             isMuted: false,
             unreadCount: 0,
-            badges: [],
-            activityPoints: 0,
-            lastViewedAt: Date.now(),
+            isModerator: false,
+            lastVisitedAt: Date.now(),
+            channelUnreadCounts: {},
+            channelLastVisitedAt: {},
+            notificationPrefs: {
+              posts: true,
+              mentions: true,
+              digest: true,
+            },
           },
         ],
       });
@@ -833,13 +862,13 @@ describe('Posting Privacy Integration', () => {
         undefined,
         {
           communityId: 'private-community',
-          visibility: 'members-only',
+          visibility: 'private',
           isAnonymous: true,
         }
       );
 
       const post = useStore.getState().posts[0];
-      expect(post.visibility).toBe('members-only');
+      expect(post.visibility).toBe('private');
       expect(post.isAnonymous).toBe(true);
       expect(post.communityId).toBe('private-community');
     });
