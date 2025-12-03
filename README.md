@@ -44,17 +44,73 @@ This will create an optimized production build in the `dist` folder.
 
 ## 🚢 Deployment
 
-SafeVoice is deployed automatically to GitHub Pages from the `main` branch.
+SafeVoice supports multiple deployment options:
+
+### GitHub Pages (Default)
 
 - **Production URL**: https://safevoice009.github.io/Safevoice-cto/
 - **Base path**: `/Safevoice-cto/`
 - **Workflow**: [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
 
-### Triggering a Deploy
+#### Triggering a Deploy
 
 1. Merge or push changes to the `main` branch.
 2. The GitHub Actions workflow installs dependencies with `npm ci`, runs `npm run build`, and publishes the generated `dist/` output to the GitHub Pages environment.
 3. The published site automatically serves the latest build from the `gh-pages` branch managed by GitHub Pages.
+
+### Docker Deployment
+
+#### Local Docker Run
+
+```bash
+# Build the image
+docker build -t safevoice:latest .
+
+# Run the container
+docker run -d -p 8080:80 --name safevoice safevoice:latest
+
+# Access at http://localhost:8080
+```
+
+#### Docker Compose
+
+```bash
+# Start the application
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop the application
+docker compose down
+```
+
+#### Container Registry (GHCR)
+
+Docker images are automatically built and pushed to GitHub Container Registry on merges to `main`:
+
+```bash
+# Pull latest image
+docker pull ghcr.io/safevoice009/safevoice:latest
+
+# Run production container
+docker run -d -p 80:80 ghcr.io/safevoice009/safevoice:latest
+```
+
+### Kubernetes Deployment
+
+```bash
+# Apply all manifests
+kubectl apply -k k8s/
+
+# Check deployment status
+kubectl get pods -n safevoice
+
+# Access via ingress (after DNS configuration)
+# https://safevoice.example.com
+```
+
+For detailed Kubernetes setup, see [k8s/README.md](./k8s/README.md).
 
 ### Local Verification
 
@@ -393,6 +449,11 @@ npm run security:gas
 > **Note:** Hardhat tasks rely on the placeholder `SafeVoiceVault` contract. Replace with production contracts before mainnet deployment and update thresholds accordingly. See [`contracts/README.md`](./contracts/README.md) for a detailed walkthrough of the new setup, environment variables, and deployment instructions.
 
 ## 📚 Documentation
+
+### DevOps & Infrastructure
+- [Container Guide](./docs/devops/CONTAINERS.md) - Docker setup, build process, and deployment
+- [Kubernetes Deployment](./k8s/README.md) - K8s manifests and deployment instructions
+- [Scaling Playbook](./docs/devops/SCALING_PLAYBOOK.md) - CDN configuration and database scaling strategies
 
 ### Community System
 - [Communities User Guide](./docs/COMMUNITIES_USER_GUIDE.md) - Step-by-step instructions for students

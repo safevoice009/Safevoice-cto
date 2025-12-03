@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: safevoice-config
+  namespace: safevoice
+  labels:
+    app.kubernetes.io/name: safevoice
+    app.kubernetes.io/component: config
+data:
+  # Application configuration
+  VITE_APP_ENV: "production"
+  PUBLIC_URL: "/"
+  PORT: "80"
+  
+  # Web3 configuration
+  VITE_WEB3_ENABLED: "false"
+  VITE_CHAIN_ID: "31337"
+  VITE_POLLING_INTERVAL: "5000"
+  
+  # RPC endpoints (placeholder - override in environment-specific overlays)
+  VITE_RPC_MAINNET: ""
+  VITE_RPC_POLYGON: ""
+  VITE_RPC_BSC: ""
+  VITE_RPC_ARBITRUM: ""
+  VITE_RPC_OPTIMISM: ""
+  VITE_RPC_BASE: ""
+  
+  # Feature flags
+  VITE_ENABLE_DEBUG: "false"
