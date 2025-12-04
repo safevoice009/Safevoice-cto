@@ -53,6 +53,9 @@ import {
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
 
+// Re-export community types
+export type { CommunityNotificationSettings, PostVisibility };
+
 // Types
 export interface Reaction {
   heart: number;
@@ -574,6 +577,17 @@ export interface StoreState {
   submitZKProof: (requestId: string, witness: string | Uint8Array, additionalData?: string | Uint8Array) => Promise<void>;
   verifyZKProof: (requestId: string, witness: string | Uint8Array) => Promise<ZKProofResult>;
   clearZKProof: (requestId: string) => void;
+
+  // Privacy Onboarding
+  privacyOnboarding: PrivacyOnboardingState;
+  openPrivacyOnboarding: () => void;
+  closePrivacyOnboarding: () => void;
+  advancePrivacyOnboardingStep: () => void;
+  goBackPrivacyOnboardingStep: () => void;
+  completePrivacyOnboarding: () => void;
+  snoozePrivacyOnboarding: (daysUntil?: number) => void;
+  resetPrivacyOnboarding: () => void;
+  shouldShowPrivacyOnboarding: () => boolean;
 
   // Initialization
   initStudentId: () => void;
@@ -2177,6 +2191,21 @@ export const useStore = create<StoreState>((set, get) => {
     // Mentor reviews state
     mentorReviews: [],
 
+    // Privacy Onboarding state
+    privacyOnboarding: {
+      currentStep: 1,
+      isCompleted: typeof window !== 'undefined' 
+        ? localStorage.getItem('safevoice:privacy-onboarding-completed') === 'true'
+        : false,
+      isOpen: false,
+      snoozedUntil: typeof window !== 'undefined'
+        ? parseInt(localStorage.getItem('safevoice:privacy-onboarding-snoozed') || '0', 10) || null
+        : null,
+      startedAt: typeof window !== 'undefined'
+        ? parseInt(localStorage.getItem('safevoice:privacy-onboarding-started') || '0', 10) || null
+        : null,
+    },
+
     // Community moderation state
     communityAnnouncements: [],
     communityModerationLogs: [],
@@ -2631,6 +2660,117 @@ export const useStore = create<StoreState>((set, get) => {
     getMentorReviewsByMatch: (matchId: string): MentorReview[] => {
       const state = get();
       return state.mentorReviews.filter((r) => r.matchId === matchId);
+    },
+
+    // Privacy Onboarding methods
+    openPrivacyOnboarding: () => {
+      set((state) => ({
+        privacyOnboarding: {
+          ...state.privacyOnboarding,
+          isOpen: true,
+          startedAt: state.privacyOnboarding.startedAt || Date.now(),
+        },
+      }));
+      if (typeof window !== 'undefined') {
+        const startedAt = get().privacyOnboarding.startedAt;
+        if (startedAt) {
+          localStorage.setItem('safevoice:privacy-onboarding-started', startedAt.toString());
+        }
+      }
+    },
+
+    closePrivacyOnboarding: () => {
+      set((state) => ({
+        privacyOnboarding: {
+          ...state.privacyOnboarding,
+          isOpen: false,
+        },
+      }));
+    },
+
+    advancePrivacyOnboardingStep: () => {
+      set((state) => {
+        const nextStep = Math.min(3, state.privacyOnboarding.currentStep + 1) as PrivacyOnboardingStep;
+        return {
+          privacyOnboarding: {
+            ...state.privacyOnboarding,
+            currentStep: nextStep,
+          },
+        };
+      });
+    },
+
+    goBackPrivacyOnboardingStep: () => {
+      set((state) => {
+        const prevStep = Math.max(1, state.privacyOnboarding.currentStep - 1) as PrivacyOnboardingStep;
+        return {
+          privacyOnboarding: {
+            ...state.privacyOnboarding,
+            currentStep: prevStep,
+          },
+        };
+      });
+    },
+
+    completePrivacyOnboarding: () => {
+      set((state) => ({
+        privacyOnboarding: {
+          ...state.privacyOnboarding,
+          isCompleted: true,
+          isOpen: false,
+        },
+      }));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('safevoice:privacy-onboarding-completed', 'true');
+      }
+      toast.success('Privacy onboarding completed! 🎉');
+    },
+
+    snoozePrivacyOnboarding: (daysUntil = 7) => {
+      const snoozedUntil = Date.now() + daysUntil * 24 * 60 * 60 * 1000;
+      set((state) => ({
+        privacyOnboarding: {
+          ...state.privacyOnboarding,
+          snoozedUntil,
+          isOpen: false,
+        },
+      }));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('safevoice:privacy-onboarding-snoozed', snoozedUntil.toString());
+      }
+      toast(`Privacy onboarding snoozed for ${daysUntil} days`, { icon: '⏰' });
+    },
+
+    resetPrivacyOnboarding: () => {
+      set((state) => ({
+        privacyOnboarding: {
+          ...state.privacyOnboarding,
+          currentStep: 1,
+          isCompleted: false,
+          isOpen: false,
+          snoozedUntil: null,
+          startedAt: null,
+        },
+      }));
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('safevoice:privacy-onboarding-completed');
+        localStorage.removeItem('safevoice:privacy-onboarding-snoozed');
+        localStorage.removeItem('safevoice:privacy-onboarding-started');
+      }
+    },
+
+    shouldShowPrivacyOnboarding: (): boolean => {
+      const state = get();
+      const { isCompleted, snoozedUntil } = state.privacyOnboarding;
+      
+      // Don't show if already completed
+      if (isCompleted) return false;
+      
+      // Don't show if snoozed and snooze period hasn't expired
+      if (snoozedUntil && Date.now() < snoozedUntil) return false;
+      
+      // Show if not completed and not snoozed
+      return true;
     },
 
     toggleEventRsvp: (eventId: string) => {
