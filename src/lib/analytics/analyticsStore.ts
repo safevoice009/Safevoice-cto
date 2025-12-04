@@ -20,12 +20,21 @@ import {
   calculateAvgSessionDuration,
   getTimeSeriesData,
   getRecentEvents,
+  calculateStickiness,
   type AggregationResult,
   type TimeSeriesData,
 } from './aggregation';
+import {
+  exportReport as exportReportFn,
+  type ExportFormat,
+  type ExportOptions,
+} from './export';
 import type {
   AnalyticsEventType,
   SessionMetrics,
+  RetentionReport,
+  EngagementTrends,
+  HeatmapCell,
 } from './events';
 import type { TrackedEvent } from './tracking';
 
@@ -61,6 +70,15 @@ export interface AnalyticsState {
   getDAU: (date?: Date) => number;
   getAvgSessionDuration: () => number;
   getTimeSeriesData: (metric: 'sessions' | 'posts' | 'reactions' | 'comments') => TimeSeriesData[];
+  
+  // Wave 3: Advanced metrics getters
+  getRetentionReport: () => RetentionReport | null;
+  getEngagementTrends: () => EngagementTrends[];
+  getFeatureHeatmap: () => HeatmapCell[];
+  getStickiness: () => number;
+  
+  // Export
+  exportReport: (format: ExportFormat, options?: Partial<ExportOptions>) => void;
   
   // Session management
   getCurrentSession: () => SessionMetrics | null;
@@ -226,6 +244,57 @@ export const useAnalyticsStore = create<AnalyticsState>()(
           return getTimeSeriesData(filteredEvents, metric);
         } catch {
           return [];
+        }
+      },
+
+      // Wave 3: Advanced metrics getters
+      getRetentionReport: () => {
+        const state = get();
+        return state.cachedReport?.retention || null;
+      },
+
+      getEngagementTrends: () => {
+        const state = get();
+        return state.cachedReport?.engagementTrends || [];
+      },
+
+      getFeatureHeatmap: () => {
+        const state = get();
+        return state.cachedReport?.featureHeatmap || [];
+      },
+
+      getStickiness: () => {
+        try {
+          const tracker = getTracker();
+          const events = tracker.getAllEvents();
+          return calculateStickiness(events);
+        } catch {
+          return 0;
+        }
+      },
+
+      // Export
+      exportReport: (format, options = {}) => {
+        try {
+          const tracker = getTracker();
+          const events = tracker.getAllEvents();
+          const state = get();
+          const report = state.cachedReport;
+
+          if (!report) {
+            console.error('[Analytics Store] No report available to export');
+            return;
+          }
+
+          const exportOptions: ExportOptions = {
+            format,
+            includeRawEvents: options.includeRawEvents ?? false,
+            anonymize: options.anonymize ?? true,
+          };
+
+          exportReportFn(report, events, exportOptions);
+        } catch (error) {
+          console.error('[Analytics Store] Failed to export report:', error);
         }
       },
 

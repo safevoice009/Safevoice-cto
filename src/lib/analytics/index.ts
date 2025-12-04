@@ -14,6 +14,9 @@ export * from './tracking';
 // Aggregation
 export * from './aggregation';
 
+// Export
+export * from './export';
+
 // Store
 export {
   useAnalyticsStore,

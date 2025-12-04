@@ -9,6 +9,9 @@ import {
   type DailyMetrics,
   type FeatureAdoption,
   type CommunityHealthMetrics,
+  type RetentionReport,
+  type EngagementTrends,
+  type HeatmapCell,
 } from './events';
 import type { TrackedEvent } from './tracking';
 
@@ -22,6 +25,11 @@ export interface AggregationResult {
     start: string;
     end: string;
   };
+  // Wave 3: Advanced metrics
+  retention?: RetentionReport;
+  engagementTrends?: EngagementTrends[];
+  featureHeatmap?: HeatmapCell[];
+  stickiness?: number; // Current DAU/MAU ratio
 }
 
 export interface TimeSeriesData {
@@ -228,6 +236,11 @@ export function generateAggregationReport(events: TrackedEvent[]): AggregationRe
       start: getDateString(start),
       end: getDateString(end),
     },
+    // Wave 3: Advanced metrics
+    retention: calculateRetentionCohorts(events),
+    engagementTrends: calculateEngagementTrends(events),
+    featureHeatmap: buildFeatureHeatmap(events),
+    stickiness: calculateStickiness(events),
   };
 }
 
@@ -321,4 +334,275 @@ export function filterEventsByDateRange(
 export function getRecentEvents(events: TrackedEvent[], days: number): TrackedEvent[] {
   const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
   return events.filter(e => e.timestamp >= cutoff);
+}
+
+// ============================================================================
+// Wave 3: Advanced Analytics Functions
+// ============================================================================
+
+/**
+ * Calculate retention cohorts based on user session start events
+ * Groups users by their first session week and tracks their return behavior
+ */
+export function calculateRetentionCohorts(events: TrackedEvent[]): RetentionReport {
+  // Get all session start events with hashed user IDs
+  const sessionStarts = events.filter(
+    e => e.type === 'user_session_start' && e.hashedUserId
+  );
+
+  if (sessionStarts.length === 0) {
+    return {
+      cohorts: [],
+      overallRetention: { week1: 0, week4: 0, week12: 0 },
+      churnRate: 0,
+    };
+  }
+
+  // Map user first seen week
+  const userFirstSeen = new Map<string, string>();
+  sessionStarts.forEach(event => {
+    const userId = event.hashedUserId!;
+    const weekStr = getISOWeek(event.timestamp);
+    
+    if (!userFirstSeen.has(userId)) {
+      userFirstSeen.set(userId, weekStr);
+    }
+  });
+
+  // Group users by cohort week
+  const cohortMap = new Map<string, Set<string>>();
+  userFirstSeen.forEach((weekStr, userId) => {
+    if (!cohortMap.has(weekStr)) {
+      cohortMap.set(weekStr, new Set());
+    }
+    cohortMap.get(weekStr)!.add(userId);
+  });
+
+  // Calculate retention for each cohort
+  const cohorts = Array.from(cohortMap.entries())
+    .map(([cohortWeek, userSet]) => {
+      const cohortSize = userSet.size;
+      const cohortStartDate = parseISOWeek(cohortWeek);
+      const weeklyRetention: number[] = [];
+      const retentionCounts: number[] = [];
+
+      // Check retention for up to 12 weeks
+      for (let weekOffset = 0; weekOffset < 13; weekOffset++) {
+        const targetWeek = getISOWeek(
+          cohortStartDate.getTime() + weekOffset * 7 * 24 * 60 * 60 * 1000
+        );
+
+        // Count how many cohort users were active in this week
+        const activeUsers = sessionStarts.filter(event => {
+          const eventWeek = getISOWeek(event.timestamp);
+          return eventWeek === targetWeek && userSet.has(event.hashedUserId!);
+        });
+
+        const uniqueActive = new Set(
+          activeUsers.map(e => e.hashedUserId!)
+        ).size;
+
+        retentionCounts.push(uniqueActive);
+        weeklyRetention.push(cohortSize > 0 ? (uniqueActive / cohortSize) * 100 : 0);
+      }
+
+      return {
+        cohortWeek,
+        cohortSize,
+        weeklyRetention,
+        retentionCounts,
+      };
+    })
+    .sort((a, b) => a.cohortWeek.localeCompare(b.cohortWeek));
+
+  // Calculate overall retention averages
+  const overallRetention = {
+    week1: calculateAverageRetention(cohorts, 1),
+    week4: calculateAverageRetention(cohorts, 4),
+    week12: calculateAverageRetention(cohorts, 12),
+  };
+
+  // Calculate churn rate (users who haven't returned in 4+ weeks)
+  const totalUsers = userFirstSeen.size;
+  const recentSessions = sessionStarts.filter(
+    e => Date.now() - e.timestamp < 28 * 24 * 60 * 60 * 1000
+  );
+  const recentUsers = new Set(recentSessions.map(e => e.hashedUserId!)).size;
+  const churnRate = totalUsers > 0 ? ((totalUsers - recentUsers) / totalUsers) * 100 : 0;
+
+  return {
+    cohorts,
+    overallRetention,
+    churnRate,
+  };
+}
+
+/**
+ * Calculate stickiness metric (DAU/MAU ratio)
+ * Higher stickiness means users engage more frequently
+ */
+export function calculateStickiness(events: TrackedEvent[], date: Date = new Date()): number {
+  const dau = calculateDAU(events, date);
+  const mau = calculateMAU(events, date);
+  
+  return mau > 0 ? dau / mau : 0;
+}
+
+/**
+ * Calculate engagement trends over time
+ * Includes DAU, MAU, stickiness, and engagement score
+ */
+export function calculateEngagementTrends(events: TrackedEvent[]): EngagementTrends[] {
+  const dailyMetrics = aggregateDailyMetrics(events);
+  
+  return dailyMetrics.map(day => {
+    const dayDate = new Date(day.date);
+    const dau = day.dau;
+    const mau = calculateMAU(events, dayDate);
+    const stickiness = mau > 0 ? dau / mau : 0;
+    
+    // Engagement score: weighted combination of metrics
+    // Higher score = more engaged users
+    const engagementScore = calculateEngagementScore(day, stickiness);
+    
+    return {
+      date: day.date,
+      dau,
+      mau,
+      stickiness,
+      avgSessionDuration: day.avgSessionDuration,
+      engagementScore,
+    };
+  });
+}
+
+/**
+ * Build feature adoption heatmap
+ * Shows which features are used at which times
+ */
+export function buildFeatureHeatmap(events: TrackedEvent[]): HeatmapCell[] {
+  const featureEvents = events.filter(
+    e => e.metadata?.featureId || e.metadata?.featureIdentifier
+  );
+
+  // Map feature names
+  const featureNameMap: Record<string, string> = {
+    emotion_analysis: 'Emotion Analysis',
+    encryption: 'Encryption',
+    ipfs_storage: 'IPFS Storage',
+    fingerprint_protection: 'Fingerprint Protection',
+    wallet: 'Wallet',
+    premium: 'Premium Features',
+    communities: 'Communities',
+    crisis_support: 'Crisis Support',
+  };
+
+  // Build heatmap data
+  const heatmapMap = new Map<string, {
+    usageCount: number;
+    users: Set<string>;
+  }>();
+
+  featureEvents.forEach(event => {
+    const featureId = (event.metadata?.featureId || event.metadata?.featureIdentifier) as string;
+    const date = new Date(event.timestamp);
+    const dayOfWeek = date.getDay();
+    const hour = date.getHours();
+    const key = `${featureId}_${dayOfWeek}_${hour}`;
+
+    if (!heatmapMap.has(key)) {
+      heatmapMap.set(key, {
+        usageCount: 0,
+        users: new Set(),
+      });
+    }
+
+    const cell = heatmapMap.get(key)!;
+    cell.usageCount++;
+    if (event.hashedUserId) {
+      cell.users.add(event.hashedUserId);
+    }
+  });
+
+  // Convert to array and calculate intensity
+  const cells: HeatmapCell[] = [];
+  const maxUsage = Math.max(
+    ...Array.from(heatmapMap.values()).map(v => v.usageCount),
+    1
+  );
+
+  heatmapMap.forEach((data, key) => {
+    const [featureId, dayOfWeek, hour] = key.split('_');
+    cells.push({
+      featureId,
+      featureName: featureNameMap[featureId] || featureId,
+      dayOfWeek: Number(dayOfWeek),
+      hour: Number(hour),
+      usageCount: data.usageCount,
+      uniqueUsers: data.users.size,
+      intensity: data.usageCount / maxUsage,
+    });
+  });
+
+  return cells.sort((a, b) => {
+    if (a.featureId !== b.featureId) return a.featureId.localeCompare(b.featureId);
+    if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
+    return a.hour - b.hour;
+  });
+}
+
+// Helper functions for Wave 3
+
+function getISOWeek(timestamp: number): string {
+  const date = new Date(timestamp);
+  const yearStart = new Date(date.getFullYear(), 0, 1);
+  const weekNumber = Math.ceil(
+    ((date.getTime() - yearStart.getTime()) / 86400000 + yearStart.getDay() + 1) / 7
+  );
+  return `${date.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
+}
+
+function parseISOWeek(weekStr: string): Date {
+  const [year, week] = weekStr.split('-W').map(Number);
+  const date = new Date(year, 0, 1);
+  const daysToAdd = (week - 1) * 7;
+  date.setDate(date.getDate() + daysToAdd);
+  return date;
+}
+
+function calculateAverageRetention(
+  cohorts: Array<{ weeklyRetention: number[] }>,
+  weekIndex: number
+): number {
+  if (cohorts.length === 0) return 0;
+  
+  const validCohorts = cohorts.filter(c => c.weeklyRetention.length > weekIndex);
+  if (validCohorts.length === 0) return 0;
+  
+  const sum = validCohorts.reduce((acc, c) => acc + c.weeklyRetention[weekIndex], 0);
+  return sum / validCohorts.length;
+}
+
+function calculateEngagementScore(metrics: DailyMetrics, stickiness: number): number {
+  // Weighted engagement score (0-100)
+  const sessionWeight = 0.2;
+  const stickinessWeight = 0.3;
+  const activityWeight = 0.3;
+  const durationWeight = 0.2;
+
+  // Normalize metrics
+  const sessionScore = Math.min(metrics.sessions / 10, 1) * 100; // Assume 10+ sessions = 100
+  const stickinessScore = stickiness * 100;
+  const activityScore = Math.min(
+    (metrics.postsCreated + metrics.commentsCreated + metrics.reactionsGiven) / 20,
+    1
+  ) * 100;
+  const durationScore = Math.min(metrics.avgSessionDuration / (30 * 60 * 1000), 1) * 100; // 30 min = 100
+
+  return (
+    sessionScore * sessionWeight +
+    stickinessScore * stickinessWeight +
+    activityScore * activityWeight +
+    durationScore * durationWeight
+  );
 }

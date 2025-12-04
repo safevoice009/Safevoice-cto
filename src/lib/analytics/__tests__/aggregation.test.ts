@@ -8,6 +8,10 @@ import {
   calculateDAU,
   calculateAvgSessionDuration,
   getTimeSeriesData,
+  calculateRetentionCohorts,
+  calculateStickiness,
+  calculateEngagementTrends,
+  buildFeatureHeatmap,
 } from '../aggregation';
 import type { TrackedEvent } from '../tracking';
 
@@ -339,6 +343,178 @@ describe('Analytics Aggregation', () => {
       const timeSeries = getTimeSeriesData(mockEvents, 'posts');
       
       expect(Array.isArray(timeSeries)).toBe(true);
+    });
+  });
+
+  // Wave 3: Advanced Analytics Tests
+  describe('calculateRetentionCohorts', () => {
+    it('should calculate retention cohorts correctly', () => {
+      const now = Date.now();
+      const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+      const twoWeeksAgo = now - 14 * 24 * 60 * 60 * 1000;
+
+      const events: TrackedEvent[] = [
+        // User 1: first seen 2 weeks ago, returned last week and this week
+        {
+          id: 'evt_1',
+          type: 'user_session_start',
+          timestamp: twoWeeksAgo,
+          sessionId: 'ses_1',
+          hashedUserId: 'anon_user1',
+        },
+        {
+          id: 'evt_2',
+          type: 'user_session_start',
+          timestamp: oneWeekAgo,
+          sessionId: 'ses_2',
+          hashedUserId: 'anon_user1',
+        },
+        {
+          id: 'evt_3',
+          type: 'user_session_start',
+          timestamp: now,
+          sessionId: 'ses_3',
+          hashedUserId: 'anon_user1',
+        },
+        // User 2: first seen 2 weeks ago, not returned
+        {
+          id: 'evt_4',
+          type: 'user_session_start',
+          timestamp: twoWeeksAgo,
+          sessionId: 'ses_4',
+          hashedUserId: 'anon_user2',
+        },
+      ];
+
+      const retention = calculateRetentionCohorts(events);
+
+      expect(retention).toHaveProperty('cohorts');
+      expect(retention).toHaveProperty('overallRetention');
+      expect(retention).toHaveProperty('churnRate');
+      expect(Array.isArray(retention.cohorts)).toBe(true);
+      expect(typeof retention.churnRate).toBe('number');
+    });
+
+    it('should return empty retention for no events', () => {
+      const retention = calculateRetentionCohorts([]);
+
+      expect(retention.cohorts).toEqual([]);
+      expect(retention.overallRetention.week1).toBe(0);
+      expect(retention.churnRate).toBe(0);
+    });
+  });
+
+  describe('calculateStickiness', () => {
+    it('should calculate DAU/MAU ratio correctly', () => {
+      const now = Date.now();
+      const events: TrackedEvent[] = [
+        {
+          id: 'evt_1',
+          type: 'user_session_start',
+          timestamp: now,
+          sessionId: 'ses_1',
+          hashedUserId: 'anon_user1',
+        },
+        {
+          id: 'evt_2',
+          type: 'user_session_start',
+          timestamp: now - 5 * 24 * 60 * 60 * 1000,
+          sessionId: 'ses_2',
+          hashedUserId: 'anon_user2',
+        },
+      ];
+
+      const stickiness = calculateStickiness(events, new Date(now));
+
+      expect(typeof stickiness).toBe('number');
+      expect(stickiness).toBeGreaterThanOrEqual(0);
+      expect(stickiness).toBeLessThanOrEqual(1);
+    });
+
+    it('should return 0 for no MAU', () => {
+      const stickiness = calculateStickiness([]);
+      expect(stickiness).toBe(0);
+    });
+  });
+
+  describe('calculateEngagementTrends', () => {
+    it('should calculate engagement trends', () => {
+      const trends = calculateEngagementTrends(mockEvents);
+
+      expect(Array.isArray(trends)).toBe(true);
+      if (trends.length > 0) {
+        expect(trends[0]).toHaveProperty('date');
+        expect(trends[0]).toHaveProperty('dau');
+        expect(trends[0]).toHaveProperty('mau');
+        expect(trends[0]).toHaveProperty('stickiness');
+        expect(trends[0]).toHaveProperty('engagementScore');
+      }
+    });
+
+    it('should return empty array for no events', () => {
+      const trends = calculateEngagementTrends([]);
+      expect(trends).toEqual([]);
+    });
+  });
+
+  describe('buildFeatureHeatmap', () => {
+    it('should build feature usage heatmap', () => {
+      const events: TrackedEvent[] = [
+        {
+          id: 'evt_1',
+          type: 'used_encryption',
+          timestamp: Date.now(),
+          sessionId: 'ses_1',
+          hashedUserId: 'anon_user1',
+          metadata: { featureId: 'encryption' },
+        },
+        {
+          id: 'evt_2',
+          type: 'used_ipfs_storage',
+          timestamp: Date.now(),
+          sessionId: 'ses_1',
+          hashedUserId: 'anon_user1',
+          metadata: { featureIdentifier: 'ipfs_storage' },
+        },
+      ];
+
+      const heatmap = buildFeatureHeatmap(events);
+
+      expect(Array.isArray(heatmap)).toBe(true);
+      if (heatmap.length > 0) {
+        expect(heatmap[0]).toHaveProperty('featureId');
+        expect(heatmap[0]).toHaveProperty('featureName');
+        expect(heatmap[0]).toHaveProperty('dayOfWeek');
+        expect(heatmap[0]).toHaveProperty('hour');
+        expect(heatmap[0]).toHaveProperty('usageCount');
+        expect(heatmap[0]).toHaveProperty('uniqueUsers');
+        expect(heatmap[0]).toHaveProperty('intensity');
+      }
+    });
+
+    it('should return empty array for no feature events', () => {
+      const heatmap = buildFeatureHeatmap([]);
+      expect(heatmap).toEqual([]);
+    });
+
+    it('should normalize intensity correctly', () => {
+      const events: TrackedEvent[] = [
+        {
+          id: 'evt_1',
+          type: 'used_encryption',
+          timestamp: Date.now(),
+          sessionId: 'ses_1',
+          hashedUserId: 'anon_user1',
+          metadata: { featureId: 'encryption' },
+        },
+      ];
+
+      const heatmap = buildFeatureHeatmap(events);
+
+      if (heatmap.length > 0) {
+        expect(heatmap[0].intensity).toBeGreaterThanOrEqual(0);
+        expect(heatmap[0].intensity).toBeLessThanOrEqual(1);
+      }
     });
   });
 });
