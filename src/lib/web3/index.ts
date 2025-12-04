@@ -8,3 +8,5 @@ export * from './types';
 export * from './clients';
 export * from './bridge';
 export * from './config';
+export * from './defiAdapters';
+export * from './hooks';

@@ -30,6 +30,7 @@ import TransactionStatusPanel from './TransactionStatusPanel';
 import StakingPanel from './StakingPanel';
 import GovernancePanel from './GovernancePanel';
 import NFTPanel from './NFTPanel';
+import { DeFiPanel } from './DeFiPanel';
 
 interface AnimatedCounterProps {
   value: number;
@@ -90,6 +91,14 @@ export default function WalletSection() {
     claimRewards,
     walletLoading,
     walletError,
+    stakingPositions,
+    governanceProposals,
+    governanceVotingPower,
+    nftAchievements,
+    stakeVoiceTokens,
+    unstakeVoiceTokens,
+    claimStakingRewards,
+    castGovernanceVote,
   } = useStore();
 
   const totalEarned = totalRewardsEarned || calculateTotalEarnings(earningsBreakdown);
@@ -581,15 +590,18 @@ export default function WalletSection() {
         >
           <StakingPanel
             availableBalance={availableBalance}
-            positions={[]}
+            positions={stakingPositions}
             onStake={async (amount, lockPeriod) => {
-              toast.success(`Staking ${amount} VOICE for ${lockPeriod} days`);
+              await stakeVoiceTokens(amount, lockPeriod);
             }}
             onUnstake={async (stakeId) => {
-              toast.success(`Unstaking position ${stakeId}`);
+              const position = stakingPositions.find(p => p.id === stakeId);
+              if (position) {
+                await unstakeVoiceTokens(position.amount);
+              }
             }}
             onClaimRewards={async (stakeId) => {
-              toast.success(`Claiming rewards for position ${stakeId}`);
+              await claimStakingRewards(stakeId);
             }}
           />
         </motion.div>
@@ -603,10 +615,10 @@ export default function WalletSection() {
           transition={{ delay: 1.4 }}
         >
           <GovernancePanel
-            votingPower={voiceBalance}
-            proposals={[]}
-            onVote={async (proposalId) => {
-              toast.success(`Vote submitted for proposal ${proposalId}`);
+            votingPower={governanceVotingPower || voiceBalance}
+            proposals={governanceProposals}
+            onVote={async (proposalId, support) => {
+              await castGovernanceVote(proposalId, support);
             }}
           />
         </motion.div>
@@ -620,11 +632,23 @@ export default function WalletSection() {
           transition={{ delay: 1.5 }}
         >
           <NFTPanel
-            achievements={[]}
+            achievements={nftAchievements}
             onMintNFT={async (tokenId) => {
               toast.success(`Minting NFT ${tokenId}`);
             }}
           />
+        </motion.div>
+      )}
+
+      {/* DeFi Panel */}
+      {isConnected && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.6 }}
+          className="glass p-6"
+        >
+          <DeFiPanel />
         </motion.div>
       )}
 
