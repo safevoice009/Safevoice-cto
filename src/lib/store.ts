@@ -792,6 +792,12 @@ export interface StoreState {
   banCommunityMember: (memberId: string, reason: string, durationHours?: number) => void;
   
   /**
+   * Unbans a community member.
+   * Awards +100 VOICE to moderator for community service.
+   */
+  unbanCommunityMember: (memberId: string) => void;
+  
+  /**
    * Warns a community member.
    * Awards +100 VOICE to moderator for community service.
    */
@@ -6518,6 +6524,48 @@ export const useStore = create<StoreState>((set, get) => {
     // Award moderator
     get().recordModeratorAction('ban_member', memberId, { reason, duration: banDuration });
     toast.success(`Member ${memberId} banned for ${banDuration} hours`);
+    get().saveToLocalStorage();
+  },
+
+  unbanCommunityMember: (memberId: string) => {
+    const { isModerator, studentId } = get();
+    
+    if (!isModerator) {
+      toast.error('Moderator access required');
+      return;
+    }
+
+    if (memberId === studentId) {
+      toast.error('Cannot unban yourself');
+      return;
+    }
+
+    // Update member status
+    set((state) => ({
+      memberStatuses: state.memberStatuses.map(status =>
+        status.studentId === memberId
+          ? {
+              ...status,
+              isBanned: false,
+              bannedAt: undefined,
+              bannedUntil: undefined,
+              banReason: undefined,
+            }
+          : status
+      ),
+    }));
+
+    // Log moderation action
+    get().logModerationAction(
+      'ban_member',
+      memberId,
+      `Unbanned member ${memberId}`,
+      { action: 'unban', targetName: memberId }
+    );
+
+    // Award moderator
+    get().recordModeratorAction('ban_member', memberId, { action: 'unban' });
+    toast.success(`Member ${memberId} unbanned`);
     get().saveToLocalStorage();
   },
 

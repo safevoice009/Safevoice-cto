@@ -172,6 +172,16 @@ export default function Navbar() {
               <Shield className="w-4 h-4" />
               {isModerator && <span className="text-xs">MOD</span>}
             </motion.button>
+            {isModerator && (
+              <Link
+                to="/admin"
+                className="flex items-center space-x-2 px-3 py-2 bg-primary text-black rounded-lg font-medium transition-all hover:bg-primary/90"
+                title="Admin Panel"
+              >
+                <Shield className="w-4 h-4" />
+                <span className="text-sm">Admin</span>
+              </Link>
+            )}
             <span className="text-text-muted font-medium">{studentId}</span>
             <ConnectWalletButton />
           </div>
