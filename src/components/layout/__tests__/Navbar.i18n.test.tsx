@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { ReactNode } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import Navbar from '../Navbar';
 import i18n from '../../../i18n/config';
+import { ResponsiveLayoutContext, type LayoutContextValue } from '../../responsive/ResponsiveLayoutContext';
 
 // Mock components that don't need to be tested
 vi.mock('../NotificationDropdown', () => ({
@@ -17,12 +19,31 @@ vi.mock('../LanguageSwitcher', () => ({
   default: () => <div>LanguageSwitcher</div>,
 }));
 
-const renderComponent = () => {
-  return render(
-    <BrowserRouter>
-      <Navbar />
-    </BrowserRouter>
+const desktopLayoutValue: LayoutContextValue = {
+  breakpoint: 'desktop',
+  orientation: 'landscape',
+  width: 1280,
+  height: 800,
+};
+
+interface RenderOptions {
+  layoutOverrides?: Partial<LayoutContextValue>;
+  initialEntries?: string[];
+}
+
+const createWrapper = (options: RenderOptions = {}) => {
+  const { layoutOverrides = {}, initialEntries = ['/'] } = options;
+  const layoutValue = { ...desktopLayoutValue, ...layoutOverrides };
+  return ({ children }: { children: ReactNode }) => (
+    <ResponsiveLayoutContext.Provider value={layoutValue}>
+      <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+    </ResponsiveLayoutContext.Provider>
   );
+};
+
+const renderComponent = (options?: RenderOptions) => {
+  const Wrapper = createWrapper(options);
+  return render(<Navbar />, { wrapper: Wrapper });
 };
 
 describe('Navbar i18n Integration', () => {
@@ -192,11 +213,7 @@ describe('Navbar i18n Integration', () => {
       });
       
       await i18n.changeLanguage('hi');
-      rerender(
-        <BrowserRouter>
-          <Navbar />
-        </BrowserRouter>
-      );
+      rerender(<Navbar />);
       
       await waitFor(() => {
         expect(screen.getByText('सेफवॉइस')).toBeInTheDocument();
@@ -212,11 +229,7 @@ describe('Navbar i18n Integration', () => {
       });
       
       await i18n.changeLanguage('ta');
-      rerender(
-        <BrowserRouter>
-          <Navbar />
-        </BrowserRouter>
-      );
+      rerender(<Navbar />);
       
       await waitFor(() => {
         expect(screen.getByText('ஊட்டம்')).toBeInTheDocument();
@@ -240,31 +253,25 @@ describe('Navbar i18n Integration', () => {
 
   describe('Accessibility', () => {
     it('should have aria-current for active links', async () => {
-      renderComponent();
+      renderComponent({ initialEntries: ['/feed'] });
       
-      await waitFor(() => {
-        const links = screen.getAllByRole('button');
-        expect(links.length).toBeGreaterThan(0);
-      });
+      const feedLink = await screen.findByRole('link', { name: /feed/i });
+      expect(feedLink).toHaveAttribute('aria-current', 'page');
     });
 
     it('should maintain accessibility across language changes', async () => {
       await i18n.changeLanguage('en');
       const { rerender } = renderComponent();
       
-      const initialButtons = screen.getAllByRole('button');
-      expect(initialButtons.length).toBeGreaterThan(0);
+      const initialLinks = screen.getAllByRole('link');
+      expect(initialLinks.length).toBeGreaterThan(0);
       
       await i18n.changeLanguage('hi');
-      rerender(
-        <BrowserRouter>
-          <Navbar />
-        </BrowserRouter>
-      );
+      rerender(<Navbar />);
       
       await waitFor(() => {
-        const newButtons = screen.getAllByRole('button');
-        expect(newButtons.length).toBe(initialButtons.length);
+        const newLinks = screen.getAllByRole('link');
+        expect(newLinks.length).toBe(initialLinks.length);
       });
     });
   });

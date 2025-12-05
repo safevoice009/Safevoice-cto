@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import Navbar from '../Navbar';
 import i18n from '../../../i18n/config';
+import { ResponsiveLayoutContext, type LayoutContextValue } from '../../responsive/ResponsiveLayoutContext';
 
 // Mock components that don't need to be tested
 vi.mock('../NotificationDropdown', () => ({
@@ -36,11 +37,27 @@ vi.mock('../../../lib/store', () => ({
   }),
 }));
 
-const renderComponent = () => {
+const desktopLayoutValue: LayoutContextValue = {
+  breakpoint: 'desktop',
+  orientation: 'landscape',
+  width: 1280,
+  height: 800,
+};
+
+interface RenderOptions {
+  initialEntries?: string[];
+  layoutOverrides?: Partial<LayoutContextValue>;
+}
+
+const renderComponent = (options: RenderOptions = {}) => {
+  const { initialEntries = ['/'], layoutOverrides = {} } = options;
+  const layoutValue = { ...desktopLayoutValue, ...layoutOverrides };
   return render(
-    <BrowserRouter>
-      <Navbar />
-    </BrowserRouter>
+    <ResponsiveLayoutContext.Provider value={layoutValue}>
+      <MemoryRouter initialEntries={initialEntries}>
+        <Navbar />
+      </MemoryRouter>
+    </ResponsiveLayoutContext.Provider>
   );
 };
 
@@ -71,14 +88,11 @@ describe('Navbar Accessibility', () => {
     it('should have accessible navigation links', () => {
       renderComponent();
       
-      // Desktop navigation links should be buttons with proper roles
-      const navButtons = screen.getAllByRole('button').filter(
-        button => button.textContent && !button.textContent.includes('MOD')
-      );
-      expect(navButtons.length).toBeGreaterThan(0);
+      const navLinks = screen.getAllByRole('link');
+      expect(navLinks.length).toBeGreaterThan(0);
       
-      navButtons.forEach(button => {
-        expect(button).toHaveAccessibleName();
+      navLinks.forEach((link) => {
+        expect(link).toHaveAccessibleName();
       });
     });
 
@@ -127,7 +141,7 @@ describe('Navbar Accessibility', () => {
       
       // Should have proper ARIA attributes
       expect(menuButton).toHaveAttribute('aria-expanded');
-      expect(menuButton).toHaveAttribute('aria-controls');
+      expect(menuButton).toHaveAttribute('aria-controls', 'navigation-drawer');
       expect(menuButton).toHaveAttribute('aria-label');
     });
   });
@@ -235,14 +249,14 @@ describe('Navbar Accessibility', () => {
     });
 
     it('should maintain accessibility on mobile', () => {
-      // Simulate mobile viewport
-      Object.defineProperty(window, 'innerWidth', {
-        writable: true,
-        configurable: true,
-        value: 375,
+      renderComponent({
+        layoutOverrides: {
+          breakpoint: 'mobile',
+          width: 375,
+          height: 812,
+          orientation: 'portrait',
+        },
       });
-      
-      renderComponent();
       
       // Should still have accessible elements
       const menuButton = screen.getByRole('button', { name: /open menu/i });
