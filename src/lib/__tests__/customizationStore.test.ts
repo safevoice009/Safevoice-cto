@@ -110,8 +110,9 @@ describe('customizationStore', () => {
   });
 
   it('validates contrast ratios', () => {
-    const ratio = useCustomizationStore.getState().validateContrast('#000000', '#FFFFFF');
-    expect(ratio).toBeCloseTo(21, 1);
+    const result = useCustomizationStore.getState().validateContrast('#000000', '#FFFFFF');
+    expect(result.ratio).toBeCloseTo(21, 1);
+    expect(result.level).toBe('AAA');
     expect(getContrastRatio('#FFFFFF', '#0A0E27')).toBeGreaterThan(7);
   });
 });
