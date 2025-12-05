@@ -182,7 +182,7 @@ function AnimatedRoutes() {
         footer={<Footer />}
         bottomNavigation={<BottomNav />}
         mainProps={{ 
-          className: 'pt-24 pb-16',
+          className: 'pt-24 pb-24 tablet:pb-16',
           id: 'main-content',
           ref: mainContentRef,
           tabIndex: -1 // Make main content focusable
