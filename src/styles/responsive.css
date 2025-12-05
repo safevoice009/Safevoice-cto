@@ -12,6 +12,10 @@
   padding-right: max(env(safe-area-inset-right), var(--space-2));
 }
 
+.safe-area-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
 .layout-shell {
   min-height: 100vh;
   display: flex;
