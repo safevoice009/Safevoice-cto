@@ -12,6 +12,11 @@ import {
 import { type FontProfile, type Theme } from '../../lib/themeStore';
 import ThemePreview from './ThemePreview';
 import { AdvancedAppearance } from './AdvancedAppearance';
+import {
+  getWCAGDescription,
+  normalizeColorTriple,
+  type ContrastResult,
+} from '../../lib/themeColors';
 
 const themeOptions: { label: string; description: string; value: Theme }[] = [
   { label: 'Auto', description: 'Match device appearance automatically', value: 'auto' },
@@ -105,11 +110,17 @@ export default function AppearanceSettings() {
     return () => clearTimeout(timeout);
   }, [message, error]);
 
-  const contrast = useMemo(() => validateContrast(preferences.textColor, preferences.backgroundColor), [
-    preferences.backgroundColor,
-    preferences.textColor,
-    validateContrast,
-  ]);
+  const contrastAnalysis = useMemo(() => {
+    const textContrast = validateContrast(preferences.textColor, preferences.backgroundColor);
+    const primaryContrast = validateContrast(preferences.primaryColor, preferences.backgroundColor);
+    const primaryTextContrast = validateContrast('#FFFFFF', preferences.primaryColor);
+    
+    return {
+      textContrast,
+      primaryContrast,
+      primaryTextContrast,
+    };
+  }, [preferences.backgroundColor, preferences.textColor, preferences.primaryColor, validateContrast]);
 
   const handleThemeChange = (value: Theme) => {
     updatePreference('theme', value);
@@ -175,6 +186,46 @@ export default function AppearanceSettings() {
     } else {
       setError('Import failed. Please verify the JSON payload.');
     }
+  };
+
+  const handleAutoFixContrast = () => {
+    const normalized = normalizeColorTriple({
+      primary: preferences.primaryColor,
+      background: preferences.backgroundColor,
+      text: preferences.textColor,
+    }, 4.5);
+
+    updatePreference('primaryColor', normalized.colors.primary);
+    updatePreference('textColor', normalized.colors.text);
+
+    setMessage(
+      `Colors adjusted for WCAG AA compliance. ${
+        normalized.adjustments.primary.wasAdjusted ? 'Primary ' : ''
+      }${normalized.adjustments.text.wasAdjusted ? 'Text ' : ''}colors modified.`
+    );
+  };
+
+  const handleAutoFixContrastAAA = () => {
+    const normalized = normalizeColorTriple({
+      primary: preferences.primaryColor,
+      background: preferences.backgroundColor,
+      text: preferences.textColor,
+    }, 7.0);
+
+    updatePreference('primaryColor', normalized.colors.primary);
+    updatePreference('textColor', normalized.colors.text);
+
+    setMessage(
+      `Colors adjusted for WCAG AAA compliance. ${
+        normalized.adjustments.primary.wasAdjusted ? 'Primary ' : ''
+      }${normalized.adjustments.text.wasAdjusted ? 'Text ' : ''}colors modified.`
+    );
+  };
+
+  const getContrastBadgeColor = (result: ContrastResult) => {
+    if (result.level === 'AAA') return 'bg-green-100 text-green-800';
+    if (result.level === 'AA' || result.level === 'AA-large') return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
   };
 
   return (
@@ -253,7 +304,7 @@ export default function AppearanceSettings() {
           <div className="card-surface spacing-stack-sm" role="group" aria-label="Custom colors">
             <span className="typography-subtitle">Core Colors</span>
             <p className="typography-caption text-text-muted">
-              Ensure a minimum contrast ratio of 7:1 for WCAG AAA compliance. Live contrast: {contrast.toFixed(2)} : 1.
+              Choose colors for your custom theme. Contrast diagnostics below show accessibility compliance.
             </p>
             <div className="spacing-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
               <label className="spacing-stack-xs" htmlFor="primary-color">
@@ -289,6 +340,125 @@ export default function AppearanceSettings() {
               </label>
             </div>
           </div>
+
+          {preferences.theme === 'custom' && (
+            <div className="card-surface spacing-stack-sm" role="region" aria-label="Contrast diagnostics">
+              <div className="flex items-center justify-between mb-3">
+                <span className="typography-subtitle">Contrast Diagnostics</span>
+                <div className="spacing-inline-sm">
+                  <button
+                    type="button"
+                    className="px-3 py-1.5 text-sm rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition-colors"
+                    onClick={handleAutoFixContrast}
+                    disabled={contrastAnalysis.textContrast.passes && contrastAnalysis.primaryContrast.passes}
+                    title="Automatically adjust colors to meet WCAG AA standard (4.5:1)"
+                  >
+                    Auto-fix AA
+                  </button>
+                  <button
+                    type="button"
+                    className="px-3 py-1.5 text-sm rounded-lg border border-success text-success hover:bg-success hover:text-white transition-colors"
+                    onClick={handleAutoFixContrastAAA}
+                    title="Automatically adjust colors to meet WCAG AAA standard (7:1)"
+                  >
+                    Auto-fix AAA
+                  </button>
+                </div>
+              </div>
+              
+              <div className="spacing-stack-sm">
+                <div className="flex items-center justify-between p-3 rounded-lg border border-border-light">
+                  <div className="spacing-stack-xs flex-1">
+                    <span className="typography-body font-semibold">Text on Background</span>
+                    <span className="typography-caption text-text-muted">
+                      {contrastAnalysis.textContrast.ratio.toFixed(2)}:1 ratio
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-semibold ${getContrastBadgeColor(contrastAnalysis.textContrast)}`}
+                      title={getWCAGDescription(contrastAnalysis.textContrast.level)}
+                    >
+                      {contrastAnalysis.textContrast.level}
+                    </span>
+                    <div
+                      className="w-16 h-8 rounded border border-border-light flex items-center justify-center text-xs font-bold"
+                      style={{
+                        backgroundColor: preferences.backgroundColor,
+                        color: preferences.textColor,
+                      }}
+                    >
+                      Aa
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-lg border border-border-light">
+                  <div className="spacing-stack-xs flex-1">
+                    <span className="typography-body font-semibold">Primary on Background</span>
+                    <span className="typography-caption text-text-muted">
+                      {contrastAnalysis.primaryContrast.ratio.toFixed(2)}:1 ratio
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-semibold ${getContrastBadgeColor(contrastAnalysis.primaryContrast)}`}
+                      title={getWCAGDescription(contrastAnalysis.primaryContrast.level)}
+                    >
+                      {contrastAnalysis.primaryContrast.level}
+                    </span>
+                    <div
+                      className="w-16 h-8 rounded border border-border-light flex items-center justify-center text-xs font-bold"
+                      style={{
+                        backgroundColor: preferences.backgroundColor,
+                        color: preferences.primaryColor,
+                      }}
+                    >
+                      Aa
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-lg border border-border-light">
+                  <div className="spacing-stack-xs flex-1">
+                    <span className="typography-body font-semibold">White Text on Primary</span>
+                    <span className="typography-caption text-text-muted">
+                      {contrastAnalysis.primaryTextContrast.ratio.toFixed(2)}:1 ratio
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-semibold ${getContrastBadgeColor(contrastAnalysis.primaryTextContrast)}`}
+                      title={getWCAGDescription(contrastAnalysis.primaryTextContrast.level)}
+                    >
+                      {contrastAnalysis.primaryTextContrast.level}
+                    </span>
+                    <div
+                      className="w-16 h-8 rounded border border-border-light flex items-center justify-center text-xs font-bold"
+                      style={{
+                        backgroundColor: preferences.primaryColor,
+                        color: '#FFFFFF',
+                      }}
+                    >
+                      Aa
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                <p className="typography-caption text-blue-900">
+                  <strong>WCAG Guidelines:</strong> AAA (7:1) provides enhanced contrast for users with vision impairments. 
+                  AA (4.5:1) is the minimum for normal text. Large text (18pt+) requires 3:1 minimum.
+                  {!contrastAnalysis.textContrast.passes && (
+                    <span className="block mt-1 text-red-700 font-semibold">
+                      ⚠️ Current colors do not meet minimum accessibility standards. Use auto-fix buttons above.
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

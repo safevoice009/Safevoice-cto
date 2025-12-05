@@ -26,8 +26,8 @@ export default function ThemePreview() {
   }, [preferences.backgroundColor, preferences.textColor, validateContrast]);
 
   const contrastStatus = useMemo(() => {
-    const passesAAA = contrast >= 7;
-    const passesAA = contrast >= 4.5;
+    const passesAAA = contrast.ratio >= 7;
+    const passesAA = contrast.ratio >= 4.5;
 
     if (passesAAA) {
       return { label: 'AAA compliant', tone: 'text-success' } as const;
@@ -51,7 +51,7 @@ export default function ThemePreview() {
         <div className="spacing-inline-lg items-center">
           <div className="badge">Contrast</div>
           <span className={`typography-body font-semibold ${contrastStatus.tone}`}>
-            {formatRatio(contrast)} : 1 • {contrastStatus.label}
+            {formatRatio(contrast.ratio)} : 1 • {contrastStatus.label}
           </span>
         </div>
       </header>

@@ -1,5 +1,13 @@
 import { create } from 'zustand';
 import { useThemeStore, type FontProfile, type Theme } from './themeStore';
+import {
+  mixHex as mixHexUtil,
+  getInverseColor as getInverseColorUtil,
+  getContrastRatio as getContrastRatioUtil,
+  validateContrast as validateContrastUtil,
+  normalizeColorTriple,
+} from './themeColors';
+import type { ContrastResult } from './themeColors';
 
 export type DensityOption = 'compact' | 'normal' | 'spacious';
 export type SidebarWidthOption = 'narrow' | 'default' | 'wide';
@@ -34,7 +42,7 @@ interface CustomizationState {
   resetPreferences: () => void;
   exportPreferences: () => string;
   importPreferences: (json: string) => AppearancePreferences | null;
-  validateContrast: (foreground: string, background: string) => number;
+  validateContrast: (foreground: string, background: string) => ContrastResult;
 }
 
 const STORAGE_KEY = 'safevoice:appearance';
@@ -58,62 +66,6 @@ const DEFAULT_PREFERENCES: AppearancePreferences = {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const normalized = hex.replace('#', '');
-  if (normalized.length !== 6) return null;
-  const r = Number.parseInt(normalized.slice(0, 2), 16);
-  const g = Number.parseInt(normalized.slice(2, 4), 16);
-  const b = Number.parseInt(normalized.slice(4, 6), 16);
-  if ([r, g, b].some((channel) => Number.isNaN(channel))) return null;
-  return { r, g, b };
-}
-
-function relativeLuminance(hex: string): number {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return 0;
-
-  const normalize = (channel: number) => {
-    const c = channel / 255;
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  };
-
-  const r = normalize(rgb.r);
-  const g = normalize(rgb.g);
-  const b = normalize(rgb.b);
-
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function contrastRatio(foreground: string, background: string): number {
-  const L1 = relativeLuminance(foreground);
-  const L2 = relativeLuminance(background);
-  const lighter = Math.max(L1, L2);
-  const darker = Math.min(L1, L2);
-  const ratio = (lighter + 0.05) / (darker + 0.05);
-  return Math.round(ratio * 100) / 100;
-}
-
-function mixHex(color: string, amount: number): string {
-  const rgb = hexToRgb(color);
-  if (!rgb) return color;
-
-  const mixChannel = (channel: number) => {
-    const mixed = channel + (amount >= 0 ? (255 - channel) * amount : channel * amount);
-    return Math.round(clamp(mixed, 0, 255));
-  };
-
-  const r = mixChannel(rgb.r);
-  const g = mixChannel(rgb.g);
-  const b = mixChannel(rgb.b);
-
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
-}
-
-function getInverseColor(hex: string): string {
-  const luminance = relativeLuminance(hex);
-  return luminance > 0.5 ? '#0A0E27' : '#FFFFFF';
 }
 
 function resolveSidebarWidth(option: SidebarWidthOption): string {
@@ -225,27 +177,27 @@ function applyPreferences(preferences: AppearancePreferences) {
   root.setAttribute('data-animations', animations);
 
   if (theme === 'custom') {
-    const primaryDark = mixHex(primaryColor, -0.2);
-    const primaryLight = mixHex(primaryColor, 0.18);
-    const surfaceSecondary = mixHex(backgroundColor, -0.05);
-    const inverseText = getInverseColor(primaryColor);
+    const primaryDark = mixHexUtil(primaryColor, -0.2);
+    const primaryLight = mixHexUtil(primaryColor, 0.18);
+    const surfaceSecondary = mixHexUtil(backgroundColor, -0.05);
+    const inverseText = getInverseColorUtil(primaryColor);
 
     root.style.setProperty('--color-surface', backgroundColor);
     root.style.setProperty('--color-surface-secondary', surfaceSecondary);
     root.style.setProperty('--color-text', textColor);
-    root.style.setProperty('--color-text-secondary', mixHex(textColor, 0.12));
-    root.style.setProperty('--color-text-muted', mixHex(textColor, -0.18));
-    root.style.setProperty('--color-text-inverse', getInverseColor(textColor));
-    root.style.setProperty('--color-border', mixHex(textColor, -0.3));
-    root.style.setProperty('--color-border-light', mixHex(textColor, 0.35));
+    root.style.setProperty('--color-text-secondary', mixHexUtil(textColor, 0.12));
+    root.style.setProperty('--color-text-muted', mixHexUtil(textColor, -0.18));
+    root.style.setProperty('--color-text-inverse', getInverseColorUtil(textColor));
+    root.style.setProperty('--color-border', mixHexUtil(textColor, -0.3));
+    root.style.setProperty('--color-border-light', mixHexUtil(textColor, 0.35));
     root.style.setProperty('--color-primary', primaryColor);
     root.style.setProperty('--color-primary-dark', primaryDark);
     root.style.setProperty('--color-primary-light', primaryLight);
     root.style.setProperty('--color-info', primaryColor);
     root.style.setProperty('--color-info-light', primaryLight);
     root.style.setProperty('--color-focus-outline', primaryColor);
-    root.style.setProperty('--color-disabled', mixHex(backgroundColor, -0.5));
-    root.style.setProperty('--color-disabled-bg', mixHex(backgroundColor, -0.35));
+    root.style.setProperty('--color-disabled', mixHexUtil(backgroundColor, -0.5));
+    root.style.setProperty('--color-disabled-bg', mixHexUtil(backgroundColor, -0.35));
     root.style.setProperty('--color-text-accent-inverse', inverseText);
   } else {
     root.style.removeProperty('--color-surface');
@@ -353,13 +305,17 @@ export const useCustomizationStore = create<CustomizationState>((set, get) => ({
     }
   },
 
-  validateContrast: (foreground: string, background: string) => contrastRatio(foreground, background),
+  validateContrast: (foreground: string, background: string) => {
+    return validateContrastUtil(foreground, background);
+  },
 }));
 
 export function getContrastRatio(foreground: string, background: string) {
-  return contrastRatio(foreground, background);
+  return getContrastRatioUtil(foreground, background);
 }
 
 export function getDefaultPreferences(): AppearancePreferences {
   return { ...DEFAULT_PREFERENCES };
 }
+
+export { normalizeColorTriple };
