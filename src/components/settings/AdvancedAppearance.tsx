@@ -54,21 +54,37 @@ export function AdvancedAppearance({ className = '' }: AdvancedAppearanceProps) 
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importText, setImportText] = useState('');
 
-  const handleExport = () => {
-    const themeJson = exportTheme();
-    navigator.clipboard.writeText(themeJson);
-    setShowExportDialog(true);
+  const handleExport = async () => {
+    try {
+      const themeJson = exportTheme();
+      if (typeof window !== 'undefined' && navigator?.clipboard) {
+        await navigator.clipboard.writeText(themeJson);
+        setShowExportDialog(true);
+      } else {
+        // Fallback for environments without clipboard API
+        console.log('Theme exported (copy manually):', themeJson);
+        setShowExportDialog(true);
+      }
+    } catch (error) {
+      console.error('Failed to export theme:', error);
+      alert('Failed to export theme. Please try again.');
+    }
   };
 
   const handleImport = () => {
-    if (importText.trim()) {
-      const success = importTheme(importText);
-      if (success) {
-        setShowImportDialog(false);
-        setImportText('');
-      } else {
-        alert('Invalid theme file. Please check the format and try again.');
+    try {
+      if (importText.trim()) {
+        const success = importTheme(importText);
+        if (success) {
+          setShowImportDialog(false);
+          setImportText('');
+        } else {
+          alert('Invalid theme file. Please check the format and try again.');
+        }
       }
+    } catch (error) {
+      console.error('Failed to import theme:', error);
+      alert('Failed to import theme. Please check the format and try again.');
     }
   };
 
