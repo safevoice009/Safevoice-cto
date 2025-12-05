@@ -1,7 +1,10 @@
-import { createContext, useEffect, useLayoutEffect, useState, type ReactNode, type HTMLAttributes, type Ref } from 'react';
-
-export type LayoutBreakpoint = 'mobile' | 'tablet' | 'desktop';
-export type Orientation = 'portrait' | 'landscape';
+import { useEffect, useLayoutEffect, useState, type ReactNode, type HTMLAttributes, type Ref } from 'react';
+import {
+  ResponsiveLayoutContext,
+  type LayoutContextValue,
+  type LayoutBreakpoint,
+  type Orientation,
+} from './ResponsiveLayoutContext';
 
 interface ResponsiveLayoutProps {
   header?: ReactNode;
@@ -11,20 +14,6 @@ interface ResponsiveLayoutProps {
   className?: string;
   mainProps?: HTMLAttributes<HTMLDivElement> & { ref?: Ref<HTMLDivElement> };
 }
-
-interface LayoutContextValue {
-  breakpoint: LayoutBreakpoint;
-  orientation: Orientation;
-  width: number;
-  height: number;
-}
-
-const ResponsiveLayoutContext = createContext<LayoutContextValue>({
-  breakpoint: 'mobile',
-  orientation: 'portrait',
-  width: 320,
-  height: 640,
-});
 
 function computeBreakpoint(width: number): LayoutBreakpoint {
   if (width >= 1024) return 'desktop';
