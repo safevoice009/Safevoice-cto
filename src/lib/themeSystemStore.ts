@@ -1,5 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import {
+  adjustColorForContrast,
+  getDefaultThemeColors,
+  validateThemeColors,
+} from './theme/contrastUtils';
 
 // Theme System Types
 export type ThemeSystem = 'material' | 'glassmorphism' | 'minimal' | 'auto' | 'custom';
@@ -183,9 +188,48 @@ function startAutoListeners(set: (state: Partial<ThemeState>) => void, get: () =
   const resolvedColorMode = autoColorModeMedia.matches ? 'dark' : 'light';
   set({ resolvedColorMode });
   
+  // Auto-adjust colors on initial load
+  const defaultColors = getDefaultThemeColors(resolvedColorMode);
+  const state = get();
+  const shouldAutoAdjust = 
+    state.backgroundColor === DEFAULT_BACKGROUND_COLOR ||
+    state.backgroundColor === '#1a1a1a';
+  
+  if (shouldAutoAdjust) {
+    set({
+      backgroundColor: defaultColors.backgroundColor,
+      textColor: defaultColors.textColor,
+      primaryColor: defaultColors.primaryColor,
+    });
+  }
+  
   autoColorModeListener = (event) => {
     const nextResolved = event.matches ? 'dark' : 'light';
     set({ resolvedColorMode: nextResolved });
+    
+    // Auto-adjust theme colors when system preference changes
+    const defaultColors = getDefaultThemeColors(nextResolved);
+    const state = get();
+    
+    const shouldAutoAdjust = 
+      state.backgroundColor === DEFAULT_BACKGROUND_COLOR ||
+      state.backgroundColor === '#1a1a1a';
+    
+    if (shouldAutoAdjust) {
+      set({
+        backgroundColor: defaultColors.backgroundColor,
+        textColor: defaultColors.textColor,
+        primaryColor: defaultColors.primaryColor,
+      });
+    } else {
+      // Colors are customized, just ensure text contrast
+      const adjustedTextColor = adjustColorForContrast(
+        state.backgroundColor,
+        state.textColor
+      );
+      set({ textColor: adjustedTextColor });
+    }
+    
     applyThemeAttributes(get());
   };
 
@@ -257,7 +301,33 @@ export const useThemeSystemStore = create<ThemeState>()(
           startAutoListeners(set, get);
         } else {
           stopAutoListeners();
-          set({ resolvedColorMode: colorMode as ResolvedColorMode });
+          const resolvedMode = colorMode as ResolvedColorMode;
+          set({ resolvedColorMode: resolvedMode });
+          
+          // Auto-adjust theme colors for the new color mode
+          const defaultColors = getDefaultThemeColors(resolvedMode);
+          const state = get();
+          
+          // Only auto-adjust if colors haven't been customized
+          // Check if current colors match old defaults
+          const shouldAutoAdjust = 
+            state.backgroundColor === DEFAULT_BACKGROUND_COLOR ||
+            state.backgroundColor === '#1a1a1a';
+          
+          if (shouldAutoAdjust) {
+            set({
+              backgroundColor: defaultColors.backgroundColor,
+              textColor: defaultColors.textColor,
+              primaryColor: defaultColors.primaryColor,
+            });
+          } else {
+            // Colors are customized, just ensure text contrast
+            const adjustedTextColor = adjustColorForContrast(
+              state.backgroundColor,
+              state.textColor
+            );
+            set({ textColor: adjustedTextColor });
+          }
         }
         
         applyThemeAttributes(get());
@@ -294,12 +364,23 @@ export const useThemeSystemStore = create<ThemeState>()(
       },
       
       setBackgroundColor: (backgroundColor) => {
-        set({ backgroundColor });
+        // Auto-adjust text color to ensure contrast with new background
+        const state = get();
+        const adjustedTextColor = adjustColorForContrast(backgroundColor, state.textColor);
+        
+        set({ 
+          backgroundColor,
+          textColor: adjustedTextColor,
+        });
         applyThemeAttributes(get());
       },
       
       setTextColor: (textColor) => {
-        set({ textColor });
+        // Validate contrast with background
+        const state = get();
+        const adjustedTextColor = adjustColorForContrast(state.backgroundColor, textColor);
+        
+        set({ textColor: adjustedTextColor });
         applyThemeAttributes(get());
       },
       
@@ -484,7 +565,23 @@ export const useThemeSystemStore = create<ThemeState>()(
           set({ resolvedThemeSystem: resolved });
         }
         
-        applyThemeAttributes(state);
+        // Validate and fix colors on hydration
+        const validatedColors = validateThemeColors(
+          state.backgroundColor,
+          state.textColor,
+          state.primaryColor,
+          state.secondaryColor
+        );
+        
+        // Only update if colors were adjusted
+        if (validatedColors.textColor !== state.textColor) {
+          set({
+            backgroundColor: validatedColors.backgroundColor,
+            textColor: validatedColors.textColor,
+          });
+        }
+        
+        applyThemeAttributes(get());
       },
     }),
     {
