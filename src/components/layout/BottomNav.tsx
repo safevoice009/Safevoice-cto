@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Home, MessageCircle, User, Store, Users, Trophy, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { useRef, useEffect, useState } from 'react';
 
 const navItems = [
   { labelKey: 'nav.home', icon: Home, to: '/' },
@@ -16,39 +17,80 @@ const navItems = [
 export default function BottomNav() {
   const location = useLocation();
   const { t } = useTranslation();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = () => {
+    if (scrollContainerRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+      setCanScrollLeft(scrollLeft > 0);
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
+    }
+  };
+
+  useEffect(() => {
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, []);
 
   return (
     <nav 
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-lg md:hidden safe-area-inset"
+      className="fixed bottom-0 left-0 right-0 tablet:hidden z-40 safe-area-bottom"
       role="navigation"
       aria-label={t('nav.bottomNavigation')}
     >
-      <div className="glass flex flex-wrap justify-between gap-4 py-3 px-4">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.to;
-          const Icon = item.icon;
-          return (
-            <Link 
-              key={item.labelKey} 
-              to={item.to} 
-              className="flex-1 min-w-[88px] flex justify-center"
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <motion.div
-                whileHover={{ scale: 1.06 }}
-                whileTap={{ scale: 0.95 }}
-                className={`flex flex-col items-center space-y-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                  isActive ? 'bg-info/10 text-info' : 'text-text-muted'
-                }`}
-                tabIndex={0}
-                role="button"
-              >
-                <Icon className="w-5 h-5" />
-                <span>{t(item.labelKey)}</span>
-              </motion.div>
-            </Link>
-          );
-        })}
+      <div className="relative w-full">
+        {/* Left fade gradient */}
+        {canScrollLeft && (
+          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-surface to-transparent pointer-events-none z-10" />
+        )}
+
+        {/* Scroll container with single-row grid */}
+        <div
+          ref={scrollContainerRef}
+          onScroll={checkScroll}
+          className="glass overflow-x-auto overflow-y-hidden px-2 py-2 scroll-smooth"
+          style={{ scrollBehavior: 'smooth' }}
+        >
+          <div className="grid gap-1 px-1" style={{ gridAutoFlow: 'column', gridAutoColumns: 'minmax(auto, 1fr)' }}>
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.to;
+              const Icon = item.icon;
+              return (
+                <Link 
+                  key={item.labelKey} 
+                  to={item.to} 
+                  className="flex justify-center"
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-label={t(item.labelKey)}
+                >
+                  <motion.div
+                    whileHover={{ scale: 1.1, y: -2 }}
+                    whileTap={{ scale: 0.92 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                    className={`flex flex-col items-center justify-center rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-surface whitespace-nowrap ${
+                      isActive 
+                        ? 'bg-gradient-to-br from-info/20 to-info/10 text-info shadow-md' 
+                        : 'text-text-muted hover:bg-white/5 hover:text-text'
+                    }`}
+                    tabIndex={0}
+                    role="button"
+                  >
+                    <Icon className="w-5 h-5 mb-1 flex-shrink-0" />
+                    <span className="block text-caption">{t(item.labelKey)}</span>
+                  </motion.div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right fade gradient */}
+        {canScrollRight && (
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface to-transparent pointer-events-none z-10" />
+        )}
       </div>
     </nav>
   );
