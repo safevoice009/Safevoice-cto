@@ -15,9 +15,10 @@ const SIZE_BRACKETS = [
 
 interface CommunityListPanelProps {
   isLoading?: boolean;
+  onSelectCommunity?: (communityId: string) => void;
 }
 
-export default function CommunityListPanel({ isLoading = false }: CommunityListPanelProps) {
+export default function CommunityListPanel({ isLoading = false, onSelectCommunity }: CommunityListPanelProps) {
   const {
     communities,
     communityMemberships,
@@ -123,6 +124,7 @@ export default function CommunityListPanel({ isLoading = false }: CommunityListP
 
   const handleSelectCommunity = (communityId: string) => {
     setCurrentCommunity(communityId);
+    onSelectCommunity?.(communityId);
   };
 
   if (showSkeleton) {
