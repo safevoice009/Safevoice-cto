@@ -3,7 +3,8 @@
     "appName": "சேஃப்வாய்ஸ்",
     "loading": "ஏற்றுகிறது...",
     "error": "பிழை",
-    "success": "வெற்றி"
+    "success": "வெற்றி",
+    "back": "திரும்பவும்"
   },
   "nav": {
     "feed": "ஊட்டம்",
@@ -23,7 +24,11 @@
     "mainNavigation": "முக்கிய வழிசெலுத்தல்",
     "bottomNavigation": "கீழ் வழிசெலுத்தல்",
     "openMenu": "மெனுவை திற",
-    "closeMenu": "மெனுவை மூடு"
+    "closeMenu": "மெனுவை மூடு",
+    "userMenu": "பயனர் மெனு",
+    "more": "மேலும்",
+    "logout": "வெளியேறு",
+    "admin": "நிர்வாகி"
   },
   "settings": {
     "title": "அமைப்புகள்",

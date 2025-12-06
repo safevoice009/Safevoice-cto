@@ -3,7 +3,8 @@
     "appName": "सेफव्हॉईस",
     "loading": "लोड होत आहे...",
     "error": "त्रुटी",
-    "success": "यश"
+    "success": "यश",
+    "back": "मागे जा"
   },
   "nav": {
     "feed": "फीड",
@@ -23,7 +24,11 @@
     "mainNavigation": "मुख्य नेव्हिगेशन",
     "bottomNavigation": "तळाचे नेव्हिगेशन",
     "openMenu": "मेनू उघडा",
-    "closeMenu": "मेनू बंद करा"
+    "closeMenu": "मेनू बंद करा",
+    "userMenu": "वापरकर्ता मेनू",
+    "more": "आणखी",
+    "logout": "लॉग आउट",
+    "admin": "व्यवस्थापक"
   },
   "settings": {
     "title": "सेटिंग्ज",

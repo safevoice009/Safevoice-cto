@@ -1,5 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
 import CommunityListPanel from '../components/communities/CommunityListPanel';
 import CommunityDetailView from '../components/community/CommunityDetailView';
 import { useStore, type Post, type Comment } from '../lib/store';
@@ -232,7 +235,10 @@ export default function Communities() {
   } = useStore();
 
   const navigate = useNavigate();
+  const { communityId: routeParamCommunityId } = useParams<{ communityId?: string }>();
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
 
   const memberMetrics = useMemo(() => {
     return buildMemberMetrics(
@@ -309,11 +315,18 @@ export default function Communities() {
     return () => window.clearTimeout(timer);
   }, [communities.length, communityChannels.length]);
 
+  // Handle route parameter and set current community
   useEffect(() => {
-    if (!isLoading && communities.length > 0 && !currentCommunity) {
+    if (routeParamCommunityId && communities.length > 0) {
+      const community = communities.find(c => c.id === routeParamCommunityId);
+      if (community) {
+        setCurrentCommunity(routeParamCommunityId);
+        setShowMobileDetail(true);
+      }
+    } else if (!isLoading && communities.length > 0 && !currentCommunity) {
       setCurrentCommunity(communities[0].id);
     }
-  }, [communities, currentCommunity, isLoading, setCurrentCommunity]);
+  }, [communities, routeParamCommunityId, currentCommunity, isLoading, setCurrentCommunity]);
 
   const activeCommunity = communities.find((c) => c.id === currentCommunity) ?? null;
   const activeChannels = communityChannels.filter((channel) => channel.communityId === currentCommunity);
@@ -389,50 +402,97 @@ export default function Communities() {
     ? communityNotifications[currentCommunity] ?? createNotificationSettings(currentCommunity, studentId)
     : createNotificationSettings('', studentId);
 
+  // Mobile layout: show detail when selected, list when not
+  const isDetailVisible = showMobileDetail || window.innerWidth >= 1024;
+  const isListVisible = !showMobileDetail || window.innerWidth >= 1024;
+
+  const handleCommunitySelect = (communityId: string) => {
+    setCurrentCommunity(communityId);
+    if (window.innerWidth < 1024) {
+      setShowMobileDetail(true);
+      navigate(`/communities/${communityId}`);
+    }
+  };
+
+  const handleBackToList = () => {
+    setShowMobileDetail(false);
+    navigate('/communities');
+  };
+
   return (
     <div className="min-h-screen px-4 py-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr),minmax(0,1fr)]">
-          <section>
-            <CommunityListPanel isLoading={showSkeleton} />
-          </section>
+          {/* Community List Section */}
+          {isListVisible && (
+            <motion.section
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3 }}
+              className="lg:block"
+            >
+              <CommunityListPanel isLoading={showSkeleton} onSelectCommunity={handleCommunitySelect} />
+            </motion.section>
+          )}
 
-          <section className="space-y-6">
-            {showSkeleton ? (
-              <div className="space-y-6">
-                <div className="h-64 rounded-2xl border border-white/5 bg-white/5 animate-pulse" />
-                <div className="h-56 rounded-2xl border border-white/5 bg-white/5 animate-pulse" />
-                <div className="h-60 rounded-2xl border border-white/5 bg-white/5 animate-pulse" />
-              </div>
-            ) : activeCommunity ? (
-              <CommunityDetailView
-                community={activeCommunity}
-                channels={activeChannels}
-                postsMeta={communityPostsMeta}
-                notificationSettings={notificationSettings}
-                activity={communityActivity}
-                activeChannelId={currentChannel}
-                onSelectChannel={handleChannelSelect}
-                onToggleNotification={handleToggleNotification}
-                onToggleChannelNotification={handleToggleChannelNotification}
-                channelUnreadCounts={channelUnreadCounts}
-                onLeaveCommunity={handleLeaveCommunity}
-                onViewGuidelines={handleViewGuidelines}
-                memberships={communityMemberships.filter(m => m.communityId === activeCommunity.id && m.isActive)}
-                posts={posts}
-                getVoiceBalance={getVoiceBalance}
-                getStreakData={getStreakData}
-                currentUserId={studentId}
-              />
-            ) : (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-12 text-center">
-                <h3 className="text-xl font-semibold text-white">Select a community to get started</h3>
-                <p className="mt-2 text-sm text-gray-400">
-                  Choose a community from the directory to explore channels, posts, and engagement stats.
-                </p>
-              </div>
-            )}
-          </section>
+          {/* Community Detail Section */}
+          {isDetailVisible && (
+            <motion.section
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              {/* Mobile Back Button */}
+              {showMobileDetail && (
+                <div className="lg:hidden mb-4">
+                  <button
+                    onClick={handleBackToList}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-text hover:bg-white/10 transition-colors"
+                    aria-label={t('common.back')}
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span className="text-sm font-medium">{t('common.back')}</span>
+                  </button>
+                </div>
+              )}
+
+              {showSkeleton ? (
+                <div className="space-y-6">
+                  <div className="h-64 rounded-2xl border border-white/5 bg-white/5 animate-pulse" />
+                  <div className="h-56 rounded-2xl border border-white/5 bg-white/5 animate-pulse" />
+                  <div className="h-60 rounded-2xl border border-white/5 bg-white/5 animate-pulse" />
+                </div>
+              ) : activeCommunity ? (
+                <CommunityDetailView
+                  community={activeCommunity}
+                  channels={activeChannels}
+                  postsMeta={communityPostsMeta}
+                  notificationSettings={notificationSettings}
+                  activity={communityActivity}
+                  activeChannelId={currentChannel}
+                  onSelectChannel={handleChannelSelect}
+                  onToggleNotification={handleToggleNotification}
+                  onToggleChannelNotification={handleToggleChannelNotification}
+                  channelUnreadCounts={channelUnreadCounts}
+                  onLeaveCommunity={handleLeaveCommunity}
+                  onViewGuidelines={handleViewGuidelines}
+                  memberships={communityMemberships.filter(m => m.communityId === activeCommunity.id && m.isActive)}
+                  posts={posts}
+                  getVoiceBalance={getVoiceBalance}
+                  getStreakData={getStreakData}
+                  currentUserId={studentId}
+                />
+              ) : (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-12 text-center">
+                  <h3 className="text-xl font-semibold text-white">Select a community to get started</h3>
+                  <p className="mt-2 text-sm text-gray-400">
+                    Choose a community from the directory to explore channels, posts, and engagement stats.
+                  </p>
+                </div>
+              )}
+            </motion.section>
+          )}
         </div>
       </div>
     </div>

@@ -13,7 +13,8 @@
     "search": "Search",
     "filter": "Filter",
     "viewMore": "View More",
-    "showLess": "Show Less"
+    "showLess": "Show Less",
+    "back": "Back"
   },
   "nav": {
     "feed": "Feed",
@@ -35,7 +36,11 @@
     "mainNavigation": "Main navigation",
     "bottomNavigation": "Bottom navigation",
     "openMenu": "Open menu",
-    "closeMenu": "Close menu"
+    "closeMenu": "Close menu",
+    "userMenu": "User menu",
+    "more": "More",
+    "logout": "Logout",
+    "admin": "Admin"
   },
   "profile": {
     "title": "Profile",

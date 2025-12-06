@@ -9,25 +9,15 @@ import ConnectWalletButton from '../wallet/ConnectWalletButton';
 import LanguageSwitcher from './LanguageSwitcher';
 import ThemeSwitcher from './ThemeSwitcher';
 import FontSwitcher from './FontSwitcher';
+import UserMenu from './UserMenu';
+import MoreMenu from './MoreMenu';
+import { PRIMARY_NAV_ITEMS, ALL_NAV_ITEMS } from './navigationConfig';
 
 type NavLink = {
   labelKey: string;
   value: string;
   type: 'route' | 'scroll';
 };
-
-const navLinks: NavLink[] = [
-  { labelKey: 'nav.feed', value: '/feed', type: 'route' },
-  { labelKey: 'nav.communities', value: '/communities', type: 'route' },
-  { labelKey: 'nav.search', value: '/search', type: 'route' },
-  { labelKey: 'nav.leaderboard', value: '/leaderboard', type: 'route' },
-  { labelKey: 'nav.marketplace', value: '/marketplace', type: 'route' },
-  { labelKey: 'nav.analytics', value: '/analytics', type: 'route' },
-  { labelKey: 'nav.helplines', value: '/helplines', type: 'route' },
-  { labelKey: 'nav.guidelines', value: '/guidelines', type: 'route' },
-  { labelKey: 'nav.memorial', value: '/memorial', type: 'route' },
-  { labelKey: 'nav.customize', value: '/settings/appearance', type: 'route' },
-];
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -108,6 +98,19 @@ export default function Navbar() {
     };
   }, [isOpen]);
 
+  // Convert navigation items to NavLink format
+  const primaryNavLinks: NavLink[] = PRIMARY_NAV_ITEMS.map(item => ({
+    labelKey: item.labelKey,
+    value: item.value,
+    type: 'route' as const,
+  }));
+
+  const allNavLinks: NavLink[] = ALL_NAV_ITEMS.map(item => ({
+    labelKey: item.labelKey,
+    value: item.value,
+    type: 'route' as const,
+  }));
+
   return (
     <motion.nav
       initial={{ y: 0 }}
@@ -117,20 +120,24 @@ export default function Navbar() {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center space-x-2" onClick={closeMenu}>
+          {/* Logo */}
+          <Link to="/" className="flex items-center space-x-2 flex-shrink-0" onClick={closeMenu}>
             <Lock className="w-6 h-6 text-info" />
             <span className="text-xl font-bold text-white">{t('common.appName')}</span>
           </Link>
 
-          <div className="hidden lg:flex flex-1 items-center justify-center gap-6 xl:gap-8">
-            {navLinks.map((link) => {
+          {/* Desktop Primary Navigation - OPTION D */}
+          <div className="hidden lg:flex flex-1 items-center justify-center gap-8 mx-8">
+            {primaryNavLinks.map((link) => {
               const isActive =
                 link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
               return (
                 <button
                   key={link.labelKey}
                   onClick={() => handleNavClick(link)}
-                  className={`nav-link relative ${isActive ? 'text-info font-semibold' : ''}`}
+                  className={`nav-link relative text-sm font-medium transition-colors ${
+                    isActive ? 'text-info font-semibold' : 'text-text hover:text-info'
+                  }`}
                   type="button"
                   aria-current={isActive ? 'page' : undefined}
                 >
@@ -141,7 +148,8 @@ export default function Navbar() {
             })}
           </div>
 
-          <div className="hidden lg:flex items-center gap-3 xl:gap-4">
+          {/* Desktop Right Section - User Menu, More Menu, Settings */}
+          <div className="hidden lg:flex items-center gap-3 xl:gap-4 flex-shrink-0">
             <div className="hidden xl:flex items-center gap-3">
               <LanguageSwitcher />
               <ThemeSwitcher />
@@ -156,7 +164,7 @@ export default function Navbar() {
               title={t('nav.getCrisisHelp')}
             >
               <AlertTriangle className="w-4 h-4" />
-              <span>{t('nav.crisisHelp')}</span>
+              <span className="text-sm">{t('nav.crisisHelp')}</span>
             </motion.button>
             <motion.button
               onClick={toggleModeratorMode}
@@ -172,20 +180,14 @@ export default function Navbar() {
               <Shield className="w-4 h-4" />
               {isModerator && <span className="text-xs">MOD</span>}
             </motion.button>
-            {isModerator && (
-              <Link
-                to="/admin"
-                className="flex items-center space-x-2 px-3 py-2 bg-primary text-black rounded-lg font-medium transition-all hover:bg-primary/90"
-                title="Admin Panel"
-              >
-                <Shield className="w-4 h-4" />
-                <span className="text-sm">Admin</span>
-              </Link>
-            )}
-            <span className="text-text-muted font-medium">{studentId}</span>
+            {/* User Menu Dropdown */}
+            <UserMenu />
+            {/* More Menu Dropdown */}
+            <MoreMenu />
             <ConnectWalletButton />
           </div>
 
+          {/* Mobile Hamburger Button */}
           <button
             ref={menuButtonRef}
             onClick={() => setIsOpen(!isOpen)}
@@ -200,6 +202,7 @@ export default function Navbar() {
         </div>
       </div>
 
+      {/* Mobile Menu */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -219,14 +222,16 @@ export default function Navbar() {
                 <FontSwitcher />
               </div>
               <nav role="menu" aria-label={t('nav.mainNavigation')}>
-                {navLinks.map((link) => {
+                {allNavLinks.map((link) => {
                   const isActive =
                     link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
                   return (
                     <button
                       key={link.labelKey}
                       onClick={() => handleNavClick(link)}
-                      className={`block w-full text-left nav-link py-2 ${isActive ? 'text-info font-semibold' : ''}`}
+                      className={`block w-full text-left nav-link py-2 text-sm font-medium transition-colors ${
+                        isActive ? 'text-info font-semibold' : 'text-text hover:text-info'
+                      }`}
                       type="button"
                       role="menuitem"
                       aria-current={isActive ? 'page' : undefined}
@@ -241,7 +246,7 @@ export default function Navbar() {
                       setShowCrisisModal(true);
                       closeMenu();
                     }}
-                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold"
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold text-sm"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     title={t('nav.getCrisisHelp')}
@@ -254,7 +259,7 @@ export default function Navbar() {
                     onClick={() => {
                       toggleModeratorMode();
                     }}
-                    className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                    className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-all text-sm mt-2 ${
                       isModerator ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'
                     }`}
                     whileHover={{ scale: 1.02 }}
@@ -269,7 +274,7 @@ export default function Navbar() {
               </nav>
               <div className="pt-3 border-t border-white/10 space-y-3">
                 <NotificationDropdown />
-                <div className="text-text-muted font-medium">{studentId}</div>
+                <div className="text-text-muted font-medium text-sm">{studentId}</div>
                 <div className="flex justify-start">
                   <ConnectWalletButton />
                 </div>

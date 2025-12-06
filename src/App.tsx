@@ -193,6 +193,7 @@ function AnimatedRoutes() {
             <Route path="/" element={<Landing />} />
             <Route path="/feed" element={<Feed />} />
             <Route path="/communities" element={<CommunitiesPage />} />
+            <Route path="/communities/:communityId" element={<CommunitiesPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/post/:postId" element={<PostDetail />} />
