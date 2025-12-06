@@ -34,6 +34,9 @@ export interface CustomGradient {
 
 export interface ThemeState {
   // Core Theme Settings
+  isHydrated: boolean;
+  
+  // Core Theme Settings
   themeSystem: ThemeSystem;
   resolvedThemeSystem: ResolvedThemeSystem;
   colorMode: ColorMode;
@@ -192,6 +195,8 @@ function startAutoListeners(set: (state: Partial<ThemeState>) => void, get: () =
 export const useThemeSystemStore = create<ThemeState>()(
   persist(
     (set, get) => ({
+      isHydrated: false,
+      
       // Core Theme Settings
       themeSystem: DEFAULT_THEME_SYSTEM,
       resolvedThemeSystem: getSystemResolvedThemeSystem(),

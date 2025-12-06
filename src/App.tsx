@@ -28,7 +28,7 @@ import SearchPage from './pages/Search';
 import MentorDashboard from './pages/MentorDashboard';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import AdminPanel from './pages/AdminPanel';
-import AppearanceSettings from './components/settings/AppearanceSettings';
+import AppearanceSettings from './components/settings/AppearanceSettingsPage';
 import ResponsiveLayout from './components/responsive/ResponsiveLayout';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
 import AchievementToastContainer from './components/wallet/AchievementToastContainer';
