@@ -1,9 +1,12 @@
 import { renderHook, act } from '@testing-library/react';
 import { useStore } from '../../../lib/store';
+import { vi } from 'vitest';
 
 describe('Privacy Onboarding Store', () => {
   beforeEach(() => {
     localStorage.clear();
+    // Reset the privacy onboarding state
+    useStore.getState().resetPrivacyOnboarding();
   });
 
   describe('Store State Transitions', () => {
@@ -68,7 +71,13 @@ describe('Privacy Onboarding Store', () => {
       
       act(() => {
         result.current.openPrivacyOnboarding();
+      });
+
+      act(() => {
         result.current.advancePrivacyOnboardingStep();
+      });
+
+      act(() => {
         result.current.goBackPrivacyOnboardingStep();
       });
 
@@ -161,20 +170,21 @@ describe('Privacy Onboarding Store', () => {
     });
 
     it('returns true when snooze period has passed', () => {
+      vi.useFakeTimers();
+      const now = Date.now();
+      
       const { result } = renderHook(() => useStore());
       
       act(() => {
         result.current.snoozePrivacyOnboarding(30);
       });
 
-      const now = Date.now();
-      
-      jest.useFakeTimers();
-      jest.setSystemTime(new Date(now + 31 * 24 * 60 * 60 * 1000));
+      // Advance time by 31 days
+      vi.setSystemTime(new Date(now + 31 * 24 * 60 * 60 * 1000));
 
       expect(result.current.shouldShowPrivacyOnboarding()).toBe(true);
       
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
   });
 
