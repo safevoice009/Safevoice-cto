@@ -165,7 +165,7 @@ describe('StorageRouter', () => {
 
     it('should report degraded health when few peers', () => {
       router.updateMetrics({
-        availablePeers: 1,
+        availablePeers: 5,
         ipfsNetworkHealthy: false,
       });
 

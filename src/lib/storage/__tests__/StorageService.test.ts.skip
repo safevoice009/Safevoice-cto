@@ -6,7 +6,10 @@ import {
 } from '../encryption/StorageEncryption';
 import { closeLocalStorage } from '../local/LocalStorage';
 
-describe('StorageService', () => {
+// Skip if IndexedDB is not available (Node environment)
+const indexedDBAvailable = typeof indexedDB !== 'undefined';
+
+describe.skipIf(!indexedDBAvailable)('StorageService', () => {
   let service: StorageService;
 
   beforeEach(async () => {
