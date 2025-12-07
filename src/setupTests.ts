@@ -91,3 +91,33 @@ if (typeof globalThis.TextDecoder === 'undefined') {
   // @ts-expect-error - override global TextDecoder for test environment
   globalThis.TextDecoder = PatchedTextDecoder;
 }
+
+// Provide crypto.subtle if not available (use native Node webcrypto)
+if (typeof globalThis.crypto === 'undefined' || typeof globalThis.crypto?.subtle === 'undefined') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { webcrypto } = require('crypto');
+    Object.defineProperty(globalThis, 'crypto', {
+      writable: true,
+      value: webcrypto,
+    });
+  } catch {
+    // webcrypto not available in this Node version
+  }
+}
+
+// Mock IndexedDB if not available
+if (typeof globalThis.indexedDB === 'undefined') {
+  // Create a minimal mock that allows tests to skip gracefully
+  const mockIndexedDB = {
+    open: () => ({
+      onerror: null,
+      onsuccess: null,
+      onupgradeneeded: null,
+    }),
+  };
+  Object.defineProperty(globalThis, 'indexedDB', {
+    writable: true,
+    value: mockIndexedDB,
+  });
+}
