@@ -49,9 +49,13 @@ import {
   serializeMitigationPlan,
   deserializeMitigationPlan,
 } from './privacy/fingerprint';
+import { localStorageService } from './storage/local/LocalStorageService';
+import { storageEncryption } from './storage/encryption/StorageEncryption';
+import type { MediaAsset, StorageStats, EncryptionStats } from './storage/types';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
+export type { MediaAsset, StorageStats, EncryptionStats };
 
 // Types
 export interface Reaction {
@@ -909,6 +913,20 @@ export interface StoreState {
   snoozePrivacyOnboarding: (days: number) => void;
   resetPrivacyOnboarding: () => void;
   shouldShowPrivacyOnboarding: () => boolean;
+
+  // Local Storage State
+  localMedia: Map<string, MediaAsset>;
+  storageStats: StorageStats | null;
+  encryptionStats: EncryptionStats | null;
+
+  // Local Storage Actions
+  initializeStorage: () => Promise<void>;
+  saveMediaLocally: (mediaId: string, file: Blob) => Promise<MediaAsset>;
+  getMediaLocally: (mediaId: string) => Promise<Blob | null>;
+  deleteMediaLocally: (mediaId: string) => Promise<void>;
+  getStorageStats: () => Promise<StorageStats>;
+  cleanupExpiredMedia: () => Promise<number>;
+  rotateEncryptionKey: () => Promise<void>;
 }
 
 /**
@@ -2299,6 +2317,11 @@ export const useStore = create<StoreState>((set, get) => {
 
     // Privacy Onboarding state
     privacyOnboarding: loadPrivacyOnboarding(),
+
+    // Local Storage state
+    localMedia: new Map(),
+    storageStats: null,
+    encryptionStats: null,
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -7102,6 +7125,134 @@ export const useStore = create<StoreState>((set, get) => {
     
     // Show if not completed and not snoozed
     return true;
+  },
+
+  // Local Storage Actions
+  initializeStorage: async () => {
+    try {
+      await storageEncryption.initialize();
+      const stats = await localStorageService.getStorageStats();
+      const encryptionStats = storageEncryption.getStats();
+
+      set({
+        storageStats: { local: stats, total: { cost: 0, redundancy: 1 } },
+        encryptionStats
+      });
+    } catch (error) {
+      console.error('[Storage] Initialization failed:', error);
+      toast.error('Failed to initialize storage');
+    }
+  },
+
+  saveMediaLocally: async (mediaId: string, file: Blob) => {
+    try {
+      const encrypted = await storageEncryption.encryptMedia(
+        await file.arrayBuffer()
+      );
+
+      const saved = await localStorageService.saveMedia(
+        mediaId,
+        file,
+        encrypted.ciphertext
+      );
+
+      const asset: MediaAsset = {
+        id: saved.id,
+        mediaId,
+        type: file.type.startsWith('image/') ? 'image' :
+              file.type.startsWith('audio/') ? 'audio' : 'video',
+        mimeType: file.type,
+        size: file.size,
+        uploadedAt: Date.now(),
+        isPublic: false,
+        encryption: 'aes-256-gcm',
+        storage: 'local'
+      };
+
+      const localMedia = new Map(get().localMedia);
+      localMedia.set(mediaId, asset);
+      set({ localMedia });
+
+      toast.success('Media saved locally');
+      return asset;
+    } catch (error) {
+      console.error('[Storage] Save failed:', error);
+      toast.error('Failed to save media');
+      throw error;
+    }
+  },
+
+  getMediaLocally: async (mediaId: string) => {
+    try {
+      const stored = await localStorageService.getMedia(mediaId);
+      if (!stored) return null;
+
+      const decrypted = await storageEncryption.decryptMedia({
+        ciphertext: stored.data,
+        iv: new Uint8Array(),
+        salt: new Uint8Array(),
+        authTag: new Uint8Array(),
+        algorithm: 'AES-256-GCM'
+      });
+
+      return new Blob([decrypted], { type: stored.mimeType });
+    } catch (error) {
+      console.error('[Storage] Retrieval failed:', error);
+      toast.error('Failed to retrieve media');
+      throw error;
+    }
+  },
+
+  deleteMediaLocally: async (mediaId: string) => {
+    try {
+      await localStorageService.deleteMedia(mediaId);
+      const localMedia = new Map(get().localMedia);
+      localMedia.delete(mediaId);
+      set({ localMedia });
+      toast.success('Media deleted');
+    } catch (error) {
+      console.error('[Storage] Delete failed:', error);
+      toast.error('Failed to delete media');
+      throw error;
+    }
+  },
+
+  getStorageStats: async () => {
+    try {
+      const local = await localStorageService.getStorageStats();
+      const stats = {
+        local,
+        total: { cost: 0, redundancy: 1 }
+      };
+      set({ storageStats: stats });
+      return stats;
+    } catch (error) {
+      console.error('[Storage] Stats retrieval failed:', error);
+      throw error;
+    }
+  },
+
+  cleanupExpiredMedia: async () => {
+    try {
+      const count = await localStorageService.cleanupExpiredMedia();
+      toast.success(`Cleaned up ${count} expired files`);
+      return count;
+    } catch (error) {
+      console.error('[Storage] Cleanup failed:', error);
+      toast.error('Failed to cleanup storage');
+      throw error;
+    }
+  },
+
+  rotateEncryptionKey: async () => {
+    try {
+      await storageEncryption.rotateKey();
+      toast.success('Encryption key rotated successfully');
+    } catch (error) {
+      console.error('[Storage] Key rotation failed:', error);
+      toast.error('Failed to rotate encryption key');
+      throw error;
+    }
   },
 
 };
