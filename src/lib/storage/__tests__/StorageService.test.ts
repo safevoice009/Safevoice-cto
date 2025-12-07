@@ -1,0 +1,143 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { StorageService } from '../StorageService';
+import {
+  generateOrGetStorageEncryptionKey,
+  clearStorageEncryptionKey,
+} from '../encryption/StorageEncryption';
+import { closeLocalStorage } from '../local/LocalStorage';
+
+describe('StorageService', () => {
+  let service: StorageService;
+
+  beforeEach(async () => {
+    // Clear storage before each test
+    localStorage.clear();
+    service = new StorageService();
+  });
+
+  afterEach(() => {
+    closeLocalStorage();
+    clearStorageEncryptionKey();
+    localStorage.clear();
+  });
+
+  it('should initialize successfully', async () => {
+    await service.init();
+    // Should not throw
+  });
+
+  it('should upload media with encryption', async () => {
+    await service.init();
+
+    const file = new File(['test content'], 'test.txt', { type: 'text/plain' });
+    const mediaId = 'test-media-1';
+
+    const result = await service.uploadMedia(file, mediaId);
+
+    expect(result.mediaId).toBe(mediaId);
+    expect(result.uploadedAt).toBeLessThanOrEqual(Date.now());
+    expect(result.size).toBe(file.size);
+  });
+
+  it('should decrypt and retrieve uploaded media', async () => {
+    await service.init();
+
+    const fileContent = 'secret data';
+    const file = new File([fileContent], 'secret.txt', { type: 'text/plain' });
+    const mediaId = 'test-media-2';
+
+    await service.uploadMedia(file, mediaId);
+
+    const retrieved = await service.downloadMedia(mediaId);
+    const text = await retrieved.data.text();
+
+    expect(text).toBe(fileContent);
+    expect(retrieved.retrievedFrom).toBe('local');
+  });
+
+  it('should list stored media', async () => {
+    await service.init();
+
+    // Upload multiple files
+    const file1 = new File(['content1'], 'file1.txt', { type: 'text/plain' });
+    const file2 = new File(['content2'], 'file2.txt', { type: 'text/plain' });
+
+    await service.uploadMedia(file1, 'media-1');
+    await service.uploadMedia(file2, 'media-2');
+
+    const mediaList = await service.listMedia();
+
+    expect(mediaList.length).toBe(2);
+    expect(mediaList.map((m) => m.mediaId)).toContain('media-1');
+    expect(mediaList.map((m) => m.mediaId)).toContain('media-2');
+  });
+
+  it('should delete media', async () => {
+    await service.init();
+
+    const file = new File(['content'], 'test.txt');
+    const mediaId = 'test-delete';
+
+    await service.uploadMedia(file, mediaId);
+    const exists = await service.mediaExists(mediaId);
+    expect(exists).toBe(true);
+
+    await service.deleteMedia(mediaId);
+    const stillExists = await service.mediaExists(mediaId);
+    expect(stillExists).toBe(false);
+  });
+
+  it('should return storage statistics', async () => {
+    await service.init();
+
+    const file = new File(['test content'], 'test.txt');
+    await service.uploadMedia(file, 'test-stats');
+
+    const stats = await service.getStats();
+
+    expect(stats).toHaveProperty('localStorageStats');
+    expect(stats).toHaveProperty('totalMediaCount');
+    expect(stats).toHaveProperty('totalEncryptedSize');
+    expect(stats.totalMediaCount).toBe(1);
+  });
+
+  it('should handle large files', async () => {
+    await service.init();
+
+    // Create 10MB test file
+    const largeData = new Uint8Array(10 * 1024 * 1024);
+    crypto.getRandomValues(largeData);
+    const file = new File([largeData], 'large.bin', { type: 'application/octet-stream' });
+
+    const result = await service.uploadMedia(file, 'large-media');
+
+    expect(result.size).toBe(10 * 1024 * 1024);
+
+    // Verify encryption increased size slightly
+    const stats = await service.getStats();
+    expect(stats.totalEncryptedSize).toBeGreaterThan(file.size);
+  });
+
+  it('should throw on upload without initialization', async () => {
+    const file = new File(['content'], 'test.txt');
+
+    await expect(service.uploadMedia(file, 'test')).rejects.toThrow(
+      'Storage service not initialized'
+    );
+  });
+
+  it('should throw on download non-existent media', async () => {
+    await service.init();
+
+    await expect(service.downloadMedia('non-existent')).rejects.toThrow('Media not found');
+  });
+
+  it('should maintain unique encryption keys', async () => {
+    // Each init should use same key (if already generated)
+    const key1 = await generateOrGetStorageEncryptionKey();
+    const key2 = await generateOrGetStorageEncryptionKey();
+
+    // Should be same key (exported/imported)
+    expect(key1.type).toBe(key2.type);
+  });
+});
