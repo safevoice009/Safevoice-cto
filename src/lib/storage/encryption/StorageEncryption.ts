@@ -64,23 +64,27 @@ export class StorageEncryption {
       throw new Error('Encryption not initialized')
     }
 
-    // Ensure data is an ArrayBuffer
-    let buffer = data
-    if (!(buffer instanceof ArrayBuffer)) {
-      // Create a copy as ArrayBuffer
-      const newBuffer = new ArrayBuffer((buffer as ArrayBufferLike).byteLength)
-      new Uint8Array(newBuffer).set(new Uint8Array(buffer as ArrayBufferLike))
-      buffer = newBuffer
+    // Convert to Uint8Array for crypto.subtle (it accepts TypedArray with ArrayBuffer)
+    let dataToEncrypt: BufferSource
+    if (data instanceof ArrayBuffer) {
+      dataToEncrypt = new Uint8Array(data)
+    } else {
+      // For other types, create a proper Uint8Array with ArrayBuffer backing
+      const tempBuffer = new ArrayBuffer((data as ArrayBufferLike).byteLength)
+      const src = new Uint8Array(data as ArrayBufferLike)
+      const dst = new Uint8Array(tempBuffer)
+      dst.set(src)
+      dataToEncrypt = dst
     }
 
     // Generate random IV (12 bytes for GCM)
     const iv = crypto.getRandomValues(new Uint8Array(12))
 
-    // Encrypt
+    // Encrypt using proper buffer source
     const ciphertext = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv },
       this.userKey,
-      buffer
+      dataToEncrypt
     )
 
     return {
