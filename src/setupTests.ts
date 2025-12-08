@@ -92,3 +92,95 @@ if (typeof globalThis.TextDecoder === 'undefined') {
   // @ts-expect-error - override global TextDecoder for test environment
   globalThis.TextDecoder = PatchedTextDecoder;
 }
+
+// DataTransfer polyfill for drag-and-drop simulations in jsdom
+if (typeof DataTransfer === 'undefined') {
+  class DataTransferPolyfill {
+    private _items: DataTransferItem[] = [];
+
+    get items(): object {
+      const items = this._items;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const itemsObject: any = {
+        length: items.length,
+        add: (file: File | string, type?: string): DataTransferItem | null => {
+          const item: DataTransferItem = {
+            kind: typeof file === 'string' ? 'string' : 'file',
+            type: type || (typeof file === 'string' ? 'text/plain' : (file as File).type),
+            getAsFile: () => (typeof file === 'string' ? null : (file as File)),
+            getAsString: (callback: (data: string) => void) => {
+              callback(typeof file === 'string' ? file : '');
+            },
+          } as DataTransferItem;
+          items.push(item);
+          return item;
+        },
+        remove: (index: number): void => {
+          items.splice(index, 1);
+        },
+        clear: (): void => {
+          items.length = 0;
+        },
+        [Symbol.iterator]: function* () {
+          yield* items;
+        },
+      };
+      return itemsObject;
+    }
+
+    set dropEffect(_value: string) {
+      // noop
+    }
+
+    get dropEffect(): string {
+      return 'none';
+    }
+
+    set effectAllowed(_value: string) {
+      // noop
+    }
+
+    get effectAllowed(): string {
+      return 'none';
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    setData(_type: string, _data: string): void {
+      // noop
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    getData(_type: string): string {
+      return '';
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    clearData(_type?: string): void {
+      // noop
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    setDragImage(_image: Element, _x: number, _y: number): void {
+      // noop
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  globalThis.DataTransfer = DataTransferPolyfill as any;
+}
+
+// DragEvent polyfill for drag-and-drop testing in jsdom
+if (typeof DragEvent === 'undefined') {
+  class DragEventPolyfill extends MouseEvent {
+    readonly dataTransfer: object | null;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    constructor(type: string, eventInitDict?: any) {
+      super(type, eventInitDict);
+      this.dataTransfer = eventInitDict?.dataTransfer ?? null;
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  globalThis.DragEvent = DragEventPolyfill as any;
+}
