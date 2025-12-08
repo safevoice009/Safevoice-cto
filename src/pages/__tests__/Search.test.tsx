@@ -77,6 +77,8 @@ const createPost = (overrides: Partial<Post> = {}): Post => {
     isAnonymous: overrides.isAnonymous,
     archived: overrides.archived,
     archivedAt: overrides.archivedAt,
+    mediaAttachments: overrides.mediaAttachments ?? [],
+    hasMedia: overrides.hasMedia ?? false,
   };
 };
 

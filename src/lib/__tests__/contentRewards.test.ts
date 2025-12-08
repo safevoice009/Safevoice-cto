@@ -387,6 +387,8 @@ const basePost = {
   isEncrypted: false,
   encryptionMeta: null,
   imageUrl: null,
+  mediaAttachments: [],
+  hasMedia: false,
   warningShown: false,
   reports: [] as Report[],
   moderationIssues: [] as PostModerationIssue[],

@@ -51,6 +51,8 @@ export const createPost = (overrides?: Partial<Post>): Post => ({
   isEncrypted: false,
   encryptionMeta: null,
   imageUrl: null,
+  mediaAttachments: [],
+  hasMedia: false,
   warningShown: false,
   reports: [],
   contentBlurred: false,

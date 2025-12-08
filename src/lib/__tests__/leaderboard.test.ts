@@ -27,6 +27,8 @@ const createMockPost = (overrides: Partial<Post> = {}): Post => ({
   lifetime: '24h',
   isEncrypted: false,
   encryptionMeta: null,
+  mediaAttachments: [],
+  hasMedia: false,
   ...overrides,
 });
 

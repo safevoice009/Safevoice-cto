@@ -16,6 +16,13 @@ export interface MediaAsset {
   storage: 'local' | 'p2p' | 'ipfs' | 'github'
 }
 
+export interface MediaAttachment {
+  mediaId: string
+  ipfsCid?: string
+  type: 'image' | 'audio'
+  storage: 'local' | 'ipfs'
+}
+
 export interface StorageStats {
   local: {
     used: number

@@ -172,6 +172,8 @@ const createPost = (overrides: Partial<Post> = {}): Post => ({
   lifetime: 'never',
   isEncrypted: false,
   encryptionMeta: null,
+  mediaAttachments: [],
+  hasMedia: false,
   ...overrides,
 });
 

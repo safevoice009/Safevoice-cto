@@ -303,6 +303,8 @@ const createPost = (overrides: Partial<Post> = {}): Post => ({
   imageUrl: overrides.imageUrl ?? null,
   emotionAnalysis: overrides.emotionAnalysis,
   ipfsCid: overrides.ipfsCid ?? null,
+  mediaAttachments: overrides.mediaAttachments ?? [],
+  hasMedia: overrides.hasMedia ?? false,
   warningShown: overrides.warningShown,
   reports: overrides.reports,
   contentBlurred: overrides.contentBlurred,

@@ -158,6 +158,8 @@ describe('PostCard IPFS Integration', () => {
     isEncrypted: false,
     encryptionMeta: null,
     ipfsCid: 'QmTest123456',
+    mediaAttachments: [],
+    hasMedia: false,
   };
 
   it('renders the IPFS CID when available', () => {

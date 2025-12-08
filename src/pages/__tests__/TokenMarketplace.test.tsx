@@ -50,6 +50,8 @@ const createMockPost = (id: string, content: string) => ({
   crossCampusBoosts: [],
   crossCampusBoostedAt: null,
   crossCampusUntil: null,
+  mediaAttachments: [],
+  hasMedia: false,
 });
 
 const setupStore = (overrides: Partial<StoreSnapshot> = {}) => {
