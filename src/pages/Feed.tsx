@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronDown } from 'lucide-react';
 import { useStore, type PostSearchFilters } from '../lib/store';
 import CreatePost from '../components/feed/CreatePost';
 import PostCard from '../components/feed/PostCard';
@@ -11,10 +12,13 @@ import CommunityModerationPanel from '../components/community/CommunityModeratio
 import AnnouncementBanner from '../components/community/AnnouncementBanner';
 import ChannelMuteBanner from '../components/community/ChannelMuteBanner';
 import ModerationLogDisplay from '../components/community/ModerationLogDisplay';
+import { MediaUploader } from '../components/storage/MediaUploader';
+import { LocalStorageStatus } from '../components/storage/LocalStorageStatus';
 
 export default function Feed() {
   const { posts, isModerator, initializeStore } = useStore();
   const [showSearch, setShowSearch] = useState(false);
+  const [showMediaUploader, setShowMediaUploader] = useState(false);
   const [initialSearchFilters, setInitialSearchFilters] = useState<Partial<PostSearchFilters> | undefined>();
 
   useEffect(() => {
@@ -55,6 +59,43 @@ export default function Feed() {
           transition={{ duration: 0.4 }}
         >
           <CreatePost />
+
+          {/* Media Uploader - Hidden on mobile, shown in disclosure on desktop */}
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="hidden lg:block"
+          >
+            <div className="glass p-6 space-y-4">
+              <button
+                onClick={() => setShowMediaUploader(!showMediaUploader)}
+                className="w-full flex items-center justify-between text-lg font-semibold text-white hover:text-primary/80 transition-colors"
+              >
+                <span>📁 Upload Media</span>
+                <ChevronDown
+                  className={`h-5 w-5 transition-transform ${
+                    showMediaUploader ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {showMediaUploader && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4 pt-4 border-t border-white/10"
+                >
+                  <MediaUploader
+                    accept="image/*,audio/*,video/*"
+                    maxSize={500 * 1024 * 1024}
+                  />
+                  <LocalStorageStatus />
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
 
           {/* Community Banners */}
           <AnnouncementBanner />
