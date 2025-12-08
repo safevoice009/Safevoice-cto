@@ -53,10 +53,14 @@ import { localStorageService } from './storage/local/LocalStorageService';
 import { storageEncryption } from './storage/encryption/StorageEncryption';
 import { ipfsService } from './storage/ipfs/IPFSService';
 import type { MediaAsset, StorageStats, EncryptionStats } from './storage/types';
+import type { Message, Thread, OfflineEnvelope, MentionSuggestion } from './messaging/types';
+import { initializeMessagingService, getMessagingService, destroyMessagingService } from './messaging/MessagingService';
+import { parseMentions } from './messaging/mentions';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
 export type { MediaAsset, StorageStats, EncryptionStats };
+export type { Message, Thread, OfflineEnvelope, MentionSuggestion };
 
 // Types
 export interface Reaction {
@@ -939,7 +943,22 @@ export interface StoreState {
   downloadFromIPFS: (cid: string) => Promise<ArrayBuffer>;
   pinMediaIPFS: (cid: string) => Promise<void>;
   unpinMediaIPFS: (cid: string) => Promise<void>;
-}
+
+  // Messaging State
+  threads: Map<string, Thread>;
+  pendingMessages: OfflineEnvelope[];
+  mentionSuggestions: MentionSuggestion[];
+  messagingConnected: boolean;
+
+  // Messaging Actions
+  initializeMessaging: () => Promise<void>;
+  sendMessage: (threadId: string, content: string, attachedMediaIds?: string[]) => Promise<void>;
+  receiveMessage: (message: Message) => void;
+  retryOfflineMessages: () => Promise<void>;
+  markThreadRead: (threadId: string) => void;
+  setMentionSuggestions: (suggestions: MentionSuggestion[]) => void;
+  destroyMessaging: () => void;
+  }
 
 /**
  * localStorage keys used by the SafeVoice community system.
@@ -989,7 +1008,9 @@ const STORAGE_KEYS = {
   FINGERPRINT_MITIGATIONS_ACTIVE: 'safevoice_fingerprint_mitigations_active', // Whether mitigations are active
   FINGERPRINT_CURRENT_SALT: 'safevoice_fingerprint_current_salt', // Current anonymization salt
   PRIVACY_ONBOARDING: 'safevoice_privacy_onboarding',        // Privacy onboarding state
-};
+  MESSAGING_THREADS: 'safevoice_messaging_threads',          // Message threads
+  MESSAGING_PENDING: 'safevoice_messaging_pending',          // Pending messages when offline
+  };
 
 const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
 const EMOTION_SOURCES: readonly EmotionAnalysisResult['source'][] = ['api', 'offline', 'manual'];
@@ -2338,6 +2359,12 @@ export const useStore = create<StoreState>((set, get) => {
     // IPFS state
     ipfsMedia: new Map(),
     ipfsInitialized: false,
+
+    // Messaging state
+    threads: new Map(),
+    pendingMessages: [],
+    mentionSuggestions: [],
+    messagingConnected: false,
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -3889,6 +3916,20 @@ export const useStore = create<StoreState>((set, get) => {
     saveSaltRotation(state.lastSaltRotation);
     saveFingerprintMitigationsActive(state.fingerprintMitigationsActive);
     saveFingerprintSalt(state.currentFingerprintSalt);
+
+    // Save messaging state
+    if (state.threads.size > 0) {
+      const threadsArray = Array.from(state.threads.entries());
+      localStorage.setItem(STORAGE_KEYS.MESSAGING_THREADS, JSON.stringify(threadsArray));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.MESSAGING_THREADS);
+    }
+
+    if (state.pendingMessages.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.MESSAGING_PENDING, JSON.stringify(state.pendingMessages));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.MESSAGING_PENDING);
+    }
   },
 
   addPost: (
@@ -7331,6 +7372,193 @@ export const useStore = create<StoreState>((set, get) => {
       console.error('[IPFS] Unpin failed:', error);
       toast.error('Failed to unpin media from IPFS');
       throw error;
+    }
+  },
+
+  // Messaging Actions
+  initializeMessaging: async () => {
+    try {
+      const { studentId } = get();
+      const service = await initializeMessagingService({
+        userId: studentId,
+      });
+
+      // Subscribe to incoming messages
+      service.onMessage((message) => {
+        get().receiveMessage(message);
+      });
+
+      // Subscribe to connection changes
+      service.onConnectionChange((connected) => {
+        set({ messagingConnected: connected });
+        if (connected) {
+          get().retryOfflineMessages();
+        }
+      });
+
+      set({ messagingConnected: service.getIsConnected() });
+
+      // Load threads from localStorage
+      const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.MESSAGING_THREADS) : null;
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          const threads = new Map<string, Thread>(
+            Array.isArray(parsed) ? parsed.map(([id, thread]: [string, Thread]) => [id, thread]) : []
+          );
+          set({ threads });
+        } catch (error) {
+          console.error('[Messaging] Failed to load threads:', error);
+        }
+      }
+
+      // Load pending messages
+      const pendingStored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.MESSAGING_PENDING) : null;
+      if (pendingStored) {
+        try {
+          const pending = JSON.parse(pendingStored) as OfflineEnvelope[];
+          set({ pendingMessages: pending });
+        } catch (error) {
+          console.error('[Messaging] Failed to load pending messages:', error);
+        }
+      }
+
+      toast.success('Messaging initialized');
+    } catch (error) {
+      console.error('[Messaging] Initialization failed:', error);
+      toast.error('Failed to initialize messaging');
+    }
+  },
+
+  sendMessage: async (threadId: string, content: string, attachedMediaIds?: string[]) => {
+    try {
+      const { studentId } = get();
+      const service = getMessagingService();
+
+      if (!service) {
+        throw new Error('Messaging service not initialized');
+      }
+
+      // Parse mentions from content
+      const mentions = parseMentions(content);
+
+      const message: Message = {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        threadId,
+        senderId: studentId,
+        senderName: studentId,
+        content,
+        mentions,
+        attachedMediaIds,
+        createdAt: Date.now(),
+        isEdited: false,
+      };
+
+      // Send via service
+      await service.send(message, threadId);
+
+      // Update local thread
+      set((state) => {
+        const thread = state.threads.get(threadId);
+        if (thread) {
+          const updated = {
+            ...thread,
+            messages: [...thread.messages, message],
+            lastMessage: message,
+            lastActivityAt: Date.now(),
+          };
+          const newThreads = new Map(state.threads);
+          newThreads.set(threadId, updated);
+          return { threads: newThreads };
+        }
+        return state;
+      });
+
+      // Persist threads
+      get().saveToLocalStorage();
+
+      toast.success('Message sent');
+    } catch (error) {
+      console.error('[Messaging] Send failed:', error);
+      toast.error('Failed to send message');
+      throw error;
+    }
+  },
+
+  receiveMessage: (message: Message) => {
+    set((state) => {
+      const thread = state.threads.get(message.threadId);
+      if (thread) {
+        const updated = {
+          ...thread,
+          messages: [...thread.messages, message],
+          lastMessage: message,
+          lastActivityAt: Date.now(),
+          unreadCount: thread.unreadCount + 1,
+        };
+        const newThreads = new Map(state.threads);
+        newThreads.set(message.threadId, updated);
+        return { threads: newThreads };
+      }
+      return state;
+    });
+
+    get().saveToLocalStorage();
+  },
+
+  retryOfflineMessages: async () => {
+    try {
+      const service = getMessagingService();
+      if (service) {
+        await service.flushOfflineQueue();
+        const pending = service.getPendingMessages();
+        set({ pendingMessages: pending });
+        get().saveToLocalStorage();
+
+        if (pending.length === 0) {
+          toast.success('All pending messages sent');
+        }
+      }
+    } catch (error) {
+      console.error('[Messaging] Retry failed:', error);
+      toast.error('Failed to retry offline messages');
+    }
+  },
+
+  markThreadRead: (threadId: string) => {
+    set((state) => {
+      const thread = state.threads.get(threadId);
+      if (thread) {
+        const updated = {
+          ...thread,
+          unreadCount: 0,
+        };
+        const newThreads = new Map(state.threads);
+        newThreads.set(threadId, updated);
+        return { threads: newThreads };
+      }
+      return state;
+    });
+
+    get().saveToLocalStorage();
+  },
+
+  setMentionSuggestions: (suggestions: MentionSuggestion[]) => {
+    set({ mentionSuggestions: suggestions });
+  },
+
+  destroyMessaging: () => {
+    try {
+      destroyMessagingService();
+      set({
+        threads: new Map(),
+        pendingMessages: [],
+        mentionSuggestions: [],
+        messagingConnected: false,
+      });
+      toast.success('Messaging destroyed');
+    } catch (error) {
+      console.error('[Messaging] Destroy failed:', error);
     }
   },
 
