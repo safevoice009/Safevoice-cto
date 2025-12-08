@@ -184,3 +184,64 @@ if (typeof DragEvent === 'undefined') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   globalThis.DragEvent = DragEventPolyfill as any;
 }
+
+// OffscreenCanvas polyfill for media utils tests
+if (typeof OffscreenCanvas === 'undefined') {
+  class OffscreenCanvasPolyfill {
+    width: number;
+    height: number;
+    private _canvas: HTMLCanvasElement;
+
+    constructor(width: number, height: number) {
+      this.width = width;
+      this.height = height;
+      this._canvas = document.createElement('canvas');
+      this._canvas.width = width;
+      this._canvas.height = height;
+    }
+
+    getContext(contextType: string): CanvasRenderingContext2D | null {
+      if (contextType === '2d') {
+        return this._canvas.getContext('2d');
+      }
+      return null;
+    }
+
+    convertToBlob(options?: { type?: string; quality?: number }): Promise<Blob> {
+      return new Promise((resolve, reject) => {
+        this._canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('Failed to convert canvas to blob'));
+            }
+          },
+          options?.type || 'image/png',
+          options?.quality
+        );
+      });
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  globalThis.OffscreenCanvas = OffscreenCanvasPolyfill as any;
+}
+
+// URL.createObjectURL and URL.revokeObjectURL polyfill for jsdom
+if (!URL.createObjectURL || typeof URL.createObjectURL !== 'function') {
+  const objectUrls = new Map<string, Blob>();
+  let objectUrlCounter = 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (URL as any).createObjectURL = (blob: Blob | File): string => {
+    const id = `blob:jsdom:${objectUrlCounter++}`;
+    objectUrls.set(id, blob);
+    return id;
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (URL as any).revokeObjectURL = (url: string): void => {
+    objectUrls.delete(url);
+  };
+}
