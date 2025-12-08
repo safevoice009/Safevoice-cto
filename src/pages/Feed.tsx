@@ -14,11 +14,13 @@ import ChannelMuteBanner from '../components/community/ChannelMuteBanner';
 import ModerationLogDisplay from '../components/community/ModerationLogDisplay';
 import { MediaUploader } from '../components/storage/MediaUploader';
 import { LocalStorageStatus } from '../components/storage/LocalStorageStatus';
+import MessagingPanel from '../components/messaging/MessagingPanel';
 
 export default function Feed() {
   const { posts, isModerator, initializeStore } = useStore();
   const [showSearch, setShowSearch] = useState(false);
   const [showMediaUploader, setShowMediaUploader] = useState(false);
+  const [showMessaging, setShowMessaging] = useState(false);
   const [initialSearchFilters, setInitialSearchFilters] = useState<Partial<PostSearchFilters> | undefined>();
 
   useEffect(() => {
@@ -121,6 +123,7 @@ export default function Feed() {
         </motion.section>
 
         <aside className="hidden lg:flex lg:w-80 xl:w-96 lg:flex-col gap-6 lg:sticky lg:top-28">
+          <MessagingPanel isOpen={showMessaging} onClose={() => setShowMessaging(false)} />
           <CommunityDiscoveryPanel onRequestSearch={handleRequestSearch} />
           <CommunityEvents />
           <ModerationLogDisplay />
