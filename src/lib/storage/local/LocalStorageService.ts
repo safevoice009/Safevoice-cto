@@ -18,6 +18,10 @@ export interface StoredMedia {
     duration?: number // For audio/video
     thumbnail?: Blob
   }
+  // Additional encryption metadata for AES-GCM
+  iv?: Uint8Array
+  salt?: Uint8Array
+  authTag?: Uint8Array
 }
 
 class MediaDatabase extends Dexie {
@@ -45,7 +49,7 @@ export class LocalStorageService {
   async saveMedia(
     mediaId: string,
     file: Blob,
-    encryptedData: ArrayBuffer,
+    encryptedData: EncryptedData,
     metadata?: {
       width?: number
       height?: number
@@ -58,12 +62,16 @@ export class LocalStorageService {
       mediaId,
       fileName: mediaId,
       mimeType: file.type,
-      size: encryptedData.byteLength,
-      data: encryptedData,
+      size: encryptedData.ciphertext.byteLength,
+      data: encryptedData.ciphertext,
       encryptionKeyId: 'default', // TODO: Replace with actual key ID
       createdAt: Date.now(),
       isShared: false,
-      metadata
+      metadata,
+      // Store complete encryption data including IV, salt, and authTag
+      iv: encryptedData.iv,
+      salt: encryptedData.salt,
+      authTag: encryptedData.authTag
     }
 
     await this.db.media.add(storedMedia)
