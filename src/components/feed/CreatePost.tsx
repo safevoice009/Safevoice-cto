@@ -136,6 +136,7 @@ export default function CreatePost() {
           moderationData,
           ipfsCid: ipfsCid ?? null,
           emotionAnalysis: emotionAnalysis ?? undefined,
+          mediaAttachments: [],
         });
         setShowCrisisModal(true);
         setIsSubmitting(false);

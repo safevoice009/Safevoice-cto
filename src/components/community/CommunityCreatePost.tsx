@@ -148,6 +148,7 @@ export default function CommunityCreatePost({ community, channels, activeChannel
           channelId: selectedChannelId,
           visibility: 'campus',
           isAnonymous,
+          mediaAttachments: [],
         });
         setShowCrisisModal(true);
         setIsSubmitting(false);

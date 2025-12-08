@@ -55,6 +55,8 @@ const createPost = (overrides: Partial<Post> = {}): Post => {
     isEncrypted: overrides.isEncrypted ?? false,
     encryptionMeta: overrides.encryptionMeta ?? null,
     isCrisisFlagged: overrides.isCrisisFlagged,
+    mediaAttachments: overrides.mediaAttachments ?? [],
+    hasMedia: overrides.hasMedia ?? false,
   };
 };
 

@@ -52,14 +52,14 @@ import {
 import { localStorageService } from './storage/local/LocalStorageService';
 import { storageEncryption } from './storage/encryption/StorageEncryption';
 import { ipfsService } from './storage/ipfs/IPFSService';
-import type { MediaAsset, StorageStats, EncryptionStats } from './storage/types';
+import type { MediaAsset, StorageStats, EncryptionStats, MediaAttachment } from './storage/types';
 import type { Message, Thread, OfflineEnvelope, MentionSuggestion } from './messaging/types';
 import { initializeMessagingService, getMessagingService, destroyMessagingService } from './messaging/MessagingService';
 import { parseMentions } from './messaging/mentions';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
-export type { MediaAsset, StorageStats, EncryptionStats };
+export type { MediaAsset, StorageStats, EncryptionStats, MediaAttachment };
 export type { Message, Thread, OfflineEnvelope, MentionSuggestion };
 
 // Types
@@ -123,6 +123,7 @@ export interface AddPostPayload {
   };
   emotionAnalysis?: PostEmotionAnalysis | null;
   ipfsCid?: string | null;
+  mediaAttachments: MediaAttachment[];
 }
 
 export interface UpdatePostOptions {
@@ -188,6 +189,8 @@ export interface Post {
   imageUrl?: string | null;
   emotionAnalysis?: PostEmotionAnalysis;
   ipfsCid?: string | null;
+  mediaAttachments: MediaAttachment[];
+  hasMedia: boolean;
   warningShown?: boolean;
   reports?: Report[];
   contentBlurred?: boolean;
@@ -643,7 +646,8 @@ export interface StoreState {
       isAnonymous?: boolean;
     },
     emotionAnalysis?: PostEmotionAnalysis | null,
-    ipfsCid?: string | null
+    ipfsCid?: string | null,
+    mediaAttachments?: MediaAttachment[]
   ) => void;
   updatePost: (
     postId: string,
@@ -1045,6 +1049,77 @@ const normalizeEmotionAnalysis = (value: unknown): PostEmotionAnalysis | undefin
     source: data.source,
     confidence: Math.max(0, Math.min(1, data.confidence)),
     detectedAt: data.detectedAt,
+  };
+};
+
+const normalizePost = (post: Partial<Post>): Post | null => {
+  if (!post || typeof post !== 'object') {
+    return null;
+  }
+
+  if (!post.id || !post.studentId || !post.content || post.reactions === undefined || post.comments === undefined) {
+    return null;
+  }
+
+  const mediaAttachments = (post.mediaAttachments ?? []) as MediaAttachment[];
+  const hasImage = Boolean(post.imageUrl) || mediaAttachments.length > 0;
+
+  return {
+    id: post.id,
+    studentId: post.studentId,
+    content: post.content,
+    category: post.category,
+    reactions: post.reactions,
+    commentCount: post.commentCount ?? 0,
+    comments: post.comments,
+    createdAt: post.createdAt ?? Date.now(),
+    isEdited: post.isEdited ?? false,
+    editedAt: post.editedAt ?? null,
+    isPinned: post.isPinned ?? false,
+    isViral: post.isViral,
+    viralAwardedAt: post.viralAwardedAt ?? null,
+    reportCount: post.reportCount ?? 0,
+    helpfulCount: post.helpfulCount ?? 0,
+    expiresAt: post.expiresAt ?? null,
+    lifetime: post.lifetime ?? '24h',
+    customLifetimeHours: post.customLifetimeHours,
+    isEncrypted: post.isEncrypted ?? false,
+    encryptionMeta: post.encryptionMeta ?? null,
+    imageUrl: post.imageUrl ?? null,
+    emotionAnalysis: post.emotionAnalysis,
+    ipfsCid: post.ipfsCid ?? null,
+    mediaAttachments,
+    hasMedia: hasImage,
+    warningShown: post.warningShown,
+    reports: post.reports,
+    contentBlurred: post.contentBlurred,
+    blurReason: post.blurReason,
+    moderationStatus: post.moderationStatus,
+    hiddenReason: post.hiddenReason,
+    moderationIssues: post.moderationIssues,
+    needsReview: post.needsReview,
+    isCrisisFlagged: post.isCrisisFlagged,
+    crisisLevel: post.crisisLevel,
+    supportOffered: post.supportOffered,
+    flaggedAt: post.flaggedAt,
+    flaggedForSupport: post.flaggedForSupport,
+    pinnedAt: post.pinnedAt,
+    isHighlighted: post.isHighlighted,
+    highlightedAt: post.highlightedAt,
+    highlightedUntil: post.highlightedUntil,
+    extendedLifetimeHours: post.extendedLifetimeHours,
+    crossCampusBoostedAt: post.crossCampusBoostedAt,
+    crossCampusUntil: post.crossCampusUntil,
+    crossCampusBoosts: post.crossCampusBoosts,
+    isCommunityPinned: post.isCommunityPinned,
+    communityPinnedAt: post.communityPinnedAt,
+    communityPinnedBy: post.communityPinnedBy,
+    communityId: post.communityId,
+    channelId: post.channelId,
+    visibility: post.visibility,
+    isAnonymous: post.isAnonymous,
+    archived: post.archived,
+    archivedAt: post.archivedAt,
   };
 };
 
@@ -3515,7 +3590,10 @@ export const useStore = create<StoreState>((set, get) => {
     const storedNotifications = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
     const storedEncryptionKeys = localStorage.getItem(STORAGE_KEYS.ENCRYPTION_KEYS);
 
-    const rawPosts = storedPosts ? (JSON.parse(storedPosts) as Post[]) : [];
+    const rawStoredPosts = storedPosts ? (JSON.parse(storedPosts) as Array<Partial<Post>>) : [];
+    const rawPosts = rawStoredPosts
+      .map(normalizePost)
+      .filter((post): post is Post => post !== null);
     const bookmarkedPosts = storedBookmarks ? JSON.parse(storedBookmarks) : [];
     const rawReports = storedReports ? (JSON.parse(storedReports) as Array<Partial<Report>>) : [];
     const rawModActions = storedModActions ? (JSON.parse(storedModActions) as Array<Partial<ModeratorAction>>) : [];
@@ -3700,37 +3778,39 @@ export const useStore = create<StoreState>((set, get) => {
       const nowStamp = Date.now();
       posts = [
         {
-          id: crypto.randomUUID(),
-          studentId: generateStudentId(),
-          content:
-            'Feeling overwhelmed with academics and expectations. Sometimes it feels like no one understands the pressure we face. 😔',
-          category: 'Mental Health',
-          reactions: { heart: 12, fire: 3, clap: 8, sad: 15, angry: 2, laugh: 0 },
-          commentCount: 4,
-          comments: [],
-          createdAt: nowStamp - 86400000 * 2,
-          isEdited: false,
-          editedAt: null,
-          isPinned: false,
-          isViral: false,
-          viralAwardedAt: null,
-          reportCount: 0,
-          helpfulCount: 5,
-          expiresAt: null,
-          lifetime: 'never',
-          customLifetimeHours: null,
-          isEncrypted: false,
-          encryptionMeta: null,
-          warningShown: false,
-          pinnedAt: null,
-          isHighlighted: false,
-          highlightedAt: null,
-          highlightedUntil: null,
-          extendedLifetimeHours: 0,
-          crossCampusBoosts: [],
-          crossCampusBoostedAt: null,
-          crossCampusUntil: null,
-        },
+           id: crypto.randomUUID(),
+           studentId: generateStudentId(),
+           content:
+             'Feeling overwhelmed with academics and expectations. Sometimes it feels like no one understands the pressure we face. 😔',
+           category: 'Mental Health',
+           reactions: { heart: 12, fire: 3, clap: 8, sad: 15, angry: 2, laugh: 0 },
+           commentCount: 4,
+           comments: [],
+           createdAt: nowStamp - 86400000 * 2,
+           isEdited: false,
+           editedAt: null,
+           isPinned: false,
+           isViral: false,
+           viralAwardedAt: null,
+           reportCount: 0,
+           helpfulCount: 5,
+           expiresAt: null,
+           lifetime: 'never',
+           customLifetimeHours: null,
+           isEncrypted: false,
+           encryptionMeta: null,
+           mediaAttachments: [],
+           hasMedia: false,
+           warningShown: false,
+           pinnedAt: null,
+           isHighlighted: false,
+           highlightedAt: null,
+           highlightedUntil: null,
+           extendedLifetimeHours: 0,
+           crossCampusBoosts: [],
+           crossCampusBoostedAt: null,
+           crossCampusUntil: null,
+         },
         {
           id: crypto.randomUUID(),
           studentId: generateStudentId(),
@@ -3753,6 +3833,8 @@ export const useStore = create<StoreState>((set, get) => {
           customLifetimeHours: null,
           isEncrypted: false,
           encryptionMeta: null,
+          mediaAttachments: [],
+          hasMedia: false,
           warningShown: false,
           pinnedAt: null,
           isHighlighted: false,
@@ -3785,6 +3867,8 @@ export const useStore = create<StoreState>((set, get) => {
           customLifetimeHours: null,
           isEncrypted: false,
           encryptionMeta: null,
+          mediaAttachments: [],
+          hasMedia: false,
           warningShown: false,
           pinnedAt: null,
           isHighlighted: false,
@@ -3955,11 +4039,14 @@ export const useStore = create<StoreState>((set, get) => {
       isAnonymous?: boolean;
     },
     emotionAnalysis?: PostEmotionAnalysis | null,
-    ipfsCid?: string | null
+    ipfsCid?: string | null,
+    mediaAttachments?: MediaAttachment[]
   ) => {
     const storeState = get();
     const isFirstPost = !storeState.firstPostAwarded;
-    const hasImage = Boolean(imageUrl);
+    const normalizedMediaAttachments = mediaAttachments ?? [];
+    const hasImage = Boolean(imageUrl) || normalizedMediaAttachments.length > 0;
+    const hasMedia = hasImage;
     const normalizedEmotionAnalysis = normalizeEmotionAnalysis(emotionAnalysis ?? undefined);
     const normalizedIpfsCid =
       typeof ipfsCid === 'string' && ipfsCid.trim().length > 0 ? ipfsCid.trim() : null;
@@ -4007,6 +4094,8 @@ export const useStore = create<StoreState>((set, get) => {
       imageUrl: imageUrl || null,
       emotionAnalysis: normalizedEmotionAnalysis,
       ipfsCid: normalizedIpfsCid,
+      mediaAttachments: normalizedMediaAttachments,
+      hasMedia,
       warningShown: false,
       reports: [],
       moderationIssues: moderationData?.issues || [],
@@ -4103,7 +4192,9 @@ export const useStore = create<StoreState>((set, get) => {
       postId: newPost.id,
       breakdown: rewardBreakdown,
       hasImage,
+      hasMedia,
       imageUrl: imageUrl ?? null,
+      mediaAttachments: normalizedMediaAttachments,
       isFirstPost,
       components: {
         base: rewardBreakdown.base,
