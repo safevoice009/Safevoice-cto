@@ -52,14 +52,14 @@ import {
 import { localStorageService } from './storage/local/LocalStorageService';
 import { storageEncryption } from './storage/encryption/StorageEncryption';
 import { ipfsService } from './storage/ipfs/IPFSService';
-import type { MediaAsset, StorageStats, EncryptionStats } from './storage/types';
+import type { MediaAsset, StorageStats, EncryptionStats, MediaAttachment } from './storage/types';
 import type { Message, Thread, OfflineEnvelope, MentionSuggestion } from './messaging/types';
 import { initializeMessagingService, getMessagingService, destroyMessagingService } from './messaging/MessagingService';
 import { parseMentions } from './messaging/mentions';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
-export type { MediaAsset, StorageStats, EncryptionStats };
+export type { MediaAsset, StorageStats, EncryptionStats, MediaAttachment };
 export type { Message, Thread, OfflineEnvelope, MentionSuggestion };
 
 // Types
@@ -104,6 +104,7 @@ export interface AddPostPayload {
   customLifetimeHours?: number | null;
   isEncrypted?: boolean;
   imageUrl?: string;
+  mediaAttachments?: MediaAttachment[];
   communityId?: string | null;
   channelId?: string | null;
   visibility?: PostVisibility;
@@ -186,6 +187,7 @@ export interface Post {
   isEncrypted: boolean;
   encryptionMeta: EncryptionMeta | null;
   imageUrl?: string | null;
+  mediaAttachments?: MediaAttachment[];
   emotionAnalysis?: PostEmotionAnalysis;
   ipfsCid?: string | null;
   warningShown?: boolean;
