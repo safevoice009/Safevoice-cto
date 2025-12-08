@@ -40,6 +40,8 @@ describe('Media Utils', () => {
       const dummyFile = new File([], 'test.png', { type: 'image/png' })
       const result = stripImageMetadata(dummyFile)
       expect(result).toBeInstanceOf(Promise)
+      // Suppress timeout errors
+      result.catch(() => {})
     })
 
     it('should reject invalid files with timeout protection', async () => {
@@ -48,13 +50,15 @@ describe('Media Utils', () => {
       })
 
       // The function itself has internal timeouts - just await it
+      const promise = stripImageMetadata(invalidFile)
       try {
-        const promise = stripImageMetadata(invalidFile)
         await promise
         expect(true).toBe(false) // Should not reach here
       } catch (error) {
         expect(error).toBeInstanceOf(Error)
       }
+      // Suppress timeout errors
+      promise.catch(() => {})
     })
   })
 
@@ -68,18 +72,24 @@ describe('Media Utils', () => {
       const dummyFile = new File([], 'test.png', { type: 'image/png' })
       const result = generateThumbnail(dummyFile)
       expect(result).toBeInstanceOf(Promise)
+      // Suppress timeout errors
+      result.catch(() => {})
     })
 
     it('should accept maxWidth parameter', () => {
       const dummyFile = new File([], 'test.png', { type: 'image/png' })
       const result = generateThumbnail(dummyFile, 100)
       expect(result).toBeInstanceOf(Promise)
+      // Suppress timeout errors
+      result.catch(() => {})
     })
 
     it('should have default maxWidth of 200', () => {
       const dummyFile = new File([], 'test.png', { type: 'image/png' })
       const result = generateThumbnail(dummyFile)
       expect(result).toBeInstanceOf(Promise)
+      // Suppress timeout errors
+      result.catch(() => {})
     })
 
     it('should reject invalid files with timeout protection', async () => {
@@ -95,6 +105,8 @@ describe('Media Utils', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(Error)
       }
+      // Suppress timeout errors
+      promise.catch(() => {})
     })
   })
 
@@ -122,6 +134,7 @@ describe('Media Utils', () => {
 
       // Suppress any unhandled rejections from delayed timeouts
       result.catch(() => {})
+      timeoutPromise.catch(() => {})
     })
 
     it('should reject invalid audio files', async () => {
@@ -147,6 +160,10 @@ describe('Media Utils', () => {
 
       expect(promise1).toBeInstanceOf(Promise)
       expect(promise2).toBeInstanceOf(Promise)
+
+      // Suppress timeout errors
+      promise1.catch(() => {})
+      promise2.catch(() => {})
     })
   })
 
@@ -157,6 +174,8 @@ describe('Media Utils', () => {
 
       const result = stripImageMetadata(file)
       expect(result).toBeInstanceOf(Promise)
+      // Suppress timeout errors
+      result.catch(() => {})
     })
 
     it('should accept File objects for generateThumbnail', () => {
@@ -165,6 +184,8 @@ describe('Media Utils', () => {
 
       const result = generateThumbnail(file, 100)
       expect(result).toBeInstanceOf(Promise)
+      // Suppress timeout errors
+      result.catch(() => {})
     })
 
     it('should accept File objects for getAudioDuration', () => {
@@ -173,6 +194,8 @@ describe('Media Utils', () => {
 
       const result = getAudioDuration(file)
       expect(result).toBeInstanceOf(Promise)
+      // Suppress timeout errors
+      result.catch(() => {})
     })
   })
 
@@ -195,12 +218,15 @@ describe('Media Utils', () => {
         { type: 'image/png' }
       )
 
+      const promise = stripImageMetadata(corruptedFile)
       try {
-        await stripImageMetadata(corruptedFile)
+        await promise
         expect(true).toBe(false) // Should not reach here
       } catch (error) {
         expect(error).toBeInstanceOf(Error)
       }
+      // Suppress timeout errors
+      promise.catch(() => {})
     })
 
     it('generateThumbnail should handle file read errors gracefully', async () => {
@@ -210,12 +236,15 @@ describe('Media Utils', () => {
         { type: 'image/png' }
       )
 
+      const promise = generateThumbnail(corruptedFile, 200)
       try {
-        await generateThumbnail(corruptedFile, 200)
+        await promise
         expect(true).toBe(false) // Should not reach here
       } catch (error) {
         expect(error).toBeInstanceOf(Error)
       }
+      // Suppress timeout errors
+      promise.catch(() => {})
     })
 
     it('getAudioDuration should handle audio load errors gracefully', async () => {
@@ -225,12 +254,15 @@ describe('Media Utils', () => {
         { type: 'audio/mpeg' }
       )
 
+      const promise = getAudioDuration(invalidFile)
       try {
-        await getAudioDuration(invalidFile)
+        await promise
         expect(true).toBe(false) // Should not reach here
       } catch (error) {
         expect(error).toBeInstanceOf(Error)
       }
+      // Suppress timeout errors
+      promise.catch(() => {})
     })
   })
 
@@ -303,6 +335,8 @@ describe('Media Utils', () => {
 
       const result = stripImageMetadata(file)
       expect(result).toBeInstanceOf(Promise)
+      // Suppress timeout errors
+      result.catch(() => {})
     })
 
     it('should work with binary data', () => {
@@ -311,6 +345,8 @@ describe('Media Utils', () => {
 
       const result = generateThumbnail(file, 100)
       expect(result).toBeInstanceOf(Promise)
+      // Suppress timeout errors
+      result.catch(() => {})
     })
   })
 
@@ -325,6 +361,11 @@ describe('Media Utils', () => {
       expect(result1).toBeInstanceOf(Promise)
       expect(result2).toBeInstanceOf(Promise)
       expect(result3).toBeInstanceOf(Promise)
+
+      // Suppress timeout errors
+      result1.catch(() => {})
+      result2.catch(() => {})
+      result3.catch(() => {})
     })
 
     it('should handle files with different MIME types', () => {
@@ -332,9 +373,18 @@ describe('Media Utils', () => {
       const jpegFile = new File([], 'test.jpg', { type: 'image/jpeg' })
       const gifFile = new File([], 'test.gif', { type: 'image/gif' })
 
-      expect(stripImageMetadata(pngFile)).toBeInstanceOf(Promise)
-      expect(stripImageMetadata(jpegFile)).toBeInstanceOf(Promise)
-      expect(stripImageMetadata(gifFile)).toBeInstanceOf(Promise)
+      const result1 = stripImageMetadata(pngFile)
+      const result2 = stripImageMetadata(jpegFile)
+      const result3 = stripImageMetadata(gifFile)
+
+      expect(result1).toBeInstanceOf(Promise)
+      expect(result2).toBeInstanceOf(Promise)
+      expect(result3).toBeInstanceOf(Promise)
+
+      // Suppress timeout errors
+      result1.catch(() => {})
+      result2.catch(() => {})
+      result3.catch(() => {})
     })
   })
 })
