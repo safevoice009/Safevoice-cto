@@ -51,6 +51,7 @@ import {
 } from './privacy/fingerprint';
 import { localStorageService } from './storage/local/LocalStorageService';
 import { storageEncryption } from './storage/encryption/StorageEncryption';
+import { ipfsService } from './storage/ipfs/IPFSService';
 import type { MediaAsset, StorageStats, EncryptionStats } from './storage/types';
 
 // Re-export premium types and achievement
@@ -927,6 +928,17 @@ export interface StoreState {
   getStorageStats: () => Promise<StorageStats>;
   cleanupExpiredMedia: () => Promise<number>;
   rotateEncryptionKey: () => Promise<void>;
+
+  // IPFS State
+  ipfsMedia: Map<string, string>; // mediaId -> IPFS CID mapping
+  ipfsInitialized: boolean;
+
+  // IPFS Actions
+  initializeIPFS: () => Promise<void>;
+  uploadToIPFS: (mediaId: string, data: ArrayBuffer) => Promise<string>;
+  downloadFromIPFS: (cid: string) => Promise<ArrayBuffer>;
+  pinMediaIPFS: (cid: string) => Promise<void>;
+  unpinMediaIPFS: (cid: string) => Promise<void>;
 }
 
 /**
@@ -2322,6 +2334,10 @@ export const useStore = create<StoreState>((set, get) => {
     localMedia: new Map(),
     storageStats: null,
     encryptionStats: null,
+
+    // IPFS state
+    ipfsMedia: new Map(),
+    ipfsInitialized: false,
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -7251,6 +7267,69 @@ export const useStore = create<StoreState>((set, get) => {
     } catch (error) {
       console.error('[Storage] Key rotation failed:', error);
       toast.error('Failed to rotate encryption key');
+      throw error;
+    }
+  },
+
+  // IPFS Actions
+  initializeIPFS: async () => {
+    try {
+      await ipfsService.initialize();
+      set({ ipfsInitialized: true });
+      toast.success('IPFS node initialized');
+    } catch (error) {
+      console.error('[IPFS] Initialization failed:', error);
+      set({ ipfsInitialized: false });
+      toast.error('Failed to initialize IPFS');
+      throw error;
+    }
+  },
+
+  uploadToIPFS: async (mediaId: string, data: ArrayBuffer) => {
+    try {
+      const cid = await ipfsService.uploadMedia(data);
+      
+      const ipfsMedia = new Map(get().ipfsMedia);
+      ipfsMedia.set(mediaId, cid);
+      set({ ipfsMedia });
+      
+      toast.success('Media uploaded to IPFS');
+      return cid;
+    } catch (error) {
+      console.error('[IPFS] Upload failed:', error);
+      toast.error('Failed to upload to IPFS');
+      throw error;
+    }
+  },
+
+  downloadFromIPFS: async (cid: string) => {
+    try {
+      return await ipfsService.downloadMedia(cid);
+    } catch (error) {
+      console.error('[IPFS] Download failed:', error);
+      toast.error('Failed to download from IPFS');
+      throw error;
+    }
+  },
+
+  pinMediaIPFS: async (cid: string) => {
+    try {
+      await ipfsService.pinMedia(cid);
+      toast.success('Media pinned to IPFS');
+    } catch (error) {
+      console.error('[IPFS] Pin failed:', error);
+      toast.error('Failed to pin media to IPFS');
+      throw error;
+    }
+  },
+
+  unpinMediaIPFS: async (cid: string) => {
+    try {
+      await ipfsService.unpinMedia(cid);
+      toast.success('Media unpinned from IPFS');
+    } catch (error) {
+      console.error('[IPFS] Unpin failed:', error);
+      toast.error('Failed to unpin media from IPFS');
       throw error;
     }
   },
