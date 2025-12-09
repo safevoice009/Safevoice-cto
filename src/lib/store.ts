@@ -437,6 +437,10 @@ export interface AlertPreferences {
   smsAlertsEnabled: boolean;
   digestFrequency: 'daily' | 'weekly' | 'never';
   highlightCritical: boolean;
+  messages: boolean;
+  mentions: boolean;
+  crisisAlerts: boolean;
+  dailyDigest: boolean;
 }
 
 export interface StoreState {
@@ -1465,6 +1469,10 @@ const loadAlertPreferences = (): { alertPreferences: AlertPreferences; trustedCo
         smsAlertsEnabled: true,
         digestFrequency: 'never',
         highlightCritical: true,
+        messages: true,
+        mentions: true,
+        crisisAlerts: true,
+        dailyDigest: false,
       },
       trustedContacts: [],
     };
@@ -1480,19 +1488,33 @@ const loadAlertPreferences = (): { alertPreferences: AlertPreferences; trustedCo
           smsAlertsEnabled: true,
           digestFrequency: 'never',
           highlightCritical: true,
+          messages: true,
+          mentions: true,
+          crisisAlerts: true,
+          dailyDigest: false,
         },
         trustedContacts: [],
       };
     }
     const { alertPreferences: prefs, trustedContacts: contacts } = JSON.parse(raw);
-    return {
-      alertPreferences: prefs || {
+    
+    // Ensure new fields are present if loading from old state
+    const mergedPrefs = {
+      messages: true,
+      mentions: true,
+      crisisAlerts: true,
+      dailyDigest: false,
+      ...(prefs || {
         emailOnAlertsEnabled: true,
         pushNotificationsEnabled: true,
         smsAlertsEnabled: true,
         digestFrequency: 'never',
         highlightCritical: true,
-      },
+      }),
+    };
+
+    return {
+      alertPreferences: mergedPrefs,
       trustedContacts: Array.isArray(contacts) ? contacts : [],
     };
   } catch (error) {
@@ -1504,6 +1526,10 @@ const loadAlertPreferences = (): { alertPreferences: AlertPreferences; trustedCo
         smsAlertsEnabled: true,
         digestFrequency: 'never',
         highlightCritical: true,
+        messages: true,
+        mentions: true,
+        crisisAlerts: true,
+        dailyDigest: false,
       },
       trustedContacts: [],
     };
