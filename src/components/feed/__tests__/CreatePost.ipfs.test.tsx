@@ -228,7 +228,8 @@ describe('CreatePost IPFS Integration', () => {
         undefined,
         undefined,
         null,
-        cid
+        cid,
+        []
       );
     });
   });
