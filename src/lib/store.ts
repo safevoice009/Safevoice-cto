@@ -425,6 +425,20 @@ export interface PrivacyOnboardingState {
   startedAt: number | null;
 }
 
+export interface TrustedContact {
+  name: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface AlertPreferences {
+  emailOnAlertsEnabled: boolean;
+  pushNotificationsEnabled: boolean;
+  smsAlertsEnabled: boolean;
+  digestFrequency: 'daily' | 'weekly' | 'never';
+  highlightCritical: boolean;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -962,6 +976,14 @@ export interface StoreState {
   markThreadRead: (threadId: string) => void;
   setMentionSuggestions: (suggestions: MentionSuggestion[]) => void;
   destroyMessaging: () => void;
+
+  // Alert Preferences State
+  alertPreferences: AlertPreferences;
+  trustedContacts: TrustedContact[];
+
+  // Alert Preferences Actions
+  updateAlertPreference: <K extends keyof AlertPreferences>(key: K, value: AlertPreferences[K]) => void;
+  setTrustedContact: (contact: TrustedContact) => void;
   }
 
 /**
@@ -1014,6 +1036,7 @@ const STORAGE_KEYS = {
   PRIVACY_ONBOARDING: 'safevoice_privacy_onboarding',        // Privacy onboarding state
   MESSAGING_THREADS: 'safevoice_messaging_threads',          // Message threads
   MESSAGING_PENDING: 'safevoice_messaging_pending',          // Pending messages when offline
+  ALERT_PREFERENCES: 'safevoice_alert_prefs',                // Alert preferences and trusted contacts
   };
 
 const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
@@ -1430,6 +1453,70 @@ const loadPrivacyOnboarding = (): PrivacyOnboardingState => {
       snoozedUntil: null,
       startedAt: null,
     };
+  }
+};
+
+const loadAlertPreferences = (): { alertPreferences: AlertPreferences; trustedContacts: TrustedContact[] } => {
+  if (typeof window === 'undefined') {
+    return {
+      alertPreferences: {
+        emailOnAlertsEnabled: true,
+        pushNotificationsEnabled: true,
+        smsAlertsEnabled: true,
+        digestFrequency: 'never',
+        highlightCritical: true,
+      },
+      trustedContacts: [],
+    };
+  }
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ALERT_PREFERENCES);
+    if (!raw) {
+      return {
+        alertPreferences: {
+          emailOnAlertsEnabled: true,
+          pushNotificationsEnabled: true,
+          smsAlertsEnabled: true,
+          digestFrequency: 'never',
+          highlightCritical: true,
+        },
+        trustedContacts: [],
+      };
+    }
+    const { alertPreferences: prefs, trustedContacts: contacts } = JSON.parse(raw);
+    return {
+      alertPreferences: prefs || {
+        emailOnAlertsEnabled: true,
+        pushNotificationsEnabled: true,
+        smsAlertsEnabled: true,
+        digestFrequency: 'never',
+        highlightCritical: true,
+      },
+      trustedContacts: Array.isArray(contacts) ? contacts : [],
+    };
+  } catch (error) {
+    console.error('Failed to load alert preferences:', error);
+    return {
+      alertPreferences: {
+        emailOnAlertsEnabled: true,
+        pushNotificationsEnabled: true,
+        smsAlertsEnabled: true,
+        digestFrequency: 'never',
+        highlightCritical: true,
+      },
+      trustedContacts: [],
+    };
+  }
+};
+
+const saveAlertPreferences = (alertPreferences: AlertPreferences, trustedContacts: TrustedContact[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const payload = { alertPreferences, trustedContacts };
+    localStorage.setItem(STORAGE_KEYS.ALERT_PREFERENCES, JSON.stringify(payload));
+  } catch (error) {
+    console.error('Failed to save alert preferences:', error);
   }
 };
 
@@ -2440,6 +2527,9 @@ export const useStore = create<StoreState>((set, get) => {
     pendingMessages: [],
     mentionSuggestions: [],
     messagingConnected: false,
+
+    // Alert Preferences state
+    ...loadAlertPreferences(),
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -4014,6 +4104,9 @@ export const useStore = create<StoreState>((set, get) => {
     } else {
       localStorage.removeItem(STORAGE_KEYS.MESSAGING_PENDING);
     }
+
+    // Save alert preferences
+    saveAlertPreferences(state.alertPreferences, state.trustedContacts);
   },
 
   addPost: (
@@ -7651,6 +7744,25 @@ export const useStore = create<StoreState>((set, get) => {
     } catch (error) {
       console.error('[Messaging] Destroy failed:', error);
     }
+  },
+
+  updateAlertPreference: <K extends keyof AlertPreferences>(key: K, value: AlertPreferences[K]) => {
+    set((state) => {
+      const updated = { ...state.alertPreferences, [key]: value };
+      saveAlertPreferences(updated, state.trustedContacts);
+      return { alertPreferences: updated };
+    });
+  },
+
+  setTrustedContact: (contact: TrustedContact) => {
+    set((state) => {
+      const existing = state.trustedContacts.findIndex((c) => c.email === contact.email);
+      const updated = existing >= 0
+        ? state.trustedContacts.map((c, i) => (i === existing ? contact : c))
+        : [...state.trustedContacts, contact];
+      saveAlertPreferences(state.alertPreferences, updated);
+      return { trustedContacts: updated };
+    });
   },
 
 };
