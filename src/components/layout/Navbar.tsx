@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Lock, Menu, X, Shield } from 'lucide-react';
+import { AlertTriangle, Lock, Menu, X, Shield, CheckCircle, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../../lib/store';
@@ -12,6 +12,7 @@ import FontSwitcher from './FontSwitcher';
 import UserMenu from './UserMenu';
 import MoreMenu from './MoreMenu';
 import { PRIMARY_NAV_ITEMS, ALL_NAV_ITEMS } from './navigationConfig';
+import StudentVerificationPanel from '../verification/StudentVerificationPanel';
 
 type NavLink = {
   labelKey: string;
@@ -27,8 +28,24 @@ export default function Navbar() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const { t } = useTranslation();
   const { studentId, isModerator, toggleModeratorMode, setShowCrisisModal } = useStore();
+  const studentVerification = useStore((state) => state.studentVerification);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Verification status indicator
+  const getVerificationIndicator = () => {
+    switch (studentVerification.status) {
+      case 'fully_verified':
+        return { icon: CheckCircle, color: 'text-green-500', label: 'Verified' };
+      case 'expired':
+        return { icon: Clock, color: 'text-orange-500', label: 'Expired' };
+      case 'unverified':
+        return null;
+      default:
+        return { icon: Clock, color: 'text-yellow-500', label: 'In Progress' };
+    }
+  };
+  const verificationIndicator = getVerificationIndicator();
 
   useEffect(() => {
     const controlNavbar = () => {
@@ -275,8 +292,18 @@ export default function Navbar() {
               <div className="pt-3 border-t border-white/10 space-y-3">
                 <NotificationDropdown />
                 <div className="text-text-muted font-medium text-sm">{studentId}</div>
+                {verificationIndicator && (
+                  <div className={`flex items-center gap-1 text-sm ${verificationIndicator.color}`}>
+                    <verificationIndicator.icon className="w-4 h-4" />
+                    <span>{verificationIndicator.label}</span>
+                  </div>
+                )}
                 <div className="flex justify-start">
                   <ConnectWalletButton />
+                </div>
+                {/* Student Verification Panel */}
+                <div className="pt-2">
+                  <StudentVerificationPanel />
                 </div>
               </div>
             </div>
