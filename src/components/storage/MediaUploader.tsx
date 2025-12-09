@@ -1,17 +1,20 @@
 import { useState, useRef } from 'react'
 import { Upload, X, RefreshCw, Check, AlertCircle, Loader } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useMediaUploader } from '../../hooks/useMediaUploader'
+import { useMediaUploader, type UploadJob } from '../../hooks/useMediaUploader'
 import { useStore } from '../../lib/store'
+import type { MediaAttachment } from '../../lib/storage/types'
 
 interface MediaUploaderProps {
   accept?: string
   maxSize?: number
+  onComplete?: (attachments: MediaAttachment[], jobs?: UploadJob[]) => void | Promise<void>
 }
 
 export const MediaUploader = ({
   accept = 'image/*,audio/*,video/*',
   maxSize = 500 * 1024 * 1024, // 500MB default
+  onComplete,
 }: MediaUploaderProps) => {
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -21,6 +24,7 @@ export const MediaUploader = ({
   const { jobs, uploadFiles, removeJob, retryJob, clearCompleted } = useMediaUploader({
     accept,
     maxSize,
+    onComplete,
   })
 
   const handleDragEnter = (e: React.DragEvent) => {

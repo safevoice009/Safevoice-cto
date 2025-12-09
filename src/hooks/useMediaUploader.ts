@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef } from 'react'
 import { useStore } from '../lib/store'
 import { storageRouter, type RoutingDecision } from '../lib/storage/router/StorageRouter'
+import { stripImageMetadata, generateThumbnail, getAudioDuration } from '../lib/storage/utils'
+import type { MediaAttachment } from '../lib/storage/types'
 import toast from 'react-hot-toast'
 
 export interface UploadJob {
@@ -14,10 +16,12 @@ export interface UploadJob {
   speed: string
   privacy: string
   ipfsCid?: string
+  thumbnailUrl?: string
+  duration?: number
 }
 
 export interface UseMediaUploaderOptions {
-  onComplete?: (jobs: UploadJob[]) => void
+  onComplete?: (attachments: MediaAttachment[], jobs?: UploadJob[]) => void | Promise<void>
   accept?: string
   maxSize?: number
 }
@@ -47,7 +51,7 @@ export const useMediaUploader = (options: UseMediaUploaderOptions = {}) => {
   }, [store])
 
   const uploadFiles = useCallback(
-    async (files: FileList | File[]) => {
+    async (files: FileList | File[]): Promise<MediaAttachment[]> => {
       // Initialize if needed
       if (!isInitialized && !initializeRef.current) {
         await initializeServices()
@@ -55,11 +59,12 @@ export const useMediaUploader = (options: UseMediaUploaderOptions = {}) => {
 
       if (initError) {
         toast.error(initError)
-        return
+        return []
       }
 
       const fileArray = Array.from(files)
       const newJobs: UploadJob[] = []
+      const mediaIdMap = new Map<string, UploadJob>()
 
       for (const file of fileArray) {
         // Validate file size if maxSize is set
@@ -81,6 +86,7 @@ export const useMediaUploader = (options: UseMediaUploaderOptions = {}) => {
         }
 
         newJobs.push(job)
+        mediaIdMap.set(jobId, job)
         setJobs((prev) => [...prev, job])
 
         // Route the upload
@@ -96,103 +102,118 @@ export const useMediaUploader = (options: UseMediaUploaderOptions = {}) => {
             prev.map((j) => (j.id === jobId ? { ...j, target: decision.primary, reason: decision.reason, speed: decision.speed, privacy: decision.privacy } : j))
           )
 
-          // Start upload
+          // Start preprocessing and upload
           job.status = 'uploading'
           setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status: 'uploading' } : j)))
 
-          if (decision.primary === 'local') {
-            // Upload to local storage with progress tracking
-            const fileReader = new FileReader()
+          const isImageFile = file.type.startsWith('image/')
+          const isAudioFile = file.type.startsWith('audio/')
 
-            fileReader.onprogress = (event) => {
-              if (event.lengthComputable) {
-                const progress = Math.round((event.loaded / event.total) * 100)
-                setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, progress } : j)))
-              }
-            }
+          let dataToUpload: ArrayBuffer
+          let thumbnailBlob: Blob | null = null
 
-            fileReader.onload = async () => {
+          // Preprocess images: strip metadata and generate thumbnail
+          if (isImageFile) {
+            try {
+              const sanitizedBlob = await stripImageMetadata(file)
+              const reader = new FileReader()
+              dataToUpload = await new Promise<ArrayBuffer>((resolve, reject) => {
+                reader.onload = () => resolve(reader.result as ArrayBuffer)
+                reader.onerror = () => reject(new Error('Failed to read sanitized image'))
+                reader.readAsArrayBuffer(sanitizedBlob)
+              })
+
+              // Generate thumbnail for preview
               try {
-                const mediaId = jobId
-                const blob = new Blob([fileReader.result as ArrayBuffer], { type: file.type })
-                
-                await store.saveMediaLocally(mediaId, blob)
-
+                thumbnailBlob = await generateThumbnail(file)
+                const thumbnailUrl = URL.createObjectURL(thumbnailBlob)
                 setJobs((prev) =>
-                  prev.map((j) =>
-                    j.id === jobId ? { ...j, progress: 100, status: 'completed' } : j
-                  )
+                  prev.map((j) => (j.id === jobId ? { ...j, thumbnailUrl } : j))
                 )
-                toast.success(`${file.name} uploaded successfully`)
-              } catch (error) {
-                const errorMsg = error instanceof Error ? error.message : 'Failed to save media'
-                setJobs((prev) =>
-                  prev.map((j) =>
-                    j.id === jobId ? { ...j, status: 'error', error: errorMsg } : j
-                  )
-                )
-                toast.error(`Failed to upload ${file.name}`)
+              } catch (thumbError) {
+                // Thumbnail generation failure is non-fatal
+                console.warn('Failed to generate thumbnail:', thumbError)
               }
+            } catch (stripError) {
+              throw new Error(`Failed to preprocess image: ${stripError instanceof Error ? stripError.message : 'Unknown error'}`)
+            }
+          } else if (isAudioFile) {
+            // Preprocess audio: extract duration
+            try {
+              const duration = await getAudioDuration(file)
+              setJobs((prev) =>
+                prev.map((j) => (j.id === jobId ? { ...j, duration } : j))
+              )
+            } catch (durationError) {
+              // Duration extraction failure is non-fatal
+              console.warn('Failed to extract audio duration:', durationError)
             }
 
-            fileReader.onerror = () => {
+            // Read audio data
+            const reader = new FileReader()
+            dataToUpload = await new Promise<ArrayBuffer>((resolve, reject) => {
+              reader.onload = () => resolve(reader.result as ArrayBuffer)
+              reader.onerror = () => reject(new Error('Failed to read audio file'))
+              reader.readAsArrayBuffer(file)
+            })
+          } else {
+            // For other file types, read directly
+            const reader = new FileReader()
+            dataToUpload = await new Promise<ArrayBuffer>((resolve, reject) => {
+              reader.onload = () => resolve(reader.result as ArrayBuffer)
+              reader.onerror = () => reject(new Error('Failed to read file'))
+              reader.readAsArrayBuffer(file)
+            })
+          }
+
+          // Perform the actual upload
+          if (decision.primary === 'local') {
+            try {
+              const mediaId = jobId
+              const blob = new Blob([dataToUpload], { type: file.type })
+
+              setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, progress: 50 } : j)))
+
+              await store.saveMediaLocally(mediaId, blob)
+
               setJobs((prev) =>
                 prev.map((j) =>
-                  j.id === jobId ? { ...j, status: 'error', error: 'Failed to read file' } : j
+                  j.id === jobId ? { ...j, progress: 100, status: 'completed' } : j
                 )
               )
-              toast.error(`Failed to read ${file.name}`)
-            }
-
-            fileReader.readAsArrayBuffer(file)
-          } else {
-            // Upload to IPFS (show indeterminate progress)
-            setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, progress: 50 } : j)))
-
-            try {
-              const fileReader = new FileReader()
-
-              fileReader.onload = async () => {
-                try {
-                  const cid = await store.uploadToIPFS(jobId, fileReader.result as ArrayBuffer)
-
-                  setJobs((prev) =>
-                    prev.map((j) =>
-                      j.id === jobId
-                        ? { ...j, progress: 100, status: 'completed', ipfsCid: cid }
-                        : j
-                    )
-                  )
-                  toast.success(`${file.name} uploaded to IPFS`)
-                } catch (error) {
-                  const errorMsg = error instanceof Error ? error.message : 'Failed to upload to IPFS'
-                  setJobs((prev) =>
-                    prev.map((j) =>
-                      j.id === jobId ? { ...j, status: 'error', error: errorMsg } : j
-                    )
-                  )
-                  toast.error(`Failed to upload ${file.name} to IPFS`)
-                }
-              }
-
-              fileReader.onerror = () => {
-                setJobs((prev) =>
-                  prev.map((j) =>
-                    j.id === jobId ? { ...j, status: 'error', error: 'Failed to read file' } : j
-                  )
-                )
-                toast.error(`Failed to read ${file.name}`)
-              }
-
-              fileReader.readAsArrayBuffer(file)
+              toast.success(`${file.name} uploaded successfully`)
             } catch (error) {
-              const errorMsg = error instanceof Error ? error.message : 'Failed to upload file'
+              const errorMsg = error instanceof Error ? error.message : 'Failed to save media'
               setJobs((prev) =>
                 prev.map((j) =>
                   j.id === jobId ? { ...j, status: 'error', error: errorMsg } : j
                 )
               )
               toast.error(`Failed to upload ${file.name}`)
+            }
+          } else {
+            // Upload to IPFS (show indeterminate progress)
+            setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, progress: 50 } : j)))
+
+            try {
+              const cid = await store.uploadToIPFS(jobId, dataToUpload)
+
+              setJobs((prev) =>
+                prev.map((j) =>
+                  j.id === jobId
+                    ? { ...j, progress: 100, status: 'completed', ipfsCid: cid }
+                    : j
+                )
+              )
+              toast.success(`${file.name} uploaded to IPFS`)
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : 'Failed to upload to IPFS'
+              setJobs((prev) =>
+                prev.map((j) =>
+                  j.id === jobId ? { ...j, status: 'error', error: errorMsg } : j
+                )
+              )
+              toast.error(`Failed to upload ${file.name} to IPFS`)
             }
           }
         } catch (error) {
@@ -206,9 +227,13 @@ export const useMediaUploader = (options: UseMediaUploaderOptions = {}) => {
         }
       }
 
-      // Call onComplete callback after all files are processed
-      if (options.onComplete) {
-        // Wait for all uploads to complete
+      // Wait for all uploads to complete
+      return new Promise<MediaAttachment[]>((resolve) => {
+        if (newJobs.length === 0) {
+          resolve([])
+          return
+        }
+
         const checkCompletion = setInterval(() => {
           setJobs((currentJobs) => {
             const allDone = currentJobs.every(
@@ -216,12 +241,30 @@ export const useMediaUploader = (options: UseMediaUploaderOptions = {}) => {
             )
             if (allDone) {
               clearInterval(checkCompletion)
-              options.onComplete?.(currentJobs)
+
+              // Build MediaAttachment array from completed jobs
+              const attachments: MediaAttachment[] = newJobs
+                .filter((j) => j.status === 'completed')
+                .map((j) => ({
+                  mediaId: j.id,
+                  storage: j.target,
+                  ...(j.target === 'ipfs' && j.ipfsCid ? { ipfsCid: j.ipfsCid } : {}),
+                  type: j.file.type.startsWith('image/') ? 'image' : 'audio',
+                }))
+
+              // Call onComplete callback if provided
+              if (options.onComplete) {
+                Promise.resolve(options.onComplete(attachments, currentJobs)).catch((error) => {
+                  console.error('onComplete callback error:', error)
+                })
+              }
+
+              resolve(attachments)
             }
             return currentJobs
           })
         }, 500)
-      }
+      })
     },
     [store, isInitialized, initError, initializeServices, options]
   )
