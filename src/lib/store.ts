@@ -665,6 +665,10 @@ export interface AlertPreferences {
   smsAlertsEnabled: boolean;
   digestFrequency: 'daily' | 'weekly' | 'never';
   highlightCritical: boolean;
+  messages: boolean;
+  mentions: boolean;
+  crisisAlerts: boolean;
+  dailyDigest: boolean;
 }
 
 export interface StoreState {
