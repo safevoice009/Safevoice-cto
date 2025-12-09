@@ -5,6 +5,7 @@
  * - Persists offline messages to localStorage
  */
 import type { Message, Thread, OfflineEnvelope } from './types';
+import { NotificationBridge } from '../notifications/NotificationBridge';
 
 const OFFLINE_QUEUE_KEY = 'safevoice_messages_pending';
 
@@ -325,6 +326,28 @@ export class MessagingService {
   }
 
   private notifyMessageListeners(message: Message): void {
+    // Check if message has mentions and trigger notification if enabled
+    if (message.mentions && message.mentions.length > 0) {
+      if (NotificationBridge.isMentionNotificationsEnabled()) {
+        const mentionNames = message.mentions.map(m => m.displayName || m.username).join(', ');
+        const snippet = message.content.slice(0, 60) + (message.content.length > 60 ? '...' : '');
+        
+        NotificationBridge.notify({
+          title: `You were mentioned by ${message.senderName || 'Someone'}`,
+          body: snippet,
+          tag: `mention_${message.id}`,
+          data: {
+            type: 'mention',
+            messageId: message.id,
+            threadId: message.threadId,
+            mentionedBy: mentionNames,
+          },
+        }).catch((error) => {
+          console.error('[Messaging] Failed to trigger mention notification:', error);
+        });
+      }
+    }
+
     this.messageListeners.forEach((listener) => {
       try {
         listener(message);
