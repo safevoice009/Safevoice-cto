@@ -653,6 +653,20 @@ export interface PrivacyOnboardingState {
   startedAt: number | null;
 }
 
+export interface TrustedContact {
+  name: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface AlertPreferences {
+  emailOnAlertsEnabled: boolean;
+  pushNotificationsEnabled: boolean;
+  smsAlertsEnabled: boolean;
+  digestFrequency: 'daily' | 'weekly' | 'never';
+  highlightCritical: boolean;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -3390,6 +3404,9 @@ export const useStore = create<StoreState>((set, get) => {
     referralCode: initialReferralState.code,
     referredByCode: initialReferralState.referredByCode,
     referredFriends: initialReferralState.friends,
+
+    // Alert Preferences state
+    ...loadAlertPreferences(),
 
     toggleModeratorMode: () => {
       set((state) => {
