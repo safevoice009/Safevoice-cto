@@ -485,4 +485,4 @@ This project is licensed under the terms specified in the LICENSE file.
 
 ## 💙 Built with Love for Students
 
-SafeVoice empowers every student to speak out fearlessly and build safer campuses across India.
+SafeVoice empowers every student to speak out fearlessly and build safer campuses across World
