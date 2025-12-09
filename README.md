@@ -230,6 +230,14 @@ SafeVoice is built with zero-tracking guarantees and hardened privacy defaults:
 - ✅ **Fingerprinting defenses** – Automated tests block canvas/audio/device fingerprinting patterns.
 - ✅ **End-to-end encryption** – Optional AES-GCM-256 for sensitive posts and direct support messages.
 - ✅ **Safety tooling** – Automated moderation, crisis detection, and transparent reporting remain active without tracking users.
+- ✅ **Zero-Knowledge Identity** – Students can prove real-student status without exposing PII via ZK proofs, biometric commitments, and peer consensus.
+
+#### Zero-Knowledge Student Verification
+The [Zero-Knowledge Student Identity System](./docs/cybersecurity/phase9-zero-knowledge.md) enables:
+- **Email domain proofs** via DKIM signature verification (no raw emails stored)
+- **Biometric commitments** using WebAuthn (max 3 accounts per biometric)
+- **Peer consensus** requiring ≥3 peer approvals (encrypted votes)
+- **Time-locked proofs** with automatic re-verification scheduling
 
 #### Privacy Middleware
 - `initializePrivacyProtections()` runs before React mounts, enforcing cookie blocking, localStorage sanitization, and WebRTC IP leak mitigation.

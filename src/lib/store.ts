@@ -56,11 +56,25 @@ import type { MediaAsset, StorageStats, EncryptionStats, MediaAttachment } from 
 import type { Message, Thread, OfflineEnvelope, MentionSuggestion } from './messaging/types';
 import { initializeMessagingService, getMessagingService, destroyMessagingService } from './messaging/MessagingService';
 import { parseMentions } from './messaging/mentions';
+import type {
+  VerificationStatus,
+  EmailDomainProof,
+  BiometricCommitment,
+  PeerConsensusRequest,
+  ReverificationTask,
+  EmailProofSubmission,
+} from './identity/types';
+import { VERIFICATION_CONSTANTS } from './identity/types';
+import { emailProofService } from './identity/EmailProofService';
+import { biometricCommitmentService } from './identity/BiometricCommitmentService';
+import { peerConsensusService } from './identity/PeerConsensusService';
+import { studentRegistry } from './identity/StudentRegistry';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
 export type { MediaAsset, StorageStats, EncryptionStats, MediaAttachment };
 export type { Message, Thread, OfflineEnvelope, MentionSuggestion };
+export type { VerificationStatus, EmailDomainProof, BiometricCommitment, PeerConsensusRequest, ReverificationTask };
 
 // Types
 export interface Reaction {
@@ -441,6 +455,29 @@ export interface AlertPreferences {
   mentions: boolean;
   crisisAlerts: boolean;
   dailyDigest: boolean;
+}
+
+export interface StudentVerificationState {
+  /** Current verification status */
+  status: VerificationStatus;
+  /** Email proof (if any) */
+  emailProof: EmailDomainProof | null;
+  /** Biometric commitments */
+  biometricCommitments: BiometricCommitment[];
+  /** Peer consensus request */
+  peerConsensus: PeerConsensusRequest | null;
+  /** Pending re-verification tasks */
+  pendingReverification: ReverificationTask[];
+  /** When verification expires */
+  expiresAt: number | null;
+  /** Current challenge nonce (for email verification) */
+  currentChallenge: string | null;
+  /** Challenge expiry time */
+  challengeExpiresAt: number | null;
+  /** Error message (if any) */
+  error: string | null;
+  /** Whether verification is in progress */
+  isVerifying: boolean;
 }
 
 export interface StoreState {
@@ -988,6 +1025,29 @@ export interface StoreState {
   // Alert Preferences Actions
   updateAlertPreference: <K extends keyof AlertPreferences>(key: K, value: AlertPreferences[K]) => void;
   setTrustedContact: (contact: TrustedContact) => void;
+
+  // Student Verification State
+  studentVerification: StudentVerificationState;
+
+  // Student Verification Actions
+  /** Initialize student verification flow */
+  initStudentVerificationFlow: () => Promise<void>;
+  /** Submit email header proof */
+  submitEmailHeaderProof: (submission: EmailProofSubmission) => Promise<boolean>;
+  /** Register biometric commitment */
+  registerBiometricCommitment: (credential: PublicKeyCredential) => Promise<boolean>;
+  /** Request peer consensus */
+  requestPeerConsensus: () => Promise<string | null>;
+  /** Approve peer consensus (for other users) */
+  approvePeerConsensus: (requestId: string, approve: boolean) => Promise<boolean>;
+  /** Check if verification is valid */
+  isVerificationValid: () => boolean;
+  /** Get biometric account count for current credential */
+  getBiometricAccountCount: () => Promise<number>;
+  /** Check if can create content (verification middleware) */
+  canCreateContent: () => { allowed: boolean; reason?: string };
+  /** Get pending peer consensus requests for this user to vote on */
+  getPendingPeerConsensusRequests: () => Promise<PeerConsensusRequest[]>;
   }
 
 /**
@@ -1041,6 +1101,7 @@ const STORAGE_KEYS = {
   MESSAGING_THREADS: 'safevoice_messaging_threads',          // Message threads
   MESSAGING_PENDING: 'safevoice_messaging_pending',          // Pending messages when offline
   ALERT_PREFERENCES: 'safevoice_alert_prefs',                // Alert preferences and trusted contacts
+  STUDENT_VERIFICATION: 'safevoice_student_verification',    // Student verification state
   };
 
 const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
@@ -1553,6 +1614,51 @@ const savePrivacyOnboarding = (state: PrivacyOnboardingState): void => {
     localStorage.setItem(STORAGE_KEYS.PRIVACY_ONBOARDING, JSON.stringify(state));
   } catch (error) {
     console.error('Failed to save privacy onboarding:', error);
+  }
+};
+
+const getDefaultStudentVerificationState = (): StudentVerificationState => ({
+  status: 'unverified',
+  emailProof: null,
+  biometricCommitments: [],
+  peerConsensus: null,
+  pendingReverification: [],
+  expiresAt: null,
+  currentChallenge: null,
+  challengeExpiresAt: null,
+  error: null,
+  isVerifying: false,
+});
+
+const loadStudentVerificationState = (): StudentVerificationState => {
+  if (typeof window === 'undefined') {
+    return getDefaultStudentVerificationState();
+  }
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.STUDENT_VERIFICATION);
+    if (!raw) {
+      return getDefaultStudentVerificationState();
+    }
+    
+    const parsed = JSON.parse(raw);
+    return {
+      ...getDefaultStudentVerificationState(),
+      ...parsed,
+    };
+  } catch (error) {
+    console.error('[StudentVerification] Failed to load state:', error);
+    return getDefaultStudentVerificationState();
+  }
+};
+
+const saveStudentVerificationState = (state: StudentVerificationState): void => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem(STORAGE_KEYS.STUDENT_VERIFICATION, JSON.stringify(state));
+  } catch (error) {
+    console.error('[StudentVerification] Failed to save state:', error);
   }
 };
 
@@ -2556,6 +2662,9 @@ export const useStore = create<StoreState>((set, get) => {
 
     // Alert Preferences state
     ...loadAlertPreferences(),
+
+    // Student Verification state
+    studentVerification: loadStudentVerificationState(),
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -7789,6 +7898,358 @@ export const useStore = create<StoreState>((set, get) => {
       saveAlertPreferences(state.alertPreferences, updated);
       return { trustedContacts: updated };
     });
+  },
+
+  // Student Verification Actions
+  initStudentVerificationFlow: async () => {
+    const { studentId, studentVerification } = get();
+    
+    if (studentVerification.isVerifying) {
+      return;
+    }
+
+    set((state) => ({
+      studentVerification: {
+        ...state.studentVerification,
+        isVerifying: true,
+        error: null,
+      },
+    }));
+
+    try {
+      // Check existing verification status
+      const record = await studentRegistry.getRecord(studentId);
+      
+      if (record) {
+        // Check if verification is still valid
+        const validation = await studentRegistry.isVerificationValid(studentId);
+        
+        set((state) => ({
+          studentVerification: {
+            ...state.studentVerification,
+            status: validation.status,
+            emailProof: record.emailProof,
+            biometricCommitments: record.biometricCommitments,
+            peerConsensus: record.peerConsensus,
+            pendingReverification: record.pendingReverification,
+            expiresAt: record.expiresAt,
+            isVerifying: false,
+          },
+        }));
+        saveStudentVerificationState(get().studentVerification);
+        
+        // Check for pending re-verification tasks
+        const pendingTasks = await studentRegistry.getPendingReverificationTasks(studentId);
+        if (pendingTasks.length > 0) {
+          toast(`⚠️ ${pendingTasks.length} verification task(s) need attention`, { duration: 5000 });
+        }
+      } else {
+        // Create challenge for email verification
+        const challenge = emailProofService.createChallenge();
+        
+        set((state) => ({
+          studentVerification: {
+            ...state.studentVerification,
+            currentChallenge: challenge.nonce,
+            challengeExpiresAt: challenge.expiresAt,
+            isVerifying: false,
+          },
+        }));
+        saveStudentVerificationState(get().studentVerification);
+        
+        toast.success('Verification flow initiated. Please submit your .edu email proof.', { duration: 5000 });
+      }
+    } catch (error) {
+      console.error('[StudentVerification] Init failed:', error);
+      set((state) => ({
+        studentVerification: {
+          ...state.studentVerification,
+          error: String(error),
+          isVerifying: false,
+        },
+      }));
+      toast.error('Failed to initialize verification');
+    }
+  },
+
+  submitEmailHeaderProof: async (submission: EmailProofSubmission): Promise<boolean> => {
+    const { studentId } = get();
+
+    set((state) => ({
+      studentVerification: {
+        ...state.studentVerification,
+        isVerifying: true,
+        error: null,
+      },
+    }));
+
+    try {
+      const result = await emailProofService.submitProof(submission);
+      
+      if (!result.success || !result.proof) {
+        set((state) => ({
+          studentVerification: {
+            ...state.studentVerification,
+            error: result.error ?? 'Email proof verification failed',
+            isVerifying: false,
+          },
+        }));
+        toast.error(result.error ?? 'Email proof verification failed');
+        return false;
+      }
+
+      // Update registry
+      await studentRegistry.updateEmailProof(studentId, result.proof);
+      
+      // Update local state
+      set((state) => ({
+        studentVerification: {
+          ...state.studentVerification,
+          status: 'email_verified',
+          emailProof: result.proof!,
+          currentChallenge: null,
+          challengeExpiresAt: null,
+          expiresAt: result.proof!.expiresAt,
+          isVerifying: false,
+        },
+      }));
+      saveStudentVerificationState(get().studentVerification);
+
+      toast.success('✅ Email verified! Only domain hash stored, no PII retained.', { duration: 5000 });
+      return true;
+    } catch (error) {
+      console.error('[StudentVerification] Email proof failed:', error);
+      set((state) => ({
+        studentVerification: {
+          ...state.studentVerification,
+          error: String(error),
+          isVerifying: false,
+        },
+      }));
+      toast.error('Email proof submission failed');
+      return false;
+    }
+  },
+
+  registerBiometricCommitment: async (credential: PublicKeyCredential): Promise<boolean> => {
+    const { studentId } = get();
+
+    set((state) => ({
+      studentVerification: {
+        ...state.studentVerification,
+        isVerifying: true,
+        error: null,
+      },
+    }));
+
+    try {
+      // Generate student ID hash for the commitment
+      const studentIdHash = await (async () => {
+        if (typeof crypto !== 'undefined' && crypto.subtle) {
+          const encoder = new TextEncoder();
+          const data = encoder.encode(studentId);
+          const hash = await crypto.subtle.digest('SHA-256', data);
+          return Array.from(new Uint8Array(hash))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+        }
+        // Fallback
+        let hash = 0xcafebabe;
+        for (let i = 0; i < studentId.length; i++) {
+          hash = ((hash << 5) - hash) + studentId.charCodeAt(i);
+          hash = hash & hash;
+        }
+        return Math.abs(hash).toString(16).padStart(64, '0');
+      })();
+
+      const result = await biometricCommitmentService.registerCommitment(credential, studentIdHash);
+      
+      if (!result.success || !result.commitment) {
+        set((state) => ({
+          studentVerification: {
+            ...state.studentVerification,
+            error: result.error ?? 'Biometric registration failed',
+            isVerifying: false,
+          },
+        }));
+        toast.error(result.error ?? 'Biometric registration failed');
+        return false;
+      }
+
+      // Check account limit
+      if (result.accountCount && result.accountCount >= VERIFICATION_CONSTANTS.MAX_BIOMETRIC_COMMITMENTS) {
+        toast(`⚠️ This biometric has ${result.accountCount}/${VERIFICATION_CONSTANTS.MAX_BIOMETRIC_COMMITMENTS} accounts`, { duration: 5000 });
+      }
+
+      // Update registry
+      await studentRegistry.addBiometricCommitment(studentId, result.commitment);
+
+      // Update local state
+      set((state) => ({
+        studentVerification: {
+          ...state.studentVerification,
+          status: state.studentVerification.emailProof ? 'biometric_verified' : 'biometric_pending',
+          biometricCommitments: [...state.studentVerification.biometricCommitments, result.commitment!],
+          isVerifying: false,
+        },
+      }));
+      saveStudentVerificationState(get().studentVerification);
+
+      toast.success('🔐 Biometric registered! Only hash stored, no raw data retained.', { duration: 5000 });
+      return true;
+    } catch (error) {
+      console.error('[StudentVerification] Biometric registration failed:', error);
+      set((state) => ({
+        studentVerification: {
+          ...state.studentVerification,
+          error: String(error),
+          isVerifying: false,
+        },
+      }));
+      toast.error('Biometric registration failed');
+      return false;
+    }
+  },
+
+  requestPeerConsensus: async (): Promise<string | null> => {
+    const { studentId } = get();
+
+    set((state) => ({
+      studentVerification: {
+        ...state.studentVerification,
+        isVerifying: true,
+        error: null,
+      },
+    }));
+
+    try {
+      const result = await peerConsensusService.createRequest(studentId);
+      
+      if (!result.success || !result.request) {
+        set((state) => ({
+          studentVerification: {
+            ...state.studentVerification,
+            error: result.error ?? 'Failed to create peer consensus request',
+            isVerifying: false,
+          },
+        }));
+        toast.error(result.error ?? 'Failed to create peer consensus request');
+        return null;
+      }
+
+      // Update registry
+      await studentRegistry.updatePeerConsensus(studentId, result.request);
+
+      // Update local state
+      set((state) => ({
+        studentVerification: {
+          ...state.studentVerification,
+          peerConsensus: result.request!,
+          status: 'peer_pending',
+          isVerifying: false,
+        },
+      }));
+      saveStudentVerificationState(get().studentVerification);
+
+      toast.success(`🤝 Peer consensus requested! Needs ${VERIFICATION_CONSTANTS.PEER_CONSENSUS_QUORUM} approvals.`, { duration: 5000 });
+      return result.request.id;
+    } catch (error) {
+      console.error('[StudentVerification] Peer consensus request failed:', error);
+      set((state) => ({
+        studentVerification: {
+          ...state.studentVerification,
+          error: String(error),
+          isVerifying: false,
+        },
+      }));
+      toast.error('Peer consensus request failed');
+      return null;
+    }
+  },
+
+  approvePeerConsensus: async (requestId: string, approve: boolean): Promise<boolean> => {
+    const { studentId } = get();
+
+    try {
+      const result = await peerConsensusService.submitVote(requestId, studentId, approve);
+      
+      if (!result.success) {
+        toast.error(result.error ?? 'Vote submission failed');
+        return false;
+      }
+
+      // Check if this was the deciding vote
+      if (result.requestStatus === 'approved') {
+        toast.success('✅ Peer consensus achieved! Student verified.', { duration: 5000 });
+      } else if (result.requestStatus === 'rejected') {
+        toast('❌ Peer consensus rejected.', { icon: '⚠️', duration: 5000 });
+      } else {
+        toast.success(approve ? '👍 Approval recorded' : '👎 Rejection recorded');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[StudentVerification] Vote submission failed:', error);
+      toast.error('Vote submission failed');
+      return false;
+    }
+  },
+
+  isVerificationValid: (): boolean => {
+    const { studentVerification } = get();
+    
+    // Check if fully verified and not expired
+    if (studentVerification.status !== 'fully_verified') {
+      return false;
+    }
+    
+    if (studentVerification.expiresAt && Date.now() > studentVerification.expiresAt) {
+      return false;
+    }
+    
+    return true;
+  },
+
+  getBiometricAccountCount: async (): Promise<number> => {
+    const { studentVerification } = get();
+    
+    if (studentVerification.biometricCommitments.length === 0) {
+      return 0;
+    }
+    
+    // Get the latest commitment's account count
+    const latestCommitment = studentVerification.biometricCommitments[studentVerification.biometricCommitments.length - 1];
+    return biometricCommitmentService.getAccountCountForCredential(latestCommitment.credentialHash);
+  },
+
+  canCreateContent: (): { allowed: boolean; reason?: string } => {
+    const { studentVerification } = get();
+    
+    // Check verification status
+    if (studentVerification.status === 'expired') {
+      return { allowed: false, reason: 'Verification expired. Please re-verify.' };
+    }
+    
+    if (studentVerification.status === 'revoked') {
+      return { allowed: false, reason: 'Verification revoked. Please contact support.' };
+    }
+    
+    // Check biometric limit
+    const biometricCount = studentVerification.biometricCommitments.length;
+    if (biometricCount > VERIFICATION_CONSTANTS.MAX_BIOMETRIC_COMMITMENTS) {
+      return { 
+        allowed: false, 
+        reason: `Biometric limit exceeded (${biometricCount}/${VERIFICATION_CONSTANTS.MAX_BIOMETRIC_COMMITMENTS} accounts)` 
+      };
+    }
+    
+    // Allow unverified users to post (verification is opt-in for enhanced trust)
+    return { allowed: true };
+  },
+
+  getPendingPeerConsensusRequests: async (): Promise<PeerConsensusRequest[]> => {
+    const { studentId } = get();
+    return peerConsensusService.getPendingRequestsForVoter(studentId);
   },
 
 };

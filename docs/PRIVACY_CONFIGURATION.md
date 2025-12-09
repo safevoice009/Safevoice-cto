@@ -519,6 +519,31 @@ Privacy-related security issues should be reported to:
 - [Web3 Bridge Documentation](./WEB3_BRIDGE_DOCS.md)
 - [Security Best Practices](./web3-deployment.md)
 - [Communities Technical Overview](./COMMUNITIES_TECH_OVERVIEW.md)
+- [Zero-Knowledge Student Identity](./cybersecurity/phase9-zero-knowledge.md)
+
+---
+
+## Zero-Knowledge Identity Verification
+
+SafeVoice implements a privacy-preserving student verification system that allows users to prove their real-student status without revealing personally identifiable information.
+
+### Key Features
+
+- **Email Domain Proofs**: DKIM-verified .edu email proofs with only domain hash stored
+- **Biometric Commitments**: WebAuthn credentials with SHA-256 hashing (max 3 accounts per biometric)
+- **Peer Consensus**: Encrypted voting with ≥3 peer approvals required
+- **Time-locked Proofs**: Automatic expiry with re-verification scheduling
+
+### Privacy Guarantees
+
+| What IS Stored | What is NOT Stored |
+|----------------|-------------------|
+| Salted domain hash | Raw email addresses |
+| Credential hash (SHA-256) | Raw biometric data |
+| Encrypted vote envelopes | Plaintext votes |
+| ZK proof artifacts | Student names/identifiers |
+
+For complete technical details, see [Phase 9: Zero-Knowledge Identity](./cybersecurity/phase9-zero-knowledge.md).
 
 ---
 
