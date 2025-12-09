@@ -7301,7 +7301,7 @@ export const useStore = create<StoreState>((set, get) => {
       const saved = await localStorageService.saveMedia(
         mediaId,
         file,
-        encrypted.ciphertext
+        encrypted
       );
 
       const asset: MediaAsset = {
@@ -7337,9 +7337,9 @@ export const useStore = create<StoreState>((set, get) => {
 
       const decrypted = await storageEncryption.decryptMedia({
         ciphertext: stored.data,
-        iv: new Uint8Array(),
-        salt: new Uint8Array(),
-        authTag: new Uint8Array(),
+        iv: stored.iv || new Uint8Array(),
+        salt: stored.salt || new Uint8Array(),
+        authTag: stored.authTag || new Uint8Array(),
         algorithm: 'AES-256-GCM'
       });
 
@@ -7421,9 +7421,12 @@ export const useStore = create<StoreState>((set, get) => {
     try {
       const cid = await ipfsService.uploadMedia(data);
       
-      const ipfsMedia = new Map(get().ipfsMedia);
-      ipfsMedia.set(mediaId, cid);
-      set({ ipfsMedia });
+      // Update state and return fresh state
+      set((state) => {
+        const ipfsMedia = new Map(state.ipfsMedia);
+        ipfsMedia.set(mediaId, cid);
+        return { ipfsMedia };
+      });
       
       toast.success('Media uploaded to IPFS');
       return cid;
