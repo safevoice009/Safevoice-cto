@@ -1,3 +1,5 @@
+import { NotificationBridge } from './notifications/NotificationBridge';
+
 export type CrisisLevel = 'high' | 'critical';
 
 export type CrisisRequestStatus = 'pending' | 'assigned' | 'resolved' | 'expired';
@@ -103,6 +105,27 @@ class CrisisQueueService {
     this.persist();
     this.scheduleExpiry(request);
     this.emit({ type: 'upsert', request: cloneRequest(request) });
+
+    // Trigger crisis alert notification if enabled
+    if (NotificationBridge.isCrisisAlertsEnabled()) {
+      const levelDisplay = crisisLevel === 'critical' ? '🚨 CRITICAL' : '⚠️ HIGH';
+      const postInfo = options.postId ? ` (Post: ${options.postId.slice(0, 8)}...)` : '';
+      
+      NotificationBridge.notify({
+        title: `${levelDisplay} Crisis Alert`,
+        body: `New ${crisisLevel} crisis request created${postInfo}`,
+        tag: `crisis_${request.id}`,
+        data: {
+          type: 'crisis',
+          requestId: request.id,
+          crisisLevel,
+          studentId,
+          postId: options.postId,
+        },
+      }).catch((error) => {
+        console.error('[CrisisQueue] Failed to trigger crisis notification:', error);
+      });
+    }
 
     return Promise.resolve(cloneRequest(request));
   }

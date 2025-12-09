@@ -13,6 +13,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { getCrisisQueueService, destroyCrisisQueueService } from '../crisisQueue';
 import type { CrisisRequest, CrisisQueueEvent } from '../crisisQueue';
+import * as NotificationBridge from '../notifications/NotificationBridge';
 
 describe('Crisis Queue Service Integration', () => {
   const studentId = 'test-student-123';
@@ -372,6 +373,58 @@ describe('Crisis Queue Service Integration', () => {
       const request = await service.createRequest(studentId, 'high');
       expect(request.id).toBeDefined();
       expect(events.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('Crisis Alert Notifications', () => {
+    it('should trigger notification when crisis request created and preference enabled', async () => {
+      const notifySpy = vi.spyOn(NotificationBridge.NotificationBridge, 'notify').mockResolvedValue();
+      const isCrisisEnabledSpy = vi.spyOn(NotificationBridge.NotificationBridge, 'isCrisisAlertsEnabled').mockReturnValue(true);
+
+      // Mock localStorage with crisis alerts enabled
+      const alertPrefs = {
+        alertPreferences: {
+          mentions: false,
+          crisisAlerts: true,
+          pushNotificationsEnabled: true,
+        },
+      };
+      localStorage.setItem('safevoice_alert_prefs', JSON.stringify(alertPrefs));
+
+      const request = await service.createRequest(studentId, 'critical', {
+        postId: 'post-123',
+      });
+
+      expect(isCrisisEnabledSpy).toHaveBeenCalled();
+      expect(notifySpy).toHaveBeenCalledOnce();
+      expect(notifySpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: expect.stringContaining('CRITICAL'),
+          body: expect.stringContaining('crisis request created'),
+          tag: `crisis_${request.id}`,
+          data: expect.objectContaining({
+            type: 'crisis',
+            requestId: request.id,
+            crisisLevel: 'critical',
+          }),
+        })
+      );
+
+      notifySpy.mockRestore();
+      isCrisisEnabledSpy.mockRestore();
+    });
+
+    it('should not trigger notification when crisis alerts preference disabled', async () => {
+      const notifySpy = vi.spyOn(NotificationBridge.NotificationBridge, 'notify').mockResolvedValue();
+      const isCrisisEnabledSpy = vi.spyOn(NotificationBridge.NotificationBridge, 'isCrisisAlertsEnabled').mockReturnValue(false);
+
+      await service.createRequest(studentId, 'high');
+
+      expect(isCrisisEnabledSpy).toHaveBeenCalled();
+      expect(notifySpy).not.toHaveBeenCalled();
+
+      notifySpy.mockRestore();
+      isCrisisEnabledSpy.mockRestore();
     });
   });
 

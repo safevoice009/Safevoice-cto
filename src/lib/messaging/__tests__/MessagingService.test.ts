@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MessagingService, destroyMessagingService } from '../MessagingService';
 import { parseMentions, getMentionSuggestionsFromInput, extractMentionedUserIds } from '../mentions';
 import type { Message, OfflineEnvelope } from '../types';
+import * as NotificationBridge from '../../notifications/NotificationBridge';
 
 describe('MessagingService', () => {
   let service: MessagingService;
@@ -180,6 +181,100 @@ describe('MessagingService', () => {
 
       // Cleanup
       unsubscribe();
+    });
+  });
+
+  describe('Mention Notifications', () => {
+    it('should trigger notification when message has mentions and preference enabled', async () => {
+      // Mock NotificationBridge
+      const notifySpy = vi.spyOn(NotificationBridge.NotificationBridge, 'notify').mockResolvedValue();
+      const isMentionEnabledSpy = vi.spyOn(NotificationBridge.NotificationBridge, 'isMentionNotificationsEnabled').mockReturnValue(true);
+
+      // Mock localStorage with mentions enabled
+      const alertPrefs = {
+        alertPreferences: {
+          mentions: true,
+          crisisAlerts: false,
+          pushNotificationsEnabled: true,
+        },
+      };
+      localStorage.setItem('safevoice_alert_prefs', JSON.stringify(alertPrefs));
+
+      const messageListener = vi.fn();
+      await service.initialize();
+      service.onMessage(messageListener);
+
+      // Simulate receiving a message with mentions
+      const messageWithMention: Message = {
+        id: 'msg-mention-1',
+        threadId: 'thread-1',
+        senderId: 'user#0001',
+        senderName: 'Test User',
+        content: 'Hey @Student#0002, check this out!',
+        mentions: [
+          {
+            userId: 'Student#0002',
+            username: 'Student',
+            displayName: 'Student#0002',
+            position: { start: 4, end: 17 },
+          },
+        ],
+        createdAt: Date.now(),
+        isEdited: false,
+      };
+
+      // Trigger message listener manually (simulating internal service call)
+      // @ts-expect-error - accessing private method for testing
+      service.notifyMessageListeners(messageWithMention);
+
+      // Verify notification was triggered
+      expect(isMentionEnabledSpy).toHaveBeenCalled();
+      expect(notifySpy).toHaveBeenCalledOnce();
+      expect(notifySpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: expect.stringContaining('mentioned'),
+          body: expect.stringContaining('check this out'),
+          tag: `mention_${messageWithMention.id}`,
+        })
+      );
+
+      // Cleanup
+      notifySpy.mockRestore();
+      isMentionEnabledSpy.mockRestore();
+    });
+
+    it('should not trigger notification when mentions preference disabled', async () => {
+      const notifySpy = vi.spyOn(NotificationBridge.NotificationBridge, 'notify').mockResolvedValue();
+      const isMentionEnabledSpy = vi.spyOn(NotificationBridge.NotificationBridge, 'isMentionNotificationsEnabled').mockReturnValue(false);
+
+      await service.initialize();
+
+      const messageWithMention: Message = {
+        id: 'msg-mention-2',
+        threadId: 'thread-1',
+        senderId: 'user#0001',
+        senderName: 'Test User',
+        content: 'Hey @Student#0002',
+        mentions: [
+          {
+            userId: 'Student#0002',
+            username: 'Student',
+            displayName: 'Student#0002',
+            position: { start: 4, end: 17 },
+          },
+        ],
+        createdAt: Date.now(),
+        isEdited: false,
+      };
+
+      // @ts-expect-error - accessing private method for testing
+      service.notifyMessageListeners(messageWithMention);
+
+      expect(isMentionEnabledSpy).toHaveBeenCalled();
+      expect(notifySpy).not.toHaveBeenCalled();
+
+      notifySpy.mockRestore();
+      isMentionEnabledSpy.mockRestore();
     });
   });
 });
