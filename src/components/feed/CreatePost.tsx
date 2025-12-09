@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Send, X, Lock, Clock, Database, Mic } from 'lucide-react';
-import { useStore, type PostLifetime, type PostEmotionAnalysis } from '../../lib/store';
+import { Send, X, Lock, Clock, Database, Mic, ChevronDown, Image, Music, Trash2 } from 'lucide-react';
+import { useStore, type PostLifetime, type PostEmotionAnalysis, type MediaAttachment } from '../../lib/store';
 import { encryptContent } from '../../lib/encryption';
 import { moderateContent } from '../../lib/contentModeration';
 import { detectCrisis, getCrisisSeverity } from '../../lib/crisisDetection';
 import { uploadToIPFS } from '../../lib/ipfs';
 import toast from 'react-hot-toast';
 import VoiceRecorder from './VoiceRecorder';
+import { MediaUploader } from '../storage/MediaUploader';
 
 const categories = [
   'Mental Health',
@@ -30,6 +31,13 @@ const lifetimeOptions: { value: PostLifetime; label: string; icon: string }[] = 
   { value: 'never', label: 'Never (permanent)', icon: '♾️' },
 ];
 
+interface SelectedAttachmentChip extends MediaAttachment {
+  label: string;
+  thumbnailUrl?: string;
+  size?: string;
+  duration?: number;
+}
+
 export default function CreatePost() {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
@@ -41,6 +49,8 @@ export default function CreatePost() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [emotionAnalysis, setEmotionAnalysis] = useState<PostEmotionAnalysis | null>(null);
+  const [selectedAttachments, setSelectedAttachments] = useState<SelectedAttachmentChip[]>([]);
+  const [showMediaSection, setShowMediaSection] = useState(false);
 
   const addPost = useStore((state) => state.addPost);
   const addEncryptionKey = useStore((state) => state.addEncryptionKey);
@@ -48,6 +58,40 @@ export default function CreatePost() {
   const studentId = useStore((state) => state.studentId);
   const setPendingPost = useStore((state) => state.setPendingPost);
   const setShowCrisisModal = useStore((state) => state.setShowCrisisModal);
+
+  const handleMediaUploadComplete = (attachments: MediaAttachment[]) => {
+    // Merge new attachments into selected attachments (avoid duplicates by mediaId)
+    const existingIds = new Set(selectedAttachments.map(a => a.mediaId));
+    const newChips: SelectedAttachmentChip[] = attachments
+      .filter(a => !existingIds.has(a.mediaId))
+      .map(a => ({
+        ...a,
+        label: `${a.type === 'image' ? '🖼️' : '🎵'} ${a.type}`,
+      }));
+    setSelectedAttachments(prev => [...prev, ...newChips]);
+  };
+
+  const handleRemoveAttachment = (mediaId: string) => {
+    setSelectedAttachments(prev => {
+      const attachment = prev.find(a => a.mediaId === mediaId);
+      // Revoke thumbnail URL if it exists
+      if (attachment?.thumbnailUrl) {
+        URL.revokeObjectURL(attachment.thumbnailUrl);
+      }
+      return prev.filter(a => a.mediaId !== mediaId);
+    });
+  };
+
+  const resetAttachments = () => {
+    // Revoke all thumbnail URLs
+    selectedAttachments.forEach(a => {
+      if (a.thumbnailUrl) {
+        URL.revokeObjectURL(a.thumbnailUrl);
+      }
+    });
+    setSelectedAttachments([]);
+    setShowMediaSection(false);
+  };
 
   const handleVoiceRecordingComplete = (transcript: string, analysis: PostEmotionAnalysis) => {
     setContent(transcript);
@@ -124,6 +168,14 @@ export default function CreatePost() {
         }
       }
 
+      // Build MediaAttachment array from selectedAttachments (excluding preview metadata)
+      const mediaAttachments: MediaAttachment[] = selectedAttachments.map(a => ({
+        mediaId: a.mediaId,
+        storage: a.storage,
+        type: a.type,
+        ...(a.ipfsCid ? { ipfsCid: a.ipfsCid } : {}),
+      }));
+
       if (isCrisis) {
         setPendingPost({
           content: trimmedContent,
@@ -136,7 +188,7 @@ export default function CreatePost() {
           moderationData,
           ipfsCid: ipfsCid ?? null,
           emotionAnalysis: emotionAnalysis ?? undefined,
-          mediaAttachments: [],
+          mediaAttachments,
         });
         setShowCrisisModal(true);
         setIsSubmitting(false);
@@ -154,7 +206,8 @@ export default function CreatePost() {
         undefined,
         undefined,
         emotionAnalysis ?? null,
-        ipfsCid
+        ipfsCid,
+        mediaAttachments
       );
       setPendingPost(null);
 
@@ -166,6 +219,7 @@ export default function CreatePost() {
       setStoreOnIPFS(false);
       setIsExpanded(false);
       setEmotionAnalysis(null);
+      resetAttachments();
     } catch (error) {
       console.error('Failed to create post:', error);
       toast.error('Failed to create post. Please try again.');
@@ -202,6 +256,7 @@ export default function CreatePost() {
               setCustomHours(24);
               setIsEncrypted(false);
               setEmotionAnalysis(null);
+              resetAttachments();
             }}
             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
@@ -342,6 +397,84 @@ export default function CreatePost() {
                 Your content will be permanently stored on the decentralized IPFS network.
               </div>
             )}
+
+            {/* Media Section */}
+            <div className="border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowMediaSection(!showMediaSection)}
+                className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-400 hover:text-gray-300 transition-colors"
+              >
+                <span>📁 Add media</span>
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform ${
+                    showMediaSection ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {showMediaSection && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-3 space-y-3"
+                >
+                  <div className="bg-surface/30 rounded-lg p-3">
+                    <MediaUploader
+                      accept="image/*,audio/*"
+                      onComplete={handleMediaUploadComplete}
+                    />
+                  </div>
+
+                  {/* Attachment Chips */}
+                  {selectedAttachments.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-400">Selected media:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedAttachments.map((attachment) => (
+                          <motion.div
+                            key={attachment.mediaId}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg text-sm"
+                          >
+                            {attachment.thumbnailUrl && attachment.type === 'image' ? (
+                              <img
+                                src={attachment.thumbnailUrl}
+                                alt="thumbnail"
+                                className="w-6 h-6 rounded object-cover"
+                              />
+                            ) : attachment.type === 'image' ? (
+                              <Image className="w-4 h-4 text-primary" />
+                            ) : (
+                              <Music className="w-4 h-4 text-primary" />
+                            )}
+                            <div className="flex-1">
+                              <p className="text-primary font-medium">{attachment.label}</p>
+                              {attachment.duration && (
+                                <p className="text-xs text-gray-500">
+                                  {Math.floor(attachment.duration)}s
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAttachment(attachment.mediaId)}
+                              className="p-1 hover:bg-primary/20 rounded transition-colors"
+                              title="Remove attachment"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-400 hover:text-red-300" />
+                            </button>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </div>
 
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400">
