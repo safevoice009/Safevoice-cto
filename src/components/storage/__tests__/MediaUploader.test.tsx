@@ -41,7 +41,7 @@ vi.mock('../../../hooks/useMediaUploader', () => ({
     jobs: [],
     isInitialized: true,
     initError: null,
-    uploadFiles: vi.fn(),
+    uploadFiles: vi.fn().mockResolvedValue([]),
     removeJob: vi.fn(),
     retryJob: vi.fn(),
     clearCompleted: vi.fn(),
