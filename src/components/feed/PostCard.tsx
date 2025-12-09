@@ -46,6 +46,7 @@ import ConfirmModal from './ConfirmModal';
 import TipModal from './TipModal';
 import RankChip from '../wallet/RankChip';
 import { AchievementService } from '../../lib/tokens/AchievementService';
+import PostMediaGallery from './PostMediaGallery';
 
 interface PostCardProps {
   post: Post;
@@ -734,7 +735,12 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
           </div>
         ) : (
-          renderContent()
+          <>
+            {renderContent()}
+            {post.mediaAttachments && post.mediaAttachments.length > 0 && (
+              <PostMediaGallery mediaAttachments={post.mediaAttachments} />
+            )}
+          </>
         )}
 
         <ReactionBar
