@@ -4,6 +4,7 @@ import { AlertTriangle, Lock, Menu, X, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../../lib/store';
+import { useStudentVerificationStore } from '../../lib/identity/studentVerificationState';
 import NotificationDropdown from './NotificationDropdown';
 import ConnectWalletButton from '../wallet/ConnectWalletButton';
 import LanguageSwitcher from './LanguageSwitcher';
@@ -27,8 +28,17 @@ export default function Navbar() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const { t } = useTranslation();
   const { studentId, isModerator, toggleModeratorMode, setShowCrisisModal } = useStore();
+  const { verificationStatus, verificationReady } = useStudentVerificationStore((state) => ({
+    verificationStatus: state.studentVerification,
+    verificationReady: state.isInitialized,
+  }));
   const navigate = useNavigate();
   const location = useLocation();
+
+  const verificationNeedsAttention = Boolean(verificationReady && verificationStatus && !verificationStatus.isVerified);
+  const verificationBadgeText = verificationStatus?.needsReverification
+    ? t('verification.status.reverify')
+    : t('verification.status.pending');
 
   useEffect(() => {
     const controlNavbar = () => {
@@ -131,6 +141,7 @@ export default function Navbar() {
             {primaryNavLinks.map((link) => {
               const isActive =
                 link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
+              const showVerificationBadge = link.value === '/verification' && verificationNeedsAttention;
               return (
                 <button
                   key={link.labelKey}
@@ -141,7 +152,14 @@ export default function Navbar() {
                   type="button"
                   aria-current={isActive ? 'page' : undefined}
                 >
-                  {t(link.labelKey)}
+                  <span className="flex items-center gap-2">
+                    {t(link.labelKey)}
+                    {showVerificationBadge && (
+                      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
+                        {verificationBadgeText}
+                      </span>
+                    )}
+                  </span>
                   {isActive && <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-primary rounded-full" />}
                 </button>
               );
@@ -225,6 +243,7 @@ export default function Navbar() {
                 {allNavLinks.map((link) => {
                   const isActive =
                     link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
+                  const showVerificationBadge = link.value === '/verification' && verificationNeedsAttention;
                   return (
                     <button
                       key={link.labelKey}
@@ -236,7 +255,14 @@ export default function Navbar() {
                       role="menuitem"
                       aria-current={isActive ? 'page' : undefined}
                     >
-                      {t(link.labelKey)}
+                      <span className="flex items-center gap-2">
+                        {t(link.labelKey)}
+                        {showVerificationBadge && (
+                          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
+                            {verificationBadgeText}
+                          </span>
+                        )}
+                      </span>
                     </button>
                   );
                 })}

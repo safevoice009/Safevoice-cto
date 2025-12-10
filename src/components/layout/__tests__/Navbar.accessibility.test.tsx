@@ -36,6 +36,16 @@ vi.mock('../../../lib/store', () => ({
   }),
 }));
 
+const mockVerificationStore = {
+  studentVerification: null,
+  isInitialized: false,
+};
+
+vi.mock('../../../lib/identity/studentVerificationState', () => ({
+  useStudentVerificationStore: (selector: (state: typeof mockVerificationStore) => unknown) =>
+    selector(mockVerificationStore),
+}));
+
 const renderComponent = () => {
   return render(
     <BrowserRouter>
@@ -44,12 +54,12 @@ const renderComponent = () => {
   );
 };
 
-describe('Navbar Accessibility', () => {
-  beforeEach(async () => {
-    await i18n.changeLanguage('en');
-  });
+  describe('Navbar Accessibility', () => {
+    beforeEach(async () => {
+      await i18n.changeLanguage('en');
+    });
 
-  describe('Basic Accessibility', () => {
+    describe('Basic Accessibility', () => {
     it('should have proper navigation roles', () => {
       renderComponent();
       

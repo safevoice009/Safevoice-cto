@@ -17,6 +17,7 @@ export const PRIMARY_NAV_ITEMS: NavigationItem[] = [
   { labelKey: 'nav.feed', value: '/feed', type: 'route' },
   { labelKey: 'nav.communities', value: '/communities', type: 'route' },
   { labelKey: 'nav.search', value: '/search', type: 'route' },
+  { labelKey: 'nav.verification', value: '/verification', type: 'route' },
 ];
 
 export const USER_MENU_ITEMS: NavigationItem[] = [

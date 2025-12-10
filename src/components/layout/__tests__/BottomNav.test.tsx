@@ -1,9 +1,18 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import BottomNav from '../BottomNav';
 import i18n from '../../../i18n/config';
+
+const mockVerificationStore = {
+  studentVerification: null,
+  isInitialized: false,
+};
+
+vi.mock('../../../lib/identity/studentVerificationState', () => ({
+  useStudentVerificationStore: (selector: (state: typeof mockVerificationStore) => unknown) => selector(mockVerificationStore),
+}));
 
 const renderComponent = () => {
   return render(
@@ -36,10 +45,10 @@ describe('BottomNav Component', () => {
       expect(nav).toBeInTheDocument();
     });
 
-    it('should render all 7 navigation items', () => {
+    it('should render all 8 navigation items', () => {
       renderComponent();
       const links = screen.getAllByRole('link');
-      expect(links).toHaveLength(7);
+      expect(links).toHaveLength(8);
     });
 
     it('should render navigation items in a single row at 360px width', async () => {
@@ -47,7 +56,7 @@ describe('BottomNav Component', () => {
       
       await waitFor(() => {
         const links = screen.getAllByRole('link');
-        expect(links).toHaveLength(7);
+        expect(links).toHaveLength(8);
         
         // All items should be rendered
         links.forEach((link) => {
@@ -74,6 +83,7 @@ describe('BottomNav Component', () => {
         expect(screen.getByText('Home')).toBeInTheDocument();
         expect(screen.getByText('Feed')).toBeInTheDocument();
         expect(screen.getByText('Communities')).toBeInTheDocument();
+        expect(screen.getByText('Verification')).toBeInTheDocument();
         expect(screen.getByText('Leaders')).toBeInTheDocument();
         expect(screen.getByText('Shop')).toBeInTheDocument();
         expect(screen.getByText('Profile')).toBeInTheDocument();
@@ -135,7 +145,7 @@ describe('BottomNav Component', () => {
       renderComponent();
       
       const links = screen.getAllByRole('link');
-      const expectedPaths = ['/', '/feed', '/communities', '/leaderboard', '/marketplace', '/profile', '/settings/appearance'];
+      const expectedPaths = ['/', '/feed', '/communities', '/verification', '/leaderboard', '/marketplace', '/profile', '/settings/appearance'];
       
       links.forEach((link, index) => {
         expect(link).toHaveAttribute('href', expectedPaths[index]);
@@ -170,6 +180,16 @@ describe('BottomNav Component', () => {
       await user.click(communitiesLink);
       
       expect(communitiesLink).toHaveAttribute('href', '/communities');
+    });
+
+    it('should navigate to verification on verification link click', async () => {
+      const user = userEvent.setup();
+      renderComponent();
+      
+      const verificationLink = screen.getByRole('link', { name: /verification/i });
+      await user.click(verificationLink);
+      
+      expect(verificationLink).toHaveAttribute('href', '/verification');
     });
 
     it('should navigate to leaderboard on leaders link click', async () => {
@@ -377,6 +397,7 @@ describe('BottomNav Component', () => {
         expect(screen.getByText('Home')).toBeInTheDocument();
         expect(screen.getByText('Feed')).toBeInTheDocument();
         expect(screen.getByText('Communities')).toBeInTheDocument();
+        expect(screen.getByText('Verification')).toBeInTheDocument();
         expect(screen.getByText('Leaders')).toBeInTheDocument();
         expect(screen.getByText('Shop')).toBeInTheDocument();
         expect(screen.getByText('Profile')).toBeInTheDocument();
@@ -431,9 +452,9 @@ describe('BottomNav Component', () => {
     it('should render items in a single scrollable row', () => {
       renderComponent();
       const links = screen.getAllByRole('link');
-      
-      // All 7 items should be present
-      expect(links).toHaveLength(7);
+
+      // All 8 items should be present
+      expect(links).toHaveLength(8);
     });
 
     it('should maintain single row layout on 360px width', () => {
@@ -445,17 +466,17 @@ describe('BottomNav Component', () => {
 
       renderComponent();
       const links = screen.getAllByRole('link');
-      
-      // All 7 items should be present
-      expect(links).toHaveLength(7);
-      
+
+      // All 8 items should be present
+      expect(links).toHaveLength(8);
+
       // Verify they're in the navigation
       const nav = screen.getByRole('navigation');
       links.forEach((link) => {
         expect(nav.contains(link)).toBe(true);
       });
     });
-  });
+    });
 
   describe('Scroll Behavior', () => {
     it('should render scroll container', () => {

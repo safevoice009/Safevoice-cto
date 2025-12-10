@@ -30,6 +30,7 @@ import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import AdminPanel from './pages/AdminPanel';
 import AppearanceSettings from './components/settings/AppearanceSettingsPage';
 import ResponsiveLayout from './components/responsive/ResponsiveLayout';
+import VerificationPage from './pages/Verification';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
 import AchievementToastContainer from './components/wallet/AchievementToastContainer';
 import { useStore } from './lib/store';
@@ -224,6 +225,7 @@ function AnimatedRoutes() {
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/transactions" element={<TransactionHistoryPage />} />
             <Route path="/analytics" element={<AnalyticsDashboard />} />
+            <Route path="/verification" element={<VerificationPage />} />
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="/settings/appearance" element={<AppearanceSettings />} />
           </Routes>
