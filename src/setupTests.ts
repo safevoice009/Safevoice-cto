@@ -3,6 +3,21 @@ import { expect } from 'vitest';
 import { toHaveNoViolations } from 'jest-axe';
 import 'fake-indexeddb/auto';
 
+// Configure @noble/ed25519 with sha512 for async operations in test environment
+import * as ed25519 from '@noble/ed25519';
+import { sha512 } from '@noble/hashes/sha2.js';
+ed25519.hashes.sha512Async = async (...messages: Uint8Array[]): Promise<Uint8Array> => {
+  // Concatenate all messages into a single Uint8Array
+  const totalLength = messages.reduce((acc, m) => acc + m.length, 0);
+  const combined = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const m of messages) {
+    combined.set(m, offset);
+    offset += m.length;
+  }
+  return sha512(combined);
+};
+
 expect.extend(toHaveNoViolations);
 
 // Mock IntersectionObserver
