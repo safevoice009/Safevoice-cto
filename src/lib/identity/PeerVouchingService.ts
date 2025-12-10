@@ -149,11 +149,11 @@ export class PeerVouchingService {
     const messageBytes = encoder.encode(`${requestId}:${statement}`)
 
     // Sign with Ed25519
-    const signatureBytes = await ed25519.signAsync(messageBytes, signerPrivateKey)
+    const signatureBytes = await ed25519.sign(messageBytes, signerPrivateKey)
     const signatureHex = bytesToHex(signatureBytes)
 
     // Derive signer wallet from private key (use public key as wallet for now)
-    const publicKey = await ed25519.getPublicKeyAsync(signerPrivateKey)
+    const publicKey = await ed25519.getPublicKey(signerPrivateKey)
     const signerWallet = bytesToHex(publicKey)
 
     return {
