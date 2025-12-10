@@ -3,11 +3,12 @@ import { expect } from 'vitest';
 import { toHaveNoViolations } from 'jest-axe';
 import 'fake-indexeddb/auto';
 
-// Configure @noble/ed25519 with sha512 for async operations in test environment
+// Configure @noble/ed25519 with sha512 for sync/async operations in test environment
 import * as ed25519 from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha2.js';
-ed25519.hashes.sha512Async = async (...messages: Uint8Array[]): Promise<Uint8Array> => {
-  // Concatenate all messages into a single Uint8Array
+
+// For @noble/ed25519, configure sha512 hash function
+ed25519.hashes.sha512 = (...messages: Uint8Array[]): Uint8Array => {
   const totalLength = messages.reduce((acc, m) => acc + m.length, 0);
   const combined = new Uint8Array(totalLength);
   let offset = 0;

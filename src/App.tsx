@@ -40,6 +40,7 @@ import { useCustomizationStore } from './lib/customizationStore';
 import { ThemeProvider } from './components/ui/ThemeProvider';
 import { useThemeSystemStore } from './lib/themeSystemStore';
 import { initializeAnalytics } from './lib/analytics';
+import { useStudentVerificationStore } from './lib/identity/studentVerificationState';
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,7 @@ function AnimatedRoutes() {
   const hydrateTheme = useThemeStore((state) => state.hydrate);
   const hydrateAppearance = useCustomizationStore((state) => state.hydrate);
   const hydrateThemeSystem = useThemeSystemStore((state) => state.hydrate);
+  const anonymousWalletAddress = useStore((state) => state.anonymousWalletAddress);
   const lifecycleManagerRef = useRef<PostLifecycleManager | null>(null);
   const mainContentRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
@@ -108,6 +110,23 @@ function AnimatedRoutes() {
       console.error('[Privacy] Failed to initialize fingerprint protections:', error);
     });
   }, []);
+
+  // Initialize student registry when anonymous wallet becomes available
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!anonymousWalletAddress) return;
+
+    // Initialize registry exactly once when wallet address is available
+    const initRegistry = async () => {
+      try {
+        await useStudentVerificationStore.getState().initStudentRegistry(anonymousWalletAddress);
+      } catch (error) {
+        console.error('[StudentRegistry] Failed to initialize:', error);
+      }
+    };
+
+    initRegistry();
+  }, [anonymousWalletAddress]);
 
   // Focus management for route changes
   useEffect(() => {
