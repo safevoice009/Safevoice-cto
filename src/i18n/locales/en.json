@@ -31,6 +31,7 @@
     "profile": "Profile",
     "leaders": "Leaders",
     "customize": "Customize",
+    "verification": "Verification",
     "crisisHelp": "Crisis Help",
     "getCrisisHelp": "Get Crisis Help",
     "mainNavigation": "Main navigation",
@@ -41,6 +42,88 @@
     "more": "More",
     "logout": "Logout",
     "admin": "Admin"
+  },
+  "verification": {
+    "title": "Student verification",
+    "subtitle": "Proof-of-studenthood without centralized checkpoints.",
+    "zeroCentralization": "Everything runs locally on your device. No email verification, phone OTP, OCR scans, or remote servers are ever involved.",
+    "status": {
+      "verified": "Verified on-device",
+      "pending": "Verification incomplete",
+      "reverify": "Renewal required"
+    },
+    "cta": {
+      "refresh": "Refresh status"
+    },
+    "walletSection": {
+      "title": "Wallet & biometric commitments",
+      "description": "Bind your anonymous wallet to a local biometric capture to anchor trust without sharing secrets.",
+      "statusActive": "Biometric commitment stored",
+      "statusMissing": "Waiting for biometric capture",
+      "walletLabel": "Anonymous wallet",
+      "missingWallet": "Generate your local wallet to continue",
+      "listTitle": "Registered devices",
+      "none": "No commitments yet",
+      "deviceLabel": "Device label",
+      "devicePlaceholder": "e.g., Campus laptop",
+      "captureCta": "Capture biometric locally",
+      "localOnlyNote": "Captured commitments are hashed locally. No email, phone, or OCR submissions are ever requested."
+    },
+    "peersSection": {
+      "title": "Peer vouching (2 of 3)",
+      "description": "Invite classmates you trust. We only keep their Ed25519 signature hashes locally.",
+      "progressLabel": "{{current}} / {{total}} approvals",
+      "peerTextarea": "Peer wallet addresses (one per line)",
+      "requestCta": "Request peer vouches",
+      "shareOffline": "Share invites offline—no automated email, SMS, or push notifications are sent.",
+      "badgeHeading": "Live signatures",
+      "none": "No peer approvals yet",
+      "signaturesNeeded": "Need at least {{count}} unique signatures",
+      "badges": {
+        "pending": "Pending",
+        "signed": "Signed",
+        "expired": "Expired"
+      },
+      "trustedContacts": "Trusted contacts",
+      "offlineOnly": "offline only"
+    },
+    "attestationSection": {
+      "title": "Self-attestation",
+      "description": "Sign the statement \"I am a student at …\" with your anonymous wallet. Each attestation lasts 365 days.",
+      "countdown": "{{days}} days remaining",
+      "expired": "Attestation expired — please reverify",
+      "missing": "No attestation captured yet",
+      "collegeLabel": "College or campus name",
+      "collegePlaceholder": "e.g., Horizon College",
+      "passwordLabel": "Wallet password",
+      "passwordHint": "Password stays encrypted on-device and is used only to sign locally.",
+      "signCta": "Sign attestation",
+      "renewCta": "Reverify now",
+      "statementPreview": "Preview statement",
+      "placeholderSchool": "your campus",
+      "localOnly": "Statements and signatures stay on your device. No OCR or server review occurs."
+    },
+    "timelineSection": {
+      "title": "Decentralized verification timeline",
+      "biometric": "Biometric commitments",
+      "peers": "Peer approvals",
+      "attestation": "Self-attestation",
+      "admin": "Admin delegation",
+      "expiry": "Verification expiry",
+      "hashCount": "{{count}} hashed commitments",
+      "peerCount": "{{count}} approvals",
+      "adminMissing": "No admin delegation recorded",
+      "noData": "Not captured yet",
+      "hashLabel": "Hash",
+      "expiresOn": "Expires {{date}}"
+    },
+    "errors": {
+      "deviceLabel": "Name the device you are capturing from.",
+      "peerAddress": "Add at least one peer wallet address.",
+      "college": "Enter your college name.",
+      "password": "Password is required to sign locally.",
+      "default": "Something went wrong. Try again."
+    }
   },
   "profile": {
     "title": "Profile",
