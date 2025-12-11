@@ -66,8 +66,8 @@ export interface EncryptedEnvelope {
   nonce: string;             // Base64 encoded 24-byte nonce
   associatedData?: string;   // Base64 encoded optional AAD
   keyId: string;             // Key identifier
-  ratchetIndex?: number;     // Forward secrecy index
-  merkleRoot?: string;       // Optional message chain root
+  ratchetIndex?: number;     // Forward secrecy index (double ratchet)
+  merkleCommit?: string;     // Merkle commitment for deletion proofs
 }
 
 /**

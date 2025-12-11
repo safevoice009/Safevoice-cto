@@ -61,6 +61,8 @@ import type {
 } from './messaging/types';
 import { initializeMessagingService, getMessagingService, destroyMessagingService } from './messaging/MessagingService';
 import { parseMentions } from './messaging/mentions';
+import { DoubleRatchetSession } from './encryption/DoubleRatchetSession';
+import type { SerializedRatchetSession } from './encryption/DoubleRatchetSession';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -976,6 +978,7 @@ export interface StoreState {
   pendingMessages: OfflineEnvelope[];
   mentionSuggestions: MentionSuggestion[];
   messagingConnected: boolean;
+  messagingSessions: Map<string, DoubleRatchetSession>; // Thread ID -> Ratchet Session
 
   // Messaging Actions
   initializeMessaging: () => Promise<void>;
@@ -985,6 +988,9 @@ export interface StoreState {
   markThreadRead: (threadId: string) => void;
   setMentionSuggestions: (suggestions: MentionSuggestion[]) => void;
   destroyMessaging: () => void;
+  getOrCreateRatchetSession: (threadId: string) => DoubleRatchetSession;
+  loadRatchetSession: (threadId: string) => DoubleRatchetSession | null;
+  saveRatchetSession: (threadId: string) => void;
 
   // Alert Preferences State
   alertPreferences: AlertPreferences;
@@ -1045,6 +1051,7 @@ const STORAGE_KEYS = {
   PRIVACY_ONBOARDING: 'safevoice_privacy_onboarding',        // Privacy onboarding state
   MESSAGING_THREADS: 'safevoice_messaging_threads',          // Message threads
   MESSAGING_PENDING: 'safevoice_messaging_pending',          // Pending messages when offline
+  MESSAGING_SESSIONS: 'safevoice_messaging_sessions',        // Double ratchet sessions
   ALERT_PREFERENCES: 'safevoice_alert_prefs',                // Alert preferences and trusted contacts
   };
 
@@ -2558,6 +2565,7 @@ export const useStore = create<StoreState>((set, get) => {
     pendingMessages: [],
     mentionSuggestions: [],
     messagingConnected: false,
+    messagingSessions: new Map(),
 
     // Alert Preferences state
     ...loadAlertPreferences(),
@@ -7766,15 +7774,74 @@ export const useStore = create<StoreState>((set, get) => {
   destroyMessaging: () => {
     try {
       destroyMessagingService();
+      // Destroy all ratchet sessions
+      get().messagingSessions.forEach((session) => {
+        session.destroy();
+      });
       set({
         threads: new Map(),
         pendingMessages: [],
         mentionSuggestions: [],
         messagingConnected: false,
+        messagingSessions: new Map(),
       });
       toast.success('Messaging destroyed');
     } catch (error) {
       console.error('[Messaging] Destroy failed:', error);
+    }
+  },
+
+  getOrCreateRatchetSession: (threadId: string): DoubleRatchetSession => {
+    const { messagingSessions } = get();
+    const existing = messagingSessions.get(threadId);
+
+    if (existing) {
+      return existing;
+    }
+
+    // Create new session with random shared secret
+    const sharedSecret = crypto.getRandomValues(new Uint8Array(32));
+    const session = new DoubleRatchetSession(threadId, sharedSecret);
+    
+    const newSessions = new Map(messagingSessions);
+    newSessions.set(threadId, session);
+    set({ messagingSessions: newSessions });
+
+    // Persist to localStorage
+    get().saveRatchetSession(threadId);
+
+    return session;
+  },
+
+  loadRatchetSession: (threadId: string) => {
+    try {
+      const stored = typeof window !== 'undefined' ? localStorage.getItem(`${STORAGE_KEYS.MESSAGING_SESSIONS}_${threadId}`) : null;
+      if (stored) {
+        const data = JSON.parse(stored) as SerializedRatchetSession;
+        const session = DoubleRatchetSession.hydrate(data);
+        
+        const { messagingSessions } = get();
+        const newSessions = new Map(messagingSessions);
+        newSessions.set(threadId, session);
+        set({ messagingSessions: newSessions });
+
+        return session;
+      }
+    } catch (error) {
+      console.error(`[Messaging] Failed to load ratchet session for ${threadId}:`, error);
+    }
+    return null;
+  },
+
+  saveRatchetSession: (threadId: string) => {
+    try {
+      const session = get().messagingSessions.get(threadId);
+      if (session && typeof window !== 'undefined') {
+        const serialized = session.serialize();
+        localStorage.setItem(`${STORAGE_KEYS.MESSAGING_SESSIONS}_${threadId}`, JSON.stringify(serialized));
+      }
+    } catch (error) {
+      console.error(`[Messaging] Failed to save ratchet session for ${threadId}:`, error);
     }
   },
 
