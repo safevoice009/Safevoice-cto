@@ -369,6 +369,20 @@
       "success": "Biometric registration successful",
       "error": "Registration failed",
       "registering": "Registering..."
+    },
+    "peerVouching": {
+      "title": "Peer Vouching",
+      "description": "Request verification from 3 peers to confirm your identity.",
+      "instruction": "Enter the wallet addresses of 3 peers who can vouch for you.",
+      "peerLabel": "Peer {{index}} Wallet Address",
+      "requestButton": "Request Vouching",
+      "requesting": "Requesting...",
+      "waitingApproval": "Waiting for: {{count}}/2 approvals",
+      "pendingPeers": "Pending Peers:",
+      "errorDuplicate": "Duplicate peer address",
+      "errorSelf": "Cannot vouch for yourself",
+      "success": "Vouching request sent successfully",
+      "error": "Failed to send request"
     }
-  }
-  }
+    }
+    }
