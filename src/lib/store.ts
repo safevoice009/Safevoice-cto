@@ -53,7 +53,12 @@ import { localStorageService } from './storage/local/LocalStorageService';
 import { storageEncryption } from './storage/encryption/StorageEncryption';
 import { ipfsService } from './storage/ipfs/IPFSService';
 import type { MediaAsset, StorageStats, EncryptionStats, MediaAttachment } from './storage/types';
-import type { Message, Thread, OfflineEnvelope, MentionSuggestion } from './messaging/types';
+import type { 
+  Message, 
+  Thread, 
+  OfflineEnvelope, 
+  MentionSuggestion
+} from './messaging/types';
 import { initializeMessagingService, getMessagingService, destroyMessagingService } from './messaging/MessagingService';
 import { parseMentions } from './messaging/mentions';
 
@@ -7657,17 +7662,18 @@ export const useStore = create<StoreState>((set, get) => {
         threadId,
         senderId: studentId,
         senderName: studentId,
-        content,
+        content, // Keep original content for local display
         mentions,
         attachedMediaIds,
         createdAt: Date.now(),
         isEdited: false,
+        _isDecrypted: true, // Mark as decrypted for local use
       };
 
-      // Send via service
+      // Send via service (which will encrypt the content for transmission)
       await service.send(message, threadId);
 
-      // Update local thread
+      // Update local thread with the message (content remains decrypted for local display)
       set((state) => {
         const thread = state.threads.get(threadId);
         if (thread) {

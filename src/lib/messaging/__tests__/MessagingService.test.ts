@@ -79,7 +79,10 @@ describe('MessagingService', () => {
 
       const queue = JSON.parse(stored!);
       expect(queue).toHaveLength(1);
-      expect(queue[0].message.content).toBe('Hello @Student#0001');
+      // Messages should be encrypted - content replaced with placeholder and encryptedPayload added
+      expect(queue[0].message.content).toBe('[Encrypted]');
+      expect(queue[0].message.encryptedPayload).toBeDefined();
+      expect(queue[0].message.encryptedPayload?.algorithm).toBe('XChaCha20-Poly1305');
     });
 
     it('should load pending messages from localStorage on init', async () => {

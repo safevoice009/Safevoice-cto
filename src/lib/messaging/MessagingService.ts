@@ -1,11 +1,13 @@
 /**
- * Real-time messaging service with offline support
+ * Real-time messaging service with offline support and XChaCha20-Poly1305 encryption
  * - Attempts WebSocket connection (if VITE_MESSAGE_WS_URL defined)
  * - Falls back to BroadcastChannel for same-tab communication
  * - Persists offline messages to localStorage
+ * - Encrypts message payloads using XChaCha20-Poly1305
  */
 import type { Message, Thread, OfflineEnvelope } from './types';
 import { NotificationBridge } from '../notifications/NotificationBridge';
+import { getMessagingEncryptionAdapter } from './MessagingEncryptionAdapter';
 
 const OFFLINE_QUEUE_KEY = 'safevoice_messages_pending';
 
@@ -133,45 +135,71 @@ export class MessagingService {
   }
 
   /**
-   * Send a message
+   * Send a message with encryption
    * Queues if offline, sends immediately if online
    */
   async send(message: Message, threadId: string): Promise<void> {
-    const isOnline = navigator.onLine && this.isConnected;
+    try {
+      const encryptionAdapter = getMessagingEncryptionAdapter();
+      
+      // Create encryption context
+      const context = {
+        threadId,
+        senderId: message.senderId,
+      };
 
-    if (isOnline && this.ws) {
-      // Send via WebSocket
-      this.ws.send(
-        JSON.stringify({
+      // Encrypt the message content
+      const encryptedPayload = encryptionAdapter.encrypt(message.content, context);
+
+      // Create sanitized message for transmission (no plaintext)
+      const sanitizedMessage: Message = {
+        ...message,
+        // Replace plaintext with placeholder for transmission
+        content: '[Encrypted]',
+        encryptedPayload,
+        // Mark that content is encrypted/transmitted
+        _isDecrypted: false,
+      };
+
+      const isOnline = navigator.onLine && this.isConnected;
+
+      if (isOnline && this.ws) {
+        // Send encrypted message via WebSocket
+        this.ws.send(
+          JSON.stringify({
+            type: 'message',
+            message: sanitizedMessage,
+            threadId,
+            senderId: this.userId,
+            timestamp: Date.now(),
+          })
+        );
+      } else if (this.broadcastChannel) {
+        // Broadcast encrypted message to other tabs
+        this.broadcastChannel.postMessage({
           type: 'message',
-          message,
+          message: sanitizedMessage,
           threadId,
           senderId: this.userId,
           timestamp: Date.now(),
-        })
-      );
-    } else if (this.broadcastChannel) {
-      // Broadcast to other tabs
-      this.broadcastChannel.postMessage({
-        type: 'message',
-        message,
-        threadId,
-        senderId: this.userId,
-        timestamp: Date.now(),
-      });
-    }
+        });
+      }
 
-    // If offline or not connected, queue message
-    if (!isOnline) {
-      const envelope: OfflineEnvelope = {
-        id: `offline_${Date.now()}_${Math.random()}`,
-        threadId,
-        message,
-        createdAt: Date.now(),
-        retryCount: 0,
-      };
-      this.offlineQueue.push(envelope);
-      this.saveOfflineQueue();
+      // If offline or not connected, queue encrypted message
+      if (!isOnline) {
+        const envelope: OfflineEnvelope = {
+          id: `offline_${Date.now()}_${Math.random()}`,
+          threadId,
+          message: sanitizedMessage,
+          createdAt: Date.now(),
+          retryCount: 0,
+        };
+        this.offlineQueue.push(envelope);
+        this.saveOfflineQueue();
+      }
+    } catch (error) {
+      console.error('[Messaging] Failed to encrypt/send message:', error);
+      throw new Error(`Message sending failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -325,36 +353,98 @@ export class MessagingService {
     this.notifyConnectionListeners(false);
   }
 
-  private notifyMessageListeners(message: Message): void {
-    // Check if message has mentions and trigger notification if enabled
-    if (message.mentions && message.mentions.length > 0) {
-      if (NotificationBridge.isMentionNotificationsEnabled()) {
-        const mentionNames = message.mentions.map(m => m.displayName || m.username).join(', ');
-        const snippet = message.content.slice(0, 60) + (message.content.length > 60 ? '...' : '');
-        
-        NotificationBridge.notify({
-          title: `You were mentioned by ${message.senderName || 'Someone'}`,
-          body: snippet,
-          tag: `mention_${message.id}`,
-          data: {
-            type: 'mention',
-            messageId: message.id,
+  private async notifyMessageListeners(message: Message): Promise<void> {
+    try {
+      // Handle decryption if message is encrypted
+      let processedMessage = message;
+      
+      if (message.encryptedPayload) {
+        try {
+          const encryptionAdapter = getMessagingEncryptionAdapter();
+          const context = {
             threadId: message.threadId,
-            mentionedBy: mentionNames,
-          },
-        }).catch((error) => {
-          console.error('[Messaging] Failed to trigger mention notification:', error);
-        });
-      }
-    }
+            senderId: message.senderId,
+          };
 
-    this.messageListeners.forEach((listener) => {
-      try {
-        listener(message);
-      } catch (error) {
-        console.error('[Messaging] Error in message listener:', error);
+          const decryptionResult = encryptionAdapter.decrypt(message.encryptedPayload, context);
+          
+          // Create decrypted message for UI
+          processedMessage = {
+            ...message,
+            content: decryptionResult.content,
+            _isDecrypted: true,
+          };
+        } catch (decryptError) {
+          console.error('[Messaging] Failed to decrypt message:', decryptError);
+          
+          // Create message with error state
+          processedMessage = {
+            ...message,
+            content: 'Encrypted message unavailable.',
+            decryptionError: decryptError instanceof Error ? decryptError.message : 'Unknown decryption error',
+            _isDecrypted: false,
+          };
+        }
+      } else if (message.legacyPayload) {
+        // Handle legacy AES-GCM messages
+        try {
+          const encryptionAdapter = getMessagingEncryptionAdapter();
+          const context = {
+            threadId: message.threadId,
+            senderId: message.senderId,
+          };
+
+          const decryptionResult = encryptionAdapter.decryptLegacy(message.legacyPayload, context);
+          
+          processedMessage = {
+            ...message,
+            content: decryptionResult.content,
+            _isDecrypted: true,
+          };
+        } catch (decryptError) {
+          console.error('[Messaging] Failed to decrypt legacy message:', decryptError);
+          
+          processedMessage = {
+            ...message,
+            content: 'Legacy message unavailable.',
+            decryptionError: decryptError instanceof Error ? decryptError.message : 'Unknown legacy decryption error',
+            _isDecrypted: false,
+          };
+        }
       }
-    });
+
+      // Check if processed message has mentions and trigger notification if enabled
+      if (processedMessage.mentions && processedMessage.mentions.length > 0) {
+        if (NotificationBridge.isMentionNotificationsEnabled()) {
+          const mentionNames = processedMessage.mentions.map(m => m.displayName || m.username).join(', ');
+          const snippet = processedMessage.content.slice(0, 60) + (processedMessage.content.length > 60 ? '...' : '');
+          
+          NotificationBridge.notify({
+            title: `You were mentioned by ${processedMessage.senderName || 'Someone'}`,
+            body: snippet,
+            tag: `mention_${processedMessage.id}`,
+            data: {
+              type: 'mention',
+              messageId: processedMessage.id,
+              threadId: processedMessage.threadId,
+              mentionedBy: mentionNames,
+            },
+          }).catch((error) => {
+            console.error('[Messaging] Failed to trigger mention notification:', error);
+          });
+        }
+      }
+
+      this.messageListeners.forEach((listener) => {
+        try {
+          listener(processedMessage);
+        } catch (error) {
+          console.error('[Messaging] Error in message listener:', error);
+        }
+      });
+    } catch (error) {
+      console.error('[Messaging] Error in notifyMessageListeners:', error);
+    }
   }
 
   private notifyThreadListeners(thread: Thread): void {
