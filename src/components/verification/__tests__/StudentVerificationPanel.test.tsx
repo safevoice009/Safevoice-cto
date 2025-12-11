@@ -10,7 +10,7 @@
  * - Shows pending peers and signatures
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StudentVerificationPanel } from '../StudentVerificationPanel';
 import type { StudentRecord, VerificationStatus } from '../../../lib/identity/StudentRegistry';
@@ -220,9 +220,10 @@ describe('StudentVerificationPanel', () => {
       const record = createMockStudentRecord();
       setMockStoreData({ currentRecord: record });
 
-      const { container } = render(<StudentVerificationPanel className="custom-class" />);
-      
-      expect(container.firstChild).toHaveClass('custom-class');
+      render(<StudentVerificationPanel className="custom-class" />);
+
+      const content = screen.getByTestId('student-verification-panel-content');
+      expect(content).toHaveClass('custom-class');
     });
 
     it('hides timeline when showTimeline is false', () => {
@@ -452,11 +453,51 @@ describe('StudentVerificationPanel', () => {
       const record = createMockStudentRecord();
       setMockStoreData({ currentRecord: record });
 
-      const { container } = render(<StudentVerificationPanel compact />);
-      
-      // Should have single column grid in compact mode
-      expect(container.querySelector('.grid')).toHaveClass('grid-cols-1');
-      expect(container.querySelector('.grid')).not.toHaveClass('lg:grid-cols-2');
+      render(<StudentVerificationPanel compact />);
+
+      const grid = document.querySelector(
+        '[data-testid="student-verification-panel-content"] .grid'
+      );
+
+      expect(grid).toHaveClass('grid-cols-1');
+      expect(grid).not.toHaveClass('lg:grid-cols-2');
+    });
+  });
+
+  describe('Modal Behavior', () => {
+    it('renders inside a dialog when open', () => {
+      const record = createMockStudentRecord();
+      setMockStoreData({ currentRecord: record });
+
+      render(<StudentVerificationPanel onClose={vi.fn()} />);
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    it('calls onClose when clicking the backdrop', () => {
+      const record = createMockStudentRecord();
+      const onClose = vi.fn();
+      setMockStoreData({ currentRecord: record });
+
+      render(<StudentVerificationPanel onClose={onClose} />);
+
+      const dialog = screen.getByRole('dialog');
+      fireEvent.click(dialog);
+
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it('calls onClose when clicking the close button', () => {
+      const record = createMockStudentRecord();
+      const onClose = vi.fn();
+      setMockStoreData({ currentRecord: record });
+
+      render(<StudentVerificationPanel onClose={onClose} />);
+
+      const closeButton = screen.getByLabelText('Close');
+      fireEvent.click(closeButton);
+
+      expect(onClose).toHaveBeenCalled();
     });
   });
 });

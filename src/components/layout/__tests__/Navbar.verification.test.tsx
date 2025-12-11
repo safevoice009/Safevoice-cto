@@ -35,8 +35,14 @@ vi.mock('../MoreMenu', () => ({
 }));
 
 // Mock verification modal
-vi.mock('../../verification/VerificationModal', () => ({
-  default: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => (
+vi.mock('../../verification/StudentVerificationPanel', () => {
+  const MockPanel = ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen?: boolean;
+    onClose?: () => void;
+  }) =>
     isOpen ? (
       <div role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div id="modal-title">Student Verification</div>
@@ -46,9 +52,14 @@ vi.mock('../../verification/VerificationModal', () => ({
         <div>PeerVouchingRequest Component</div>
         <div>ApprovalTimeline Component</div>
       </div>
-    ) : null
-  ),
-}));
+    ) : null;
+
+  return {
+    __esModule: true,
+    default: MockPanel,
+    StudentVerificationPanel: MockPanel,
+  };
+});
 
 // Mock store with verification state
 const mockStore = {
