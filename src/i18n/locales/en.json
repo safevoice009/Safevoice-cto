@@ -356,6 +356,19 @@
       "pending": "Complete biometric, peer vouching, and self-attestation to verify your identity.",
       "reverify": "Your verification expires on {{date}}. Please re-verify soon.",
       "reverifySoon": "Your verification will expire soon. Please re-verify."
+    },
+    "biometric": {
+      "title": "Biometric Registration",
+      "description": "Register your device fingerprint using secure biometrics (FaceID, TouchID, etc).",
+      "deviceLabel": "Device Label",
+      "currentDevice": "Current Device",
+      "registerButton": "Register Device Fingerprint",
+      "limitReached": "Maximum devices reached (3/3)",
+      "limitError": "You have reached the maximum of 3 devices. Please remove a device before adding a new one.",
+      "progress": "{{count}}/3 devices registered",
+      "success": "Biometric registration successful",
+      "error": "Registration failed",
+      "registering": "Registering..."
     }
   }
   }
