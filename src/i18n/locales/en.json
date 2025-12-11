@@ -383,6 +383,31 @@
       "errorSelf": "Cannot vouch for yourself",
       "success": "Vouching request sent successfully",
       "error": "Failed to send request"
+    },
+    "timeline": {
+      "title": "Verification Progress",
+      "noData": "No verification data available",
+      "biometric": {
+        "title": "Biometric Registration",
+        "description": "Device fingerprint registered",
+        "tip": "One biometric commitment required"
+      },
+      "peer": {
+        "title": "Peer Vouching",
+        "description": "Peer signatures collected",
+        "tip": "At least 2 peer signatures required"
+      },
+      "verified": {
+        "title": "Verified",
+        "description": "Identity verified",
+        "tip": "All verification steps completed",
+        "pending": "Verification Pending",
+        "expired": "Verification Expired",
+        "checkmark": "Verification Complete"
+      },
+      "signedBy": "Signed by {{count}} peer{{plural}}",
+      "committed": "Committed {{date}}",
+      "expiresOn": "Expires {{date}}"
     }
-    }
-    }
+  }
+}
