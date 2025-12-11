@@ -12,7 +12,7 @@ import ThemeSwitcher from './ThemeSwitcher';
 import FontSwitcher from './FontSwitcher';
 import UserMenu from './UserMenu';
 import MoreMenu from './MoreMenu';
-import VerificationModal from '../verification/VerificationModal';
+import StudentVerificationPanel from '../verification/StudentVerificationPanel';
 import { PRIMARY_NAV_ITEMS, ALL_NAV_ITEMS } from './navigationConfig';
 
 type NavLink = {
@@ -344,7 +344,10 @@ export default function Navbar() {
       </AnimatePresence>
 
       {/* Verification Modal */}
-      <VerificationModal isOpen={showVerificationModal} onClose={() => setShowVerificationModal(false)} />
+      <StudentVerificationPanel
+        isOpen={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+      />
     </motion.nav>
   );
 }
