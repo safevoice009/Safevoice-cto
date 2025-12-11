@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Lock, Menu, X, Shield } from 'lucide-react';
+import { AlertTriangle, Lock, Menu, X, Shield, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../../lib/store';
+import { useStudentVerificationStore } from '../../lib/identity/studentVerificationState';
 import NotificationDropdown from './NotificationDropdown';
 import ConnectWalletButton from '../wallet/ConnectWalletButton';
 import LanguageSwitcher from './LanguageSwitcher';
@@ -11,6 +12,7 @@ import ThemeSwitcher from './ThemeSwitcher';
 import FontSwitcher from './FontSwitcher';
 import UserMenu from './UserMenu';
 import MoreMenu from './MoreMenu';
+import VerificationModal from '../verification/VerificationModal';
 import { PRIMARY_NAV_ITEMS, ALL_NAV_ITEMS } from './navigationConfig';
 
 type NavLink = {
@@ -22,11 +24,13 @@ type NavLink = {
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [visible, setVisible] = useState(true);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
   const lastScrollYRef = useRef(0);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const { t } = useTranslation();
   const { studentId, isModerator, toggleModeratorMode, setShowCrisisModal } = useStore();
+  const { studentVerification } = useStudentVerificationStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -98,6 +102,11 @@ export default function Navbar() {
     };
   }, [isOpen]);
 
+  // Close verification modal on route change
+  useEffect(() => {
+    setShowVerificationModal(false);
+  }, [location.pathname]);
+
   // Convert navigation items to NavLink format
   const primaryNavLinks: NavLink[] = PRIMARY_NAV_ITEMS.map(item => ({
     labelKey: item.labelKey,
@@ -156,6 +165,28 @@ export default function Navbar() {
               <FontSwitcher />
             </div>
             <NotificationDropdown />
+            <motion.button
+              onClick={() => setShowVerificationModal(true)}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                studentVerification?.isVerified
+                  ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/20'
+                  : 'bg-primary/20 text-primary hover:bg-primary/30 border border-primary/20'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title={studentVerification?.isVerified ? t('verification.status.verified') : t('verification.title')}
+            >
+              {studentVerification?.isVerified ? (
+                <CheckCircle className="w-4 h-4" />
+              ) : (
+                <Shield className="w-4 h-4" />
+              )}
+              <span className="text-sm">
+                {studentVerification?.isVerified
+                  ? t('verification.status.verified', 'Verified')
+                  : t('verification.title', 'Verify Account')}
+              </span>
+            </motion.button>
             <motion.button
               onClick={() => setShowCrisisModal(true)}
               className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg font-medium transition-all hover:bg-red-700"
@@ -223,24 +254,52 @@ export default function Navbar() {
               </div>
               <nav role="menu" aria-label={t('nav.mainNavigation')}>
                 {allNavLinks.map((link) => {
-                  const isActive =
-                    link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
-                  return (
-                    <button
-                      key={link.labelKey}
-                      onClick={() => handleNavClick(link)}
-                      className={`block w-full text-left nav-link py-2 text-sm font-medium transition-colors ${
-                        isActive ? 'text-info font-semibold' : 'text-text hover:text-info'
-                      }`}
-                      type="button"
-                      role="menuitem"
-                      aria-current={isActive ? 'page' : undefined}
-                    >
-                      {t(link.labelKey)}
-                    </button>
-                  );
-                })}
-                <div className="pt-3 border-t border-white/10">
+                   const isActive =
+                     link.type === 'route' && (location.pathname === link.value || location.pathname.startsWith(`${link.value}/`));
+                   return (
+                     <button
+                       key={link.labelKey}
+                       onClick={() => handleNavClick(link)}
+                       className={`block w-full text-left nav-link py-2 text-sm font-medium transition-colors ${
+                         isActive ? 'text-info font-semibold' : 'text-text hover:text-info'
+                       }`}
+                       type="button"
+                       role="menuitem"
+                       aria-current={isActive ? 'page' : undefined}
+                     >
+                       {t(link.labelKey)}
+                     </button>
+                   );
+                 })}
+                 <div className="pt-3 border-t border-white/10 space-y-2">
+                   <motion.button
+                     onClick={() => {
+                       setShowVerificationModal(true);
+                       closeMenu();
+                     }}
+                     className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold text-sm transition-all ${
+                       studentVerification?.isVerified
+                         ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/20'
+                         : 'bg-primary/20 text-primary border border-primary/20'
+                     }`}
+                     whileHover={{ scale: 1.02 }}
+                     whileTap={{ scale: 0.98 }}
+                     title={studentVerification?.isVerified ? t('verification.status.verified') : t('verification.title')}
+                     role="menuitem"
+                   >
+                     {studentVerification?.isVerified ? (
+                       <CheckCircle className="w-4 h-4" />
+                     ) : (
+                       <Shield className="w-4 h-4" />
+                     )}
+                     <span>
+                       {studentVerification?.isVerified
+                         ? t('verification.status.verified', 'Verified')
+                         : t('verification.title', 'Verify Account')}
+                     </span>
+                   </motion.button>
+                 </div>
+                 <div className="pt-3 border-t border-white/10">
                   <motion.button
                     onClick={() => {
                       setShowCrisisModal(true);
@@ -283,6 +342,9 @@ export default function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Verification Modal */}
+      <VerificationModal isOpen={showVerificationModal} onClose={() => setShowVerificationModal(false)} />
     </motion.nav>
   );
 }

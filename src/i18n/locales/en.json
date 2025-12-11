@@ -343,20 +343,22 @@
     }
   },
   "verification": {
-    "wallet": "Wallet",
-    "status": {
-      "verified": "Verified",
-      "expired": "Expired",
-      "pending": "Pending Verification",
-      "reverify": "Re-verification Required"
-    },
-    "message": {
-      "verified": "Your student identity is verified and active.",
-      "expired": "Your verification has expired. Please complete the verification process again.",
-      "pending": "Complete biometric, peer vouching, and self-attestation to verify your identity.",
-      "reverify": "Your verification expires on {{date}}. Please re-verify soon.",
-      "reverifySoon": "Your verification will expire soon. Please re-verify."
-    },
+   "title": "Student Verification",
+   "wallet": "Wallet",
+   "modalInfo": "Verification is secured using WebAuthn biometrics and peer attestations. Your data is stored locally and never sent to central servers.",
+   "status": {
+     "verified": "Verified",
+     "expired": "Expired",
+     "pending": "Pending Verification",
+     "reverify": "Re-verification Required"
+   },
+   "message": {
+     "verified": "Your student identity is verified and active.",
+     "expired": "Your verification has expired. Please complete the verification process again.",
+     "pending": "Complete biometric, peer vouching, and self-attestation to verify your identity.",
+     "reverify": "Your verification expires on {{date}}. Please re-verify soon.",
+     "reverifySoon": "Your verification will expire soon. Please re-verify."
+   },
     "biometric": {
       "title": "Biometric Registration",
       "description": "Register your device fingerprint using secure biometrics (FaceID, TouchID, etc).",
