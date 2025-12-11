@@ -15,6 +15,7 @@ import { ApprovalTimeline } from '../ApprovalTimeline';
 import type { StudentRecord, VerificationStatus } from '../../../lib/identity/StudentRegistry';
 import type { BiometricCommitment } from '../../../lib/identity/BiometricCommitmentService';
 import type { PeerSignature } from '../../../lib/identity/PeerVouchingService';
+import type { PendingPeer } from '../../../lib/identity/studentVerificationState';
 
 // Mock i18next
 vi.mock('react-i18next', () => ({
@@ -76,7 +77,23 @@ vi.mock('lucide-react', () => ({
 }));
 
 // Mock the store - must be done before importing ApprovalTimeline
-const mockStore = {
+const mockStore: {
+  currentRecord: StudentRecord | null;
+  studentVerification: VerificationStatus | null;
+  pendingPeers: PendingPeer[];
+  lastSynced: number | null;
+  errors: string[];
+  isInitialized: boolean;
+  initStudentRegistry: ReturnType<typeof vi.fn>;
+  submitBiometricCommitment: ReturnType<typeof vi.fn>;
+  requestPeerVouching: ReturnType<typeof vi.fn>;
+  addPeerSignature: ReturnType<typeof vi.fn>;
+  submitSelfAttestation: ReturnType<typeof vi.fn>;
+  refreshStatus: ReturnType<typeof vi.fn>;
+  applyRemoteSnapshot: ReturnType<typeof vi.fn>;
+  clearErrors: ReturnType<typeof vi.fn>;
+  reset: ReturnType<typeof vi.fn>;
+} = {
   currentRecord: null,
   studentVerification: null,
   pendingPeers: [],
