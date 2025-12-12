@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useStore } from '../lib/store'
 import { storageRouter, type RoutingDecision } from '../lib/storage/router/StorageRouter'
+import { contentAddressableRouter } from '../lib/storage/ContentAddressableRouter'
 import { stripImageMetadata, generateThumbnail, getAudioDuration } from '../lib/storage/utils'
 import type { MediaAttachment } from '../lib/storage/types'
 import toast from 'react-hot-toast'
@@ -169,12 +170,14 @@ export const useMediaUploader = (options: UseMediaUploaderOptions = {}) => {
           // Perform the actual upload
           if (decision.primary === 'local') {
             try {
-              const mediaId = jobId
               const blob = new Blob([dataToUpload], { type: file.type })
 
-              setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, progress: 50 } : j)))
+              // Compute CID from content
+              const cid = await contentAddressableRouter.computeCid(blob)
 
-              await store.saveMediaLocally(mediaId, blob)
+              setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, progress: 50, ipfsCid: cid } : j)))
+
+              await store.saveMediaLocally(cid, blob)
 
               setJobs((prev) =>
                 prev.map((j) =>
@@ -246,10 +249,11 @@ export const useMediaUploader = (options: UseMediaUploaderOptions = {}) => {
               const attachments: MediaAttachment[] = newJobs
                 .filter((j) => j.status === 'completed')
                 .map((j) => ({
-                  mediaId: j.id,
+                  cid: j.ipfsCid || j.id, // Use CID from job or fallback to job ID
+                  mediaId: j.id, // Keep for backward compatibility
                   storage: j.target,
                   ...(j.target === 'ipfs' && j.ipfsCid ? { ipfsCid: j.ipfsCid } : {}),
-                  type: j.file.type.startsWith('image/') ? 'image' : 'audio',
+                  type: j.file.type.startsWith('image/') ? 'image' : j.file.type.startsWith('audio/') ? 'audio' : 'video',
                 }))
 
               // Call onComplete callback if provided
