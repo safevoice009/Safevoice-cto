@@ -7551,21 +7551,28 @@ export const useStore = create<StoreState>((set, get) => {
     }
   },
 
-  saveMediaLocally: async (mediaId: string, file: Blob) => {
+  saveMediaLocally: async (_mediaIdOrCid: string, file: Blob) => {
     try {
+      // Import ContentAddressableRouter to compute CID
+      const { contentAddressableRouter } = await import('./storage/ContentAddressableRouter');
+      
+      // Compute deterministic CID from file content
+      const cid = await contentAddressableRouter.computeCid(file);
+      
       const encrypted = await storageEncryption.encryptMedia(
         await file.arrayBuffer()
       );
 
+      // Use CID as primary identifier in local storage
       const saved = await localStorageService.saveMedia(
-        mediaId,
+        cid,
         file,
         encrypted.ciphertext
       );
 
       const asset: MediaAsset = {
         id: saved.id,
-        mediaId,
+        mediaId: cid, // CID is now the primary mediaId
         type: file.type.startsWith('image/') ? 'image' :
               file.type.startsWith('audio/') ? 'audio' : 'video',
         mimeType: file.type,
@@ -7577,7 +7584,7 @@ export const useStore = create<StoreState>((set, get) => {
       };
 
       const localMedia = new Map(get().localMedia);
-      localMedia.set(mediaId, asset);
+      localMedia.set(cid, asset);
       set({ localMedia });
 
       toast.success('Media saved locally');

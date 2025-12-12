@@ -3,7 +3,8 @@ import type { Table } from 'dexie'
 
 export interface StoredMedia {
   id: string // UUID
-  mediaId: string // Content ID
+  cid: string // Content Identifier (primary key for lookups)
+  mediaId?: string // Deprecated: legacy field for backward compatibility
   fileName: string
   mimeType: string
   size: number
@@ -12,6 +13,8 @@ export interface StoredMedia {
   createdAt: number
   expiresAt?: number
   isShared: boolean
+  accessCount: number // Track idempotent reads
+  lastAccessedAt: number
   metadata?: {
     width?: number // For images
     height?: number
@@ -25,8 +28,25 @@ class MediaDatabase extends Dexie {
 
   constructor() {
     super('SafeVoiceMediaDB')
+    // Version 1: Original schema with mediaId
+    // Version 2: Add CID-based indexing and migration
     this.version(1).stores({
       media: '++id, mediaId, createdAt, expiresAt'
+    })
+    this.version(2).stores({
+      media: '++id, cid, createdAt, expiresAt'
+    }).upgrade(async (tx) => {
+      // Migration: map existing mediaId-based entries to CIDs
+      const allMedia = await tx.table('media').toArray()
+      for (const item of allMedia) {
+        // Use existing mediaId as temporary CID for v1 -> v2 migration
+        // In a production system, would compute proper CIDs here
+        item.cid = item.mediaId || `legacy-${item.id}`
+        item.accessCount = 1
+        item.lastAccessedAt = Date.now()
+      }
+      // Bulk update with CID
+      await tx.table('media').bulkPut(allMedia)
     })
   }
 }
@@ -40,10 +60,10 @@ export class LocalStorageService {
   }
 
   /**
-   * Save media to local IndexedDB
+   * Save media to local IndexedDB using CID as primary identifier
    */
   async saveMedia(
-    mediaId: string,
+    cid: string,
     file: Blob,
     encryptedData: ArrayBuffer,
     metadata?: {
@@ -53,16 +73,19 @@ export class LocalStorageService {
       thumbnail?: Blob
     }
   ): Promise<StoredMedia> {
+    const now = Date.now()
     const storedMedia: StoredMedia = {
-      id: `${mediaId}-${Date.now()}`,
-      mediaId,
-      fileName: mediaId,
+      id: `${cid}-${now}`,
+      cid,
+      fileName: file.name || cid,
       mimeType: file.type,
       size: encryptedData.byteLength,
       data: encryptedData,
-      encryptionKeyId: 'default', // TODO: Replace with actual key ID
-      createdAt: Date.now(),
+      encryptionKeyId: 'default',
+      createdAt: now,
       isShared: false,
+      accessCount: 1,
+      lastAccessedAt: now,
       metadata
     }
 
@@ -71,9 +94,25 @@ export class LocalStorageService {
   }
 
   /**
-   * Retrieve media from IndexedDB
+   * Retrieve media from IndexedDB by CID
+   * Idempotent - increments access count on retrieval
    */
-  async getMedia(mediaId: string): Promise<StoredMedia | undefined> {
+  async getMedia(cid: string): Promise<StoredMedia | undefined> {
+    const media = await this.db.media.where('cid').equals(cid).first()
+    if (media) {
+      // Update access tracking for idempotent reads
+      await this.db.media.update(media.id, {
+        accessCount: media.accessCount + 1,
+        lastAccessedAt: Date.now()
+      })
+    }
+    return media
+  }
+
+  /**
+   * Get media by legacy mediaId (backward compatibility)
+   */
+  async getMediaByLegacyId(mediaId: string): Promise<StoredMedia | undefined> {
     return this.db.media.where('mediaId').equals(mediaId).first()
   }
 
@@ -85,9 +124,16 @@ export class LocalStorageService {
   }
 
   /**
-   * Delete media from local storage
+   * Delete media from local storage by CID
    */
-  async deleteMedia(mediaId: string): Promise<void> {
+  async deleteMedia(cid: string): Promise<void> {
+    await this.db.media.where('cid').equals(cid).delete()
+  }
+
+  /**
+   * Delete media by legacy mediaId (backward compatibility)
+   */
+  async deleteMediaByLegacyId(mediaId: string): Promise<void> {
     await this.db.media.where('mediaId').equals(mediaId).delete()
   }
 

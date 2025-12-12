@@ -17,9 +17,10 @@ export interface MediaAsset {
 }
 
 export interface MediaAttachment {
-  mediaId: string
-  ipfsCid?: string
-  type: 'image' | 'audio'
+  cid?: string // Content Identifier - primary identifier instead of mediaId
+  mediaId?: string // Media ID or CID (for backward compatibility)
+  ipfsCid?: string // IPFS CID if uploaded to IPFS network
+  type: 'image' | 'audio' | 'video'
   storage: 'local' | 'ipfs'
 }
 
