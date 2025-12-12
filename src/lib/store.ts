@@ -454,6 +454,20 @@ export interface AlertPreferences {
   dailyDigest: boolean;
 }
 
+export interface NetworkSecurityState {
+  torModeEnabled: boolean;
+  torModeForced: boolean;
+  torModeReason: string | null;
+  lastDetection: {
+    profileId: string | null;
+    confidence: number;
+    captivePortal: boolean;
+    timestamp: number;
+    badgeCopy: string;
+  } | null;
+  showInstitutionBadge: boolean;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -1008,6 +1022,17 @@ export interface StoreState {
   // Alert Preferences Actions
   updateAlertPreference: <K extends keyof AlertPreferences>(key: K, value: AlertPreferences[K]) => void;
   setTrustedContact: (contact: TrustedContact) => void;
+
+  // Network Security State
+  networkSecurity: NetworkSecurityState;
+
+  // Network Security Actions
+  evaluateNetworkSecurity: (networkHints?: Partial<import('./network/InstitutionNetworkDetector').NetworkEnvironment>) => Promise<void>;
+  setTorMode: (enabled: boolean, reason?: string) => void;
+  acknowledgeInstitutionBadge: () => void;
+
+  // Network Security Selectors
+  isTorLocked: () => boolean;
   }
 
 /**
@@ -1063,6 +1088,7 @@ const STORAGE_KEYS = {
   MESSAGING_SESSIONS: 'safevoice_messaging_sessions',        // Double ratchet sessions
   HYBRID_KEYS: 'safevoice_hybrid_keys',                      // Hybrid (Kyber + X25519) key pairs
   ALERT_PREFERENCES: 'safevoice_alert_prefs',                // Alert preferences and trusted contacts
+  NETWORK_SECURITY: 'safevoice_network_security',            // Network security and Tor mode state
   };
 
 const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
@@ -1565,6 +1591,58 @@ const saveAlertPreferences = (alertPreferences: AlertPreferences, trustedContact
     localStorage.setItem(STORAGE_KEYS.ALERT_PREFERENCES, JSON.stringify(payload));
   } catch (error) {
     console.error('Failed to save alert preferences:', error);
+  }
+};
+
+const loadNetworkSecurity = (): NetworkSecurityState => {
+  if (typeof window === 'undefined') {
+    return {
+      torModeEnabled: false,
+      torModeForced: false,
+      torModeReason: null,
+      lastDetection: null,
+      showInstitutionBadge: false,
+    };
+  }
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.NETWORK_SECURITY);
+    if (!raw) {
+      return {
+        torModeEnabled: false,
+        torModeForced: false,
+        torModeReason: null,
+        lastDetection: null,
+        showInstitutionBadge: false,
+      };
+    }
+    
+    const stored = JSON.parse(raw) as NetworkSecurityState;
+    return {
+      torModeEnabled: stored.torModeEnabled ?? false,
+      torModeForced: stored.torModeForced ?? false,
+      torModeReason: stored.torModeReason ?? null,
+      lastDetection: stored.lastDetection ?? null,
+      showInstitutionBadge: stored.showInstitutionBadge ?? false,
+    };
+  } catch (error) {
+    console.error('Failed to load network security state:', error);
+    return {
+      torModeEnabled: false,
+      torModeForced: false,
+      torModeReason: null,
+      lastDetection: null,
+      showInstitutionBadge: false,
+    };
+  }
+};
+
+const saveNetworkSecurity = (state: NetworkSecurityState) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.NETWORK_SECURITY, JSON.stringify(state));
+  } catch (error) {
+    console.error('Failed to save network security state:', error);
   }
 };
 
@@ -2580,6 +2658,9 @@ export const useStore = create<StoreState>((set, get) => {
 
     // Alert Preferences state
     ...loadAlertPreferences(),
+
+    // Network Security state
+    networkSecurity: loadNetworkSecurity(),
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -7975,6 +8056,111 @@ export const useStore = create<StoreState>((set, get) => {
       saveAlertPreferences(state.alertPreferences, updated);
       return { trustedContacts: updated };
     });
+  },
+
+  evaluateNetworkSecurity: async (networkHints?) => {
+    const { evaluateNetworkEnvironment, detectCaptivePortal } = await import('./network/InstitutionNetworkDetector');
+    
+    try {
+      // Build network environment from hints and browser APIs
+      const env: import('./network/InstitutionNetworkDetector').NetworkEnvironment = {
+        ...networkHints,
+        hostname: typeof window !== 'undefined' ? window.location.hostname : undefined,
+      };
+
+      // Add connection metrics if available
+      if (typeof navigator !== 'undefined' && 'connection' in navigator) {
+        const connection = (navigator as { connection?: { effectiveType?: string; downlink?: number; rtt?: number; saveData?: boolean } }).connection;
+        if (connection) {
+          env.connectionMetrics = {
+            effectiveType: connection.effectiveType,
+            downlink: connection.downlink,
+            rtt: connection.rtt,
+            saveData: connection.saveData,
+          };
+        }
+      }
+
+      // Detect captive portal if not provided
+      if (!env.portalResponseBody) {
+        const portalResult = await detectCaptivePortal();
+        if (portalResult.detected) {
+          env.portalResponseBody = portalResult.responseBody;
+        }
+      }
+
+      // Evaluate network environment
+      const result = evaluateNetworkEnvironment(env);
+
+      // Update store state
+      const newNetworkSecurity: NetworkSecurityState = {
+        torModeEnabled: result.shouldForceTor || get().networkSecurity.torModeEnabled,
+        torModeForced: result.shouldForceTor,
+        torModeReason: result.shouldForceTor ? result.badgeCopy : get().networkSecurity.torModeReason,
+        lastDetection: {
+          profileId: result.matchedProfileId,
+          confidence: result.confidence,
+          captivePortal: result.captivePortalDetected,
+          timestamp: Date.now(),
+          badgeCopy: result.badgeCopy,
+        },
+        showInstitutionBadge: result.shouldForceTor || result.captivePortalDetected,
+      };
+
+      set({ networkSecurity: newNetworkSecurity });
+      saveNetworkSecurity(newNetworkSecurity);
+
+      // Show toast notification when forcing Tor
+      if (result.shouldForceTor && !get().networkSecurity.torModeForced) {
+        toast.success(`Institutional network detected: ${result.badgeCopy}. Tor mode enabled for privacy.`, {
+          icon: '🔒',
+          duration: 5000,
+        });
+      }
+    } catch (error) {
+      console.error('[NetworkSecurity] Failed to evaluate network security:', error);
+    }
+  },
+
+  setTorMode: (enabled: boolean, reason?: string) => {
+    set((state) => {
+      // Cannot disable Tor mode if it's forced
+      if (!enabled && state.networkSecurity.torModeForced) {
+        toast.error('Cannot disable Tor mode on institutional networks');
+        return state;
+      }
+
+      const newNetworkSecurity: NetworkSecurityState = {
+        ...state.networkSecurity,
+        torModeEnabled: enabled,
+        torModeReason: reason ?? state.networkSecurity.torModeReason,
+      };
+
+      saveNetworkSecurity(newNetworkSecurity);
+      
+      if (enabled) {
+        toast.success('Tor mode enabled', { icon: '🔒' });
+      } else {
+        toast('Tor mode disabled', { icon: 'ℹ️' });
+      }
+
+      return { networkSecurity: newNetworkSecurity };
+    });
+  },
+
+  acknowledgeInstitutionBadge: () => {
+    set((state) => {
+      const newNetworkSecurity: NetworkSecurityState = {
+        ...state.networkSecurity,
+        showInstitutionBadge: false,
+      };
+      saveNetworkSecurity(newNetworkSecurity);
+      return { networkSecurity: newNetworkSecurity };
+    });
+  },
+
+  isTorLocked: () => {
+    return get().networkSecurity.torModeForced;
   },
 
 };

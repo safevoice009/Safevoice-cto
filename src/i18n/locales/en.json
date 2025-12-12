@@ -411,5 +411,19 @@
       "committed": "Committed {{date}}",
       "expiresOn": "Expires {{date}}"
     }
+  },
+  "network": {
+    "institutionalDetected": "Institutional network detected",
+    "torEnabled": "Tor mode enabled for privacy",
+    "torForced": "Tor mode is required on institutional networks",
+    "captivePortal": "Captive portal detected",
+    "mitNetwork": "MIT Network",
+    "stanfordNetwork": "Stanford Network",
+    "iitBombayNetwork": "IIT Bombay Network",
+    "uclaNetwork": "UCLA Network",
+    "nitTrichyNetwork": "NIT Trichy Network",
+    "eduroamNetwork": "Eduroam Network",
+    "institutionBadgeTooltip": "Connected to {{network}}. Tor mode is enabled for enhanced privacy on institutional networks.",
+    "acknowledgeNetwork": "Dismiss network notification"
   }
 }

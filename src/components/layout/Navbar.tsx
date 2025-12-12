@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Lock, Menu, X, Shield, CheckCircle } from 'lucide-react';
+import { AlertTriangle, Lock, Menu, X, Shield, CheckCircle, Wifi } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../../lib/store';
@@ -29,7 +29,7 @@ export default function Navbar() {
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const { t } = useTranslation();
-  const { studentId, isModerator, toggleModeratorMode, setShowCrisisModal } = useStore();
+  const { studentId, isModerator, toggleModeratorMode, setShowCrisisModal, networkSecurity, acknowledgeInstitutionBadge } = useStore();
   const { studentVerification } = useStudentVerificationStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -187,6 +187,19 @@ export default function Navbar() {
                   : t('verification.title', 'Verify Account')}
               </span>
             </motion.button>
+            {networkSecurity.showInstitutionBadge && networkSecurity.lastDetection && (
+              <motion.button
+                onClick={acknowledgeInstitutionBadge}
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 border border-amber-500/20"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                title={t('network.institutionalDetected', networkSecurity.lastDetection.badgeCopy)}
+              >
+                <Wifi className="w-4 h-4" />
+                <span className="text-sm">{networkSecurity.lastDetection.badgeCopy}</span>
+                <Lock className="w-3 h-3" />
+              </motion.button>
+            )}
             <motion.button
               onClick={() => setShowCrisisModal(true)}
               className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg font-medium transition-all hover:bg-red-700"
