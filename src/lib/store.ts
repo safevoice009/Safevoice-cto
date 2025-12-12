@@ -67,6 +67,8 @@ import * as HybridKeyExchange from './encryption/HybridKeyExchange';
 import type { SerializedHybridKeys, HybridPrivateKey } from './encryption/HybridKeyExchange';
 import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
+import { getOnionRouter, destroyOnionRouter } from './routing/OnionRouter';
+import type { RoutingMetadata } from './routing/types';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -1015,6 +1017,16 @@ export interface StoreState {
   saveHybridKeys: (threadId: string, keys: HybridPrivateKey) => void;
   loadHybridKeys: (threadId: string) => HybridPrivateKey | null;
 
+  // Network Security State
+  networkSecurity: {
+    torModeEnabled: boolean;
+    onionRouterInitialized: boolean;
+  };
+
+  // Network Security Actions
+  toggleTorMode: () => Promise<void>;
+  initializeOnionRouter: () => Promise<void>;
+
   // Alert Preferences State
   alertPreferences: AlertPreferences;
   trustedContacts: TrustedContact[];
@@ -1073,6 +1085,7 @@ const STORAGE_KEYS = {
   COMMUNITY_MEMBERSHIPS: 'safevoice_memberships',      // User memberships
   COMMUNITY_NOTIFICATIONS: 'safevoice_community_notifications', // Community notification settings
   COMMUNITY_POSTS_META: 'safevoice_community_posts_meta', // Channel-level metrics
+  NETWORK_SECURITY: 'safevoice_network_security',      // Network security settings (Tor mode)
   COMMUNITY_ACTIVITY: 'safevoice_community_activity',  // Activity tracking for heatmaps
   COMMUNITY_STATE_VERSION: 'safevoice_community_state_version', // Versioning for community data migrations
   CURRENT_COMMUNITY: 'safevoice_current_community',     // Last selected community
@@ -2655,6 +2668,14 @@ export const useStore = create<StoreState>((set, get) => {
     messagingConnected: false,
     messagingSessions: new Map(),
     hybridKeys: new Map(),
+
+    // Network Security state
+    networkSecurity: {
+      torModeEnabled: typeof window !== 'undefined'
+        ? JSON.parse(localStorage.getItem(STORAGE_KEYS.NETWORK_SECURITY) || '{"torModeEnabled":false}').torModeEnabled
+        : false,
+      onionRouterInitialized: false,
+    },
 
     // Alert Preferences state
     ...loadAlertPreferences(),
@@ -7747,7 +7768,7 @@ export const useStore = create<StoreState>((set, get) => {
 
   sendMessage: async (threadId: string, content: string, attachedMediaIds?: string[]) => {
     try {
-      const { studentId } = get();
+      const { studentId, networkSecurity } = get();
       const service = getMessagingService();
 
       if (!service) {
@@ -7769,6 +7790,27 @@ export const useStore = create<StoreState>((set, get) => {
         isEdited: false,
         _isDecrypted: true, // Mark as decrypted for local use
       };
+
+      // Route through onion network if Tor mode enabled
+      let routingMetadata: RoutingMetadata | undefined;
+      if (networkSecurity.torModeEnabled && networkSecurity.onionRouterInitialized) {
+        try {
+          const router = getOnionRouter();
+          const result = await router.routeMessage(content);
+          routingMetadata = result.metadata;
+          
+          // Log routing metadata for debugging
+          console.log('[Network] Onion routing:', {
+            circuitId: routingMetadata.circuitId,
+            hopCount: routingMetadata.hopCount,
+            totalLatency: routingMetadata.totalLatency,
+            fallbackUsed: routingMetadata.fallbackUsed,
+          });
+        } catch (error) {
+          console.error('[Network] Onion routing failed, falling back to direct:', error);
+          // Continue with normal sending if routing fails
+        }
+      }
 
       // Send via service (which will encrypt the content for transmission)
       await service.send(message, threadId);
@@ -7793,7 +7835,11 @@ export const useStore = create<StoreState>((set, get) => {
       // Persist threads
       get().saveToLocalStorage();
 
-      toast.success('Message sent');
+      if (networkSecurity.torModeEnabled && routingMetadata && !routingMetadata.fallbackUsed) {
+        toast.success(`Message sent via onion network (${routingMetadata.hopCount} hops)`);
+      } else {
+        toast.success('Message sent');
+      }
     } catch (error) {
       console.error('[Messaging] Send failed:', error);
       toast.error('Failed to send message');
@@ -7877,6 +7923,8 @@ export const useStore = create<StoreState>((set, get) => {
         keys.kyberPrivateKey.fill(0);
         keys.x25519PrivateKey.fill(0);
       });
+      // Destroy onion router
+      destroyOnionRouter();
       set({
         threads: new Map(),
         pendingMessages: [],
@@ -7884,6 +7932,10 @@ export const useStore = create<StoreState>((set, get) => {
         messagingConnected: false,
         messagingSessions: new Map(),
         hybridKeys: new Map(),
+        networkSecurity: {
+          torModeEnabled: false,
+          onionRouterInitialized: false,
+        },
       });
       toast.success('Messaging destroyed');
     } catch (error) {
@@ -8037,6 +8089,60 @@ export const useStore = create<StoreState>((set, get) => {
       console.error(`[Messaging] Failed to load hybrid keys for ${threadId}:`, error);
     }
     return null;
+  },
+
+  // Network Security Actions
+  toggleTorMode: async () => {
+    const { networkSecurity } = get();
+    const newState = !networkSecurity.torModeEnabled;
+
+    set({
+      networkSecurity: {
+        ...networkSecurity,
+        torModeEnabled: newState,
+      },
+    });
+
+    // Save to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.NETWORK_SECURITY, JSON.stringify({ torModeEnabled: newState }));
+    }
+
+    // Initialize onion router if enabling Tor mode
+    if (newState && !networkSecurity.onionRouterInitialized) {
+      await get().initializeOnionRouter();
+      toast.success('Tor mode enabled - messages will be routed through onion network');
+    } else if (!newState) {
+      // Destroy onion router when disabling
+      destroyOnionRouter();
+      set({
+        networkSecurity: {
+          torModeEnabled: false,
+          onionRouterInitialized: false,
+        },
+      });
+      toast('Tor mode disabled', { icon: 'ℹ️' });
+    }
+  },
+
+  initializeOnionRouter: async () => {
+    try {
+      const router = getOnionRouter();
+      await router.initialize();
+      
+      set((state) => ({
+        networkSecurity: {
+          ...state.networkSecurity,
+          onionRouterInitialized: true,
+        },
+      }));
+      
+      console.log('[Network] Onion router initialized');
+    } catch (error) {
+      console.error('[Network] Failed to initialize onion router:', error);
+      toast.error('Failed to initialize onion routing');
+      throw error;
+    }
   },
 
   updateAlertPreference: <K extends keyof AlertPreferences>(key: K, value: AlertPreferences[K]) => {
