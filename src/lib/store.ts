@@ -69,6 +69,8 @@ import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { getOnionRouter, destroyOnionRouter } from './routing/OnionRouter';
 import type { RoutingMetadata } from './routing/types';
+import { runZeroLogAudit as runAudit, haltOperations, unlockSystem as unlockSystemAudit, isSystemLocked } from './audit/ZeroLogAuditor';
+import type { ZeroLogAuditReport } from './audit/ZeroLogAuditor';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -460,6 +462,7 @@ export interface NetworkSecurityState {
   torModeEnabled: boolean;
   torModeForced: boolean;
   torModeReason: string | null;
+  onionRouterInitialized: boolean;
   lastDetection: {
     profileId: string | null;
     confidence: number;
@@ -1017,16 +1020,6 @@ export interface StoreState {
   saveHybridKeys: (threadId: string, keys: HybridPrivateKey) => void;
   loadHybridKeys: (threadId: string) => HybridPrivateKey | null;
 
-  // Network Security State
-  networkSecurity: {
-    torModeEnabled: boolean;
-    onionRouterInitialized: boolean;
-  };
-
-  // Network Security Actions
-  toggleTorMode: () => Promise<void>;
-  initializeOnionRouter: () => Promise<void>;
-
   // Alert Preferences State
   alertPreferences: AlertPreferences;
   trustedContacts: TrustedContact[];
@@ -1039,12 +1032,23 @@ export interface StoreState {
   networkSecurity: NetworkSecurityState;
 
   // Network Security Actions
+  toggleTorMode: () => Promise<void>;
+  initializeOnionRouter: () => Promise<void>;
   evaluateNetworkSecurity: (networkHints?: Partial<import('./network/InstitutionNetworkDetector').NetworkEnvironment>) => Promise<void>;
   setTorMode: (enabled: boolean, reason?: string) => void;
   acknowledgeInstitutionBadge: () => void;
 
   // Network Security Selectors
   isTorLocked: () => boolean;
+
+  // Zero-Log Audit State
+  zeroLogAuditReport: import('./audit/ZeroLogAuditor').ZeroLogAuditReport | null;
+  isZeroLogAuditRunning: boolean;
+  systemLocked: boolean;
+
+  // Zero-Log Audit Actions
+  runZeroLogAudit: (haltOnViolations?: boolean) => Promise<void>;
+  unlockSystem: () => void;
   }
 
 /**
@@ -1085,7 +1089,6 @@ const STORAGE_KEYS = {
   COMMUNITY_MEMBERSHIPS: 'safevoice_memberships',      // User memberships
   COMMUNITY_NOTIFICATIONS: 'safevoice_community_notifications', // Community notification settings
   COMMUNITY_POSTS_META: 'safevoice_community_posts_meta', // Channel-level metrics
-  NETWORK_SECURITY: 'safevoice_network_security',      // Network security settings (Tor mode)
   COMMUNITY_ACTIVITY: 'safevoice_community_activity',  // Activity tracking for heatmaps
   COMMUNITY_STATE_VERSION: 'safevoice_community_state_version', // Versioning for community data migrations
   CURRENT_COMMUNITY: 'safevoice_current_community',     // Last selected community
@@ -1102,6 +1105,7 @@ const STORAGE_KEYS = {
   HYBRID_KEYS: 'safevoice_hybrid_keys',                      // Hybrid (Kyber + X25519) key pairs
   ALERT_PREFERENCES: 'safevoice_alert_prefs',                // Alert preferences and trusted contacts
   NETWORK_SECURITY: 'safevoice_network_security',            // Network security and Tor mode state
+  ZERO_LOG_AUDIT: 'safevoice_zero_log_audit',                // Zero-log audit reports
   };
 
 const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
@@ -1613,6 +1617,7 @@ const loadNetworkSecurity = (): NetworkSecurityState => {
       torModeEnabled: false,
       torModeForced: false,
       torModeReason: null,
+      onionRouterInitialized: false,
       lastDetection: null,
       showInstitutionBadge: false,
     };
@@ -1625,6 +1630,7 @@ const loadNetworkSecurity = (): NetworkSecurityState => {
         torModeEnabled: false,
         torModeForced: false,
         torModeReason: null,
+        onionRouterInitialized: false,
         lastDetection: null,
         showInstitutionBadge: false,
       };
@@ -1635,6 +1641,7 @@ const loadNetworkSecurity = (): NetworkSecurityState => {
       torModeEnabled: stored.torModeEnabled ?? false,
       torModeForced: stored.torModeForced ?? false,
       torModeReason: stored.torModeReason ?? null,
+      onionRouterInitialized: stored.onionRouterInitialized ?? false,
       lastDetection: stored.lastDetection ?? null,
       showInstitutionBadge: stored.showInstitutionBadge ?? false,
     };
@@ -1644,6 +1651,7 @@ const loadNetworkSecurity = (): NetworkSecurityState => {
       torModeEnabled: false,
       torModeForced: false,
       torModeReason: null,
+      onionRouterInitialized: false,
       lastDetection: null,
       showInstitutionBadge: false,
     };
@@ -2669,13 +2677,19 @@ export const useStore = create<StoreState>((set, get) => {
     messagingSessions: new Map(),
     hybridKeys: new Map(),
 
-    // Network Security state
-    networkSecurity: {
-      torModeEnabled: typeof window !== 'undefined'
-        ? JSON.parse(localStorage.getItem(STORAGE_KEYS.NETWORK_SECURITY) || '{"torModeEnabled":false}').torModeEnabled
-        : false,
-      onionRouterInitialized: false,
-    },
+    // Zero-Log Audit state
+    zeroLogAuditReport: typeof window !== 'undefined'
+      ? (() => {
+          try {
+            const stored = localStorage.getItem(STORAGE_KEYS.ZERO_LOG_AUDIT);
+            return stored ? JSON.parse(stored) as ZeroLogAuditReport : null;
+          } catch {
+            return null;
+          }
+        })()
+      : null,
+    isZeroLogAuditRunning: false,
+    systemLocked: typeof window !== 'undefined' ? isSystemLocked() : false,
 
     // Alert Preferences state
     ...loadAlertPreferences(),
@@ -7925,7 +7939,7 @@ export const useStore = create<StoreState>((set, get) => {
       });
       // Destroy onion router
       destroyOnionRouter();
-      set({
+      set((state) => ({
         threads: new Map(),
         pendingMessages: [],
         mentionSuggestions: [],
@@ -7933,10 +7947,10 @@ export const useStore = create<StoreState>((set, get) => {
         messagingSessions: new Map(),
         hybridKeys: new Map(),
         networkSecurity: {
-          torModeEnabled: false,
+          ...state.networkSecurity,
           onionRouterInitialized: false,
         },
-      });
+      }));
       toast.success('Messaging destroyed');
     } catch (error) {
       console.error('[Messaging] Destroy failed:', error);
@@ -8115,12 +8129,13 @@ export const useStore = create<StoreState>((set, get) => {
     } else if (!newState) {
       // Destroy onion router when disabling
       destroyOnionRouter();
-      set({
+      set((state) => ({
         networkSecurity: {
+          ...state.networkSecurity,
           torModeEnabled: false,
           onionRouterInitialized: false,
         },
-      });
+      }));
       toast('Tor mode disabled', { icon: 'ℹ️' });
     }
   },
@@ -8199,10 +8214,12 @@ export const useStore = create<StoreState>((set, get) => {
       const result = evaluateNetworkEnvironment(env);
 
       // Update store state
+      const currentState = get().networkSecurity;
       const newNetworkSecurity: NetworkSecurityState = {
-        torModeEnabled: result.shouldForceTor || get().networkSecurity.torModeEnabled,
+        torModeEnabled: result.shouldForceTor || currentState.torModeEnabled,
         torModeForced: result.shouldForceTor,
-        torModeReason: result.shouldForceTor ? result.badgeCopy : get().networkSecurity.torModeReason,
+        torModeReason: result.shouldForceTor ? result.badgeCopy : currentState.torModeReason,
+        onionRouterInitialized: currentState.onionRouterInitialized,
         lastDetection: {
           profileId: result.matchedProfileId,
           confidence: result.confidence,
@@ -8267,6 +8284,61 @@ export const useStore = create<StoreState>((set, get) => {
 
   isTorLocked: () => {
     return get().networkSecurity.torModeForced;
+  },
+
+  // Zero-Log Audit Actions
+  runZeroLogAudit: async (haltOnViolations = false) => {
+    set({ isZeroLogAuditRunning: true });
+
+    try {
+      const report = await runAudit({
+        haltOnViolations,
+        onHalt: (violationReport) => {
+          haltOperations(violationReport);
+          set({ systemLocked: true });
+        },
+      });
+
+      set({ zeroLogAuditReport: report });
+
+      // Save report to localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(STORAGE_KEYS.ZERO_LOG_AUDIT, JSON.stringify(report));
+        } catch (error) {
+          console.error('[ZeroLogAudit] Failed to save report:', error);
+        }
+      }
+
+      // Show toast notification
+      if (report.clean) {
+        toast.success('✅ Zero-log audit passed! No privacy violations detected.', {
+          duration: 4000,
+        });
+      } else {
+        toast.error(
+          `⚠️ Audit failed: ${report.violations.length} violation(s) detected. ${
+            report.summary.criticalViolations > 0
+              ? `${report.summary.criticalViolations} critical.`
+              : ''
+          }`,
+          {
+            duration: 6000,
+          }
+        );
+      }
+    } catch (error) {
+      console.error('[ZeroLogAudit] Audit failed:', error);
+      toast.error('Failed to run zero-log audit. Check console for details.');
+    } finally {
+      set({ isZeroLogAuditRunning: false });
+    }
+  },
+
+  unlockSystem: () => {
+    unlockSystemAudit();
+    set({ systemLocked: false });
+    toast.success('System unlocked. Please re-run audit to verify clean state.');
   },
 
 };

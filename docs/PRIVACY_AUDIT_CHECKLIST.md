@@ -31,7 +31,53 @@ npm run test:coverage
 
 # Run privacy tests in CI
 npm run test:privacy
+
+# Run zero-log auditor tests
+npm test -- src/lib/audit/__tests__/ZeroLogAuditor.test.ts
 ```
+
+### Zero-Log Auditor (In-App)
+
+SafeVoice includes a built-in **Zero-Log Auditor** that can be accessed from the Admin Panel. This tool verifies that no metadata, user IDs, IP addresses, or tracking data is stored locally.
+
+#### Running the In-App Auditor
+
+1. **Access the Auditor**:
+   - Open SafeVoice and navigate to the Admin Panel (requires moderator privileges)
+   - Click on the "Reporting" tab
+   - Scroll down to the "Zero-Log Auditor" section
+
+2. **Run an Audit**:
+   - Click the "Run Zero-Log Audit" button
+   - Optionally enable "Halt operations on violations" to lock the system if violations are detected
+   - The audit will scan:
+     - All localStorage keys (checking against whitelist)
+     - IndexedDB databases (SafeVoiceMediaDB)
+     - Forbidden patterns in stored data (userId, ipAddress, etc.)
+     - CID-only content verification
+
+3. **Interpret Results**:
+   - **Clean Storage**: ✅ Green indicator, zero violations
+   - **Violations Detected**: ⚠️ Red indicator with violation count
+   - View detailed violation list with severity levels (critical, high, medium, low)
+   - Check storage snapshot for:
+     - Allowed localStorage keys
+     - IndexedDB databases
+     - CID reference count
+     - Total records checked
+
+4. **Handle Violations**:
+   - Review each violation in the detailed list
+   - Critical violations indicate serious privacy leaks (e.g., real user IDs, IP addresses)
+   - If "Halt operations" was enabled, the system will lock automatically
+   - Click "Unlock System" after resolving violations
+   - Re-run the audit to verify clean state
+
+5. **Best Practices**:
+   - Run the auditor regularly (weekly or after major updates)
+   - Always run before production deployments
+   - Enable "Halt operations" in production to enforce zero-log policy
+   - Export audit reports for compliance documentation
 
 ### What Automated Tests Cover
 
