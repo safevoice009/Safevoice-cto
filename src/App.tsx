@@ -165,6 +165,18 @@ function AnimatedRoutes() {
     };
   }, []);
 
+  // Initialize crisis AI model
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const initializeCrisisModel = useStore.getState().initializeCrisisModel;
+
+    // Initialize crisis model in the background
+    initializeCrisisModel().catch((error) => {
+      console.warn('[CrisisAI] Failed to initialize AI model:', error);
+    });
+  }, []);
+
   // Focus management for route changes
   useEffect(() => {
     // Focus management for accessibility - move focus to main content on route change

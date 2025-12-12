@@ -1041,6 +1041,26 @@ export interface StoreState {
   // Network Security Selectors
   isTorLocked: () => boolean;
 
+  // Crisis AI State
+  crisisAI: {
+    modelReady: boolean;
+    modelMethod: 'ai_model' | 'keyword_pattern' | null;
+    modelConfidence: number;
+    isLoading: boolean;
+    error: string | null;
+    lastDetection: {
+      method: 'ai_model' | 'keyword_pattern';
+      confidence: number;
+      timestamp: number;
+      text: string;
+    } | null;
+  };
+
+  // Crisis AI Actions
+  initializeCrisisModel: () => Promise<boolean>;
+  detectCrisisInText: (text: string) => Promise<boolean>;
+  getCrisisModelStatus: () => { ready: boolean; method: string | null; confidence: number };
+
   // Zero-Log Audit State
   zeroLogAuditReport: import('./audit/ZeroLogAuditor').ZeroLogAuditReport | null;
   isZeroLogAuditRunning: boolean;
@@ -2696,6 +2716,16 @@ export const useStore = create<StoreState>((set, get) => {
 
     // Network Security state
     networkSecurity: loadNetworkSecurity(),
+
+    // Crisis AI state
+    crisisAI: {
+      modelReady: false,
+      modelMethod: null,
+      modelConfidence: 0,
+      isLoading: false,
+      error: null,
+      lastDetection: null,
+    },
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -8291,6 +8321,96 @@ export const useStore = create<StoreState>((set, get) => {
 
   isTorLocked: () => {
     return get().networkSecurity.torModeForced;
+  },
+
+  // Crisis AI Actions
+  initializeCrisisModel: async () => {
+    set((state) => ({
+      crisisAI: {
+        ...state.crisisAI,
+        isLoading: true,
+        error: null,
+      },
+    }));
+
+    try {
+      const { initializeCrisisModel: initModel } = await import('./crisisDetection');
+      const success = await initModel();
+
+      set((state) => ({
+        crisisAI: {
+          ...state.crisisAI,
+          modelReady: success,
+          modelMethod: success ? 'ai_model' : 'keyword_pattern',
+          isLoading: false,
+          error: success ? null : 'Failed to initialize AI model, using keyword detection',
+        },
+      }));
+
+      return success;
+    } catch (error) {
+      console.error('Failed to initialize crisis model:', error);
+      set((state) => ({
+        crisisAI: {
+          ...state.crisisAI,
+          modelReady: false,
+          modelMethod: 'keyword_pattern',
+          isLoading: false,
+          error: 'Failed to initialize AI model, using keyword detection',
+        },
+      }));
+      return false;
+    }
+  },
+
+  detectCrisisInText: async (text: string) => {
+    try {
+      const { detectCrisis } = await import('./crisisDetection');
+      const result = await detectCrisis(text);
+
+      // Update store with detection results
+      set((state) => ({
+        crisisAI: {
+          ...state.crisisAI,
+          modelMethod: result.method,
+          modelConfidence: result.confidence || 0,
+          lastDetection: {
+            method: result.method,
+            confidence: result.confidence || 0,
+            timestamp: Date.now(),
+            text: text.substring(0, 100), // Store truncated text for privacy
+          },
+        },
+      }));
+
+      return result.isCrisis;
+    } catch (error) {
+      console.error('Crisis detection failed:', error);
+      // Fallback to keyword detection
+      set((state) => ({
+        crisisAI: {
+          ...state.crisisAI,
+          modelMethod: 'keyword_pattern',
+          modelConfidence: 0,
+          lastDetection: {
+            method: 'keyword_pattern',
+            confidence: 0,
+            timestamp: Date.now(),
+            text: text.substring(0, 100),
+          },
+        },
+      }));
+      return false;
+    }
+  },
+
+  getCrisisModelStatus: () => {
+    const { crisisAI } = get();
+    return {
+      ready: crisisAI.modelReady,
+      method: crisisAI.modelMethod,
+      confidence: crisisAI.modelConfidence,
+    };
   },
 
   // Zero-Log Audit Actions
