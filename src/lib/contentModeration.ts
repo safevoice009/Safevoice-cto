@@ -1,4 +1,4 @@
-import { detectCrisis } from './crisisDetection';
+import { detectCrisisSync } from './crisisDetection';
 
 const profanityList = [
   'fuck',
@@ -183,7 +183,7 @@ export async function moderateContent(
   }
 
   // 3. Crisis Detection (WARNING, NOT BLOCKING)
-  if (detectCrisis(content)) {
+  if (detectCrisisSync(content)) {
     issues.push({
       type: 'crisis',
       severity: 'critical',
