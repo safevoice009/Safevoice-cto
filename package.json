@@ -44,6 +44,8 @@
     "@react-three/fiber": "^9.4.0",
     "@stablelib/xchacha20poly1305": "^2.0.1",
     "@tanstack/react-query": "^4.42.0",
+    "@tensorflow/tfjs": "^4.18.0",
+    "@tensorflow/tfjs-backend-cpu": "^4.18.0",
     "@types/dompurify": "^3.0.5",
     "automerge": "^0.14.2",
     "crypto-js": "^4.2.0",
