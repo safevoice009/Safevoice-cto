@@ -671,6 +671,20 @@ export interface AlertPreferences {
   dailyDigest: boolean;
 }
 
+export interface NetworkSecurityState {
+  torModeEnabled: boolean;
+  torModeForced: boolean;
+  torModeReason: string | null;
+  lastDetection: {
+    profileId: string | null;
+    confidence: number;
+    captivePortal: boolean;
+    timestamp: number;
+    badgeCopy: string;
+  } | null;
+  showInstitutionBadge: boolean;
+}
+
 export interface StoreState {
   studentId: string;
   isModerator: boolean;
@@ -3422,6 +3436,9 @@ export const useStore = create<StoreState>((set, get) => {
 
     // Alert Preferences state
     ...loadAlertPreferences(),
+
+    // Network Security state
+    networkSecurity: loadNetworkSecurity(),
 
     toggleModeratorMode: () => {
       set((state) => {
