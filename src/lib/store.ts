@@ -1380,6 +1380,16 @@ export interface StoreState {
   saveHybridKeys: (threadId: string, keys: HybridPrivateKey) => void;
   loadHybridKeys: (threadId: string) => HybridPrivateKey | null;
 
+  // Network Security State
+  networkSecurity: {
+    torModeEnabled: boolean;
+    onionRouterInitialized: boolean;
+  };
+
+  // Network Security Actions
+  toggleTorMode: () => Promise<void>;
+  initializeOnionRouter: () => Promise<void>;
+
   // Alert Preferences State
   alertPreferences: AlertPreferences;
   trustedContacts: TrustedContact[];
@@ -1449,6 +1459,7 @@ const STORAGE_KEYS = {
   COMMUNITY_MEMBERSHIPS: 'safevoice_memberships',      // User memberships
   COMMUNITY_NOTIFICATIONS: 'safevoice_community_notifications', // Community notification settings
   COMMUNITY_POSTS_META: 'safevoice_community_posts_meta', // Channel-level metrics
+  NETWORK_SECURITY: 'safevoice_network_security',      // Network security settings (Tor mode)
   COMMUNITY_ACTIVITY: 'safevoice_community_activity',  // Activity tracking for heatmaps
   COMMUNITY_STATE_VERSION: 'safevoice_community_state_version', // Versioning for community data migrations
   CURRENT_COMMUNITY: 'safevoice_current_community',     // Last selected community
