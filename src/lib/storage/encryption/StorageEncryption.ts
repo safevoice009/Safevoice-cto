@@ -149,7 +149,7 @@ export class StorageEncryption {
       const encrypted = await this.encryptMedia(decrypted)
       media.data = encrypted.ciphertext
       await oldService.saveMedia(
-        media.mediaId,
+        media.cid,
         new Blob([media.data]),
         encrypted.ciphertext,
         media.metadata

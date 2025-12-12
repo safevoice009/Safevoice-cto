@@ -60,10 +60,13 @@ export default function CreatePost() {
   const setShowCrisisModal = useStore((state) => state.setShowCrisisModal);
 
   const handleMediaUploadComplete = (attachments: MediaAttachment[]) => {
-    // Merge new attachments into selected attachments (avoid duplicates by mediaId)
-    const existingIds = new Set(selectedAttachments.map(a => a.mediaId));
+    // Merge new attachments into selected attachments (avoid duplicates by cid or mediaId)
+    const existingIds = new Set(selectedAttachments.map(a => a.cid || a.mediaId));
     const newChips: SelectedAttachmentChip[] = attachments
-      .filter(a => !existingIds.has(a.mediaId))
+      .filter(a => {
+        const id = a.cid || a.mediaId;
+        return id && !existingIds.has(id);
+      })
       .map(a => ({
         ...a,
         label: `${a.type === 'image' ? '🖼️' : '🎵'} ${a.type}`,
@@ -71,14 +74,14 @@ export default function CreatePost() {
     setSelectedAttachments(prev => [...prev, ...newChips]);
   };
 
-  const handleRemoveAttachment = (mediaId: string) => {
+  const handleRemoveAttachment = (id: string) => {
     setSelectedAttachments(prev => {
-      const attachment = prev.find(a => a.mediaId === mediaId);
+      const attachment = prev.find(a => (a.cid || a.mediaId) === id);
       // Revoke thumbnail URL if it exists
       if (attachment?.thumbnailUrl) {
         URL.revokeObjectURL(attachment.thumbnailUrl);
       }
-      return prev.filter(a => a.mediaId !== mediaId);
+      return prev.filter(a => (a.cid || a.mediaId) !== id);
     });
   };
 
@@ -170,6 +173,7 @@ export default function CreatePost() {
 
       // Build MediaAttachment array from selectedAttachments (excluding preview metadata)
       const mediaAttachments: MediaAttachment[] = selectedAttachments.map(a => ({
+        cid: a.cid,
         mediaId: a.mediaId,
         storage: a.storage,
         type: a.type,
@@ -429,48 +433,51 @@ export default function CreatePost() {
 
                   {/* Attachment Chips */}
                   {selectedAttachments.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs text-gray-400">Selected media:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedAttachments.map((attachment) => (
-                          <motion.div
-                            key={attachment.mediaId}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            className="flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg text-sm"
-                          >
-                            {attachment.thumbnailUrl && attachment.type === 'image' ? (
-                              <img
-                                src={attachment.thumbnailUrl}
-                                alt="thumbnail"
-                                className="w-6 h-6 rounded object-cover"
-                              />
-                            ) : attachment.type === 'image' ? (
-                              <Image className="w-4 h-4 text-primary" />
-                            ) : (
-                              <Music className="w-4 h-4 text-primary" />
-                            )}
-                            <div className="flex-1">
-                              <p className="text-primary font-medium">{attachment.label}</p>
-                              {attachment.duration && (
-                                <p className="text-xs text-gray-500">
-                                  {Math.floor(attachment.duration)}s
-                                </p>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveAttachment(attachment.mediaId)}
-                              className="p-1 hover:bg-primary/20 rounded transition-colors"
-                              title="Remove attachment"
-                            >
-                              <Trash2 className="w-4 h-4 text-red-400 hover:text-red-300" />
-                            </button>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
+                   <div className="space-y-2">
+                     <p className="text-xs text-gray-400">Selected media:</p>
+                     <div className="flex flex-wrap gap-2">
+                       {selectedAttachments.map((attachment) => {
+                         const attachmentId = attachment.cid || attachment.mediaId || '';
+                         return (
+                           <motion.div
+                             key={attachmentId}
+                             initial={{ opacity: 0, scale: 0.9 }}
+                             animate={{ opacity: 1, scale: 1 }}
+                             exit={{ opacity: 0, scale: 0.9 }}
+                             className="flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg text-sm"
+                           >
+                             {attachment.thumbnailUrl && attachment.type === 'image' ? (
+                               <img
+                                 src={attachment.thumbnailUrl}
+                                 alt="thumbnail"
+                                 className="w-6 h-6 rounded object-cover"
+                               />
+                             ) : attachment.type === 'image' ? (
+                               <Image className="w-4 h-4 text-primary" />
+                             ) : (
+                               <Music className="w-4 h-4 text-primary" />
+                             )}
+                             <div className="flex-1">
+                               <p className="text-primary font-medium">{attachment.label}</p>
+                               {attachment.duration && (
+                                 <p className="text-xs text-gray-500">
+                                   {Math.floor(attachment.duration)}s
+                                 </p>
+                               )}
+                             </div>
+                             <button
+                               type="button"
+                               onClick={() => handleRemoveAttachment(attachmentId)}
+                               className="p-1 hover:bg-primary/20 rounded transition-colors"
+                               title="Remove attachment"
+                             >
+                               <Trash2 className="w-4 h-4 text-red-400 hover:text-red-300" />
+                             </button>
+                           </motion.div>
+                         );
+                       })}
+                     </div>
+                   </div>
                   )}
                 </motion.div>
               )}

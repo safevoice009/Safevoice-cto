@@ -61,11 +61,14 @@ export default function PostMediaGallery({ mediaAttachments }: PostMediaGalleryP
   }, [mediaAttachments]);
 
   const loadMedia = async (attachment: MediaAttachment) => {
+    // Use CID as primary identifier, fallback to mediaId for backward compatibility
+    const mediaId = attachment.cid || attachment.mediaId || '';
+    
     try {
       let blob: Blob | null = null;
 
       if (attachment.storage === 'local') {
-        blob = await getMediaLocally(attachment.mediaId);
+        blob = await getMediaLocally(mediaId);
       } else if (attachment.storage === 'ipfs' && attachment.ipfsCid) {
         const arrayBuffer = await downloadFromIPFS(attachment.ipfsCid);
         const mimeType = attachment.type === 'image' ? 'image/jpeg' : 'audio/mpeg';
@@ -81,14 +84,14 @@ export default function PostMediaGallery({ mediaAttachments }: PostMediaGalleryP
 
       setMediaStates((prev) => {
         const next = new Map(prev);
-        next.set(attachment.mediaId, { isLoading: false, error: false, objectUrl });
+        next.set(mediaId, { isLoading: false, error: false, objectUrl });
         return next;
       });
     } catch (error) {
-      console.error(`Failed to load media ${attachment.mediaId}:`, error);
+      console.error(`Failed to load media ${mediaId}:`, error);
       setMediaStates((prev) => {
         const next = new Map(prev);
-        next.set(attachment.mediaId, { isLoading: false, error: true, objectUrl: null });
+        next.set(mediaId, { isLoading: false, error: true, objectUrl: null });
         return next;
       });
     }
@@ -96,18 +99,18 @@ export default function PostMediaGallery({ mediaAttachments }: PostMediaGalleryP
 
   // Load media when items become visible
   useEffect(() => {
-    visibleItems.forEach((mediaId) => {
-      const attachment = mediaAttachments.find((a) => a.mediaId === mediaId);
+    visibleItems.forEach((visibleId) => {
+      const attachment = mediaAttachments.find((a) => (a.cid || a.mediaId) === visibleId);
       if (!attachment) return;
 
-      const currentState = mediaStates.get(mediaId);
+      const currentState = mediaStates.get(visibleId);
       if (currentState && (currentState.objectUrl || currentState.error)) {
         return;
       }
 
       setMediaStates((prev) => {
         const next = new Map(prev);
-        next.set(mediaId, { isLoading: true, error: false, objectUrl: null });
+        next.set(visibleId, { isLoading: true, error: false, objectUrl: null });
         return next;
       });
 
@@ -134,7 +137,8 @@ export default function PostMediaGallery({ mediaAttachments }: PostMediaGalleryP
   return (
     <div className="grid grid-cols-1 tablet:grid-cols-2 gap-4 mt-4">
       {mediaAttachments.map((attachment) => {
-        const state = mediaStates.get(attachment.mediaId) || {
+        const mediaId = attachment.cid || attachment.mediaId || '';
+        const state = mediaStates.get(mediaId) || {
           isLoading: false,
           error: false,
           objectUrl: null,
@@ -142,15 +146,15 @@ export default function PostMediaGallery({ mediaAttachments }: PostMediaGalleryP
 
         return (
           <div
-            key={attachment.mediaId}
+            key={mediaId}
             ref={(el) => {
               if (el) {
-                itemRefs.current.set(attachment.mediaId, el);
+                itemRefs.current.set(mediaId, el);
               } else {
-                itemRefs.current.delete(attachment.mediaId);
+                itemRefs.current.delete(mediaId);
               }
             }}
-            data-media-id={attachment.mediaId}
+            data-media-id={mediaId}
             className="glass rounded-lg overflow-hidden"
           >
             {state.isLoading && <Skeleton type={attachment.type} />}
@@ -209,7 +213,7 @@ export default function PostMediaGallery({ mediaAttachments }: PostMediaGalleryP
   );
 }
 
-function Skeleton({ type }: { type: 'image' | 'audio' }) {
+function Skeleton({ type }: { type: 'image' | 'audio' | 'video' }) {
   return (
     <div className="animate-pulse bg-surface/20 rounded-lg p-4">
       {type === 'image' ? (
