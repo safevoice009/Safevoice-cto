@@ -128,6 +128,43 @@ function AnimatedRoutes() {
     initRegistry();
   }, [anonymousWalletAddress]);
 
+  // Initialize network security detection
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const evaluateNetworkSecurity = useStore.getState().evaluateNetworkSecurity;
+
+    // Run initial detection
+    evaluateNetworkSecurity();
+
+    // Re-run detection on visibility change (user switches tabs back)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        evaluateNetworkSecurity();
+      }
+    };
+
+    // Re-run detection on connection change (if supported)
+    let connectionListener: (() => void) | null = null;
+    if ('connection' in navigator) {
+      const connection = (navigator as { connection?: EventTarget }).connection;
+      if (connection) {
+        connectionListener = () => evaluateNetworkSecurity();
+        connection.addEventListener('change', connectionListener);
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (connectionListener && 'connection' in navigator) {
+        const connection = (navigator as { connection?: EventTarget }).connection;
+        connection?.removeEventListener('change', connectionListener);
+      }
+    };
+  }, []);
+
   // Focus management for route changes
   useEffect(() => {
     // Focus management for accessibility - move focus to main content on route change

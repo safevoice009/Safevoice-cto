@@ -1,8 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, MessageCircle, User, Store, Users, Trophy, Settings } from 'lucide-react';
+import { Home, MessageCircle, User, Store, Users, Trophy, Settings, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useRef, useEffect, useState } from 'react';
+import { useStore } from '../../lib/store';
 
 const navItems = [
   { labelKey: 'nav.home', icon: Home, to: '/' },
@@ -17,6 +18,7 @@ const navItems = [
 export default function BottomNav() {
   const location = useLocation();
   const { t } = useTranslation();
+  const { networkSecurity } = useStore();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -41,6 +43,18 @@ export default function BottomNav() {
       role="navigation"
       aria-label={t('nav.bottomNavigation')}
     >
+      {/* Institution Network Badge - Show above bottom nav */}
+      {networkSecurity.showInstitutionBadge && networkSecurity.lastDetection && (
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 20, opacity: 0 }}
+          className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1.5 bg-amber-600/90 backdrop-blur-sm rounded-full text-xs font-medium text-white flex items-center gap-1.5 shadow-lg"
+        >
+          <Lock className="w-3 h-3" />
+          <span>{networkSecurity.lastDetection.badgeCopy}</span>
+        </motion.div>
+      )}
       <div className="relative w-full">
         {/* Left fade gradient */}
         {canScrollLeft && (
