@@ -74,10 +74,11 @@ export class LocalStorageService {
     }
   ): Promise<StoredMedia> {
     const now = Date.now()
+    const fileName = file instanceof File ? file.name : cid
     const storedMedia: StoredMedia = {
       id: `${cid}-${now}`,
       cid,
-      fileName: file.name || cid,
+      fileName,
       mimeType: file.type,
       size: encryptedData.byteLength,
       data: encryptedData,

@@ -123,9 +123,15 @@ export class ContentAddressableRouter {
           bytes = new Uint8Array(arrayBuffer)
         } else if (typeof blobOrBuffer.slice === 'function') {
           // Fallback for environments where arrayBuffer doesn't work
-          bytes = new Uint8Array(await new Promise((resolve, reject) => {
+          bytes = new Uint8Array(await new Promise<ArrayBuffer>((resolve, reject) => {
             const reader = new FileReader()
-            reader.onload = () => resolve(reader.result as ArrayBuffer)
+            reader.onload = () => {
+              if (reader.result instanceof ArrayBuffer) {
+                resolve(reader.result)
+              } else {
+                reject(new Error('Failed to read as ArrayBuffer'))
+              }
+            }
             reader.onerror = () => reject(reader.error)
             reader.readAsArrayBuffer(blobOrBuffer)
           }))
@@ -146,7 +152,10 @@ export class ContentAddressableRouter {
       }
 
       // Compute SHA-256 hash (crypto.subtle.digest needs BufferSource)
-      const hashBuffer = await crypto.subtle.digest('SHA-256', bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
+      // Create a proper ArrayBuffer copy to avoid SharedArrayBuffer issues
+      const buffer = new ArrayBuffer(bytes.byteLength)
+      new Uint8Array(buffer).set(bytes)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
       
       // Convert to hex string
       const hashHex = Array.from(new Uint8Array(hashBuffer))
