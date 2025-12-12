@@ -71,6 +71,15 @@ import { getOnionRouter, destroyOnionRouter } from './routing/OnionRouter';
 import type { RoutingMetadata } from './routing/types';
 import { runZeroLogAudit as runAudit, haltOperations, unlockSystem as unlockSystemAudit, isSystemLocked } from './audit/ZeroLogAuditor';
 import type { ZeroLogAuditReport } from './audit/ZeroLogAuditor';
+import { moderateContent } from './contentModeration';
+import {
+  computeTributeContentHash,
+  createCosignerProof,
+  createModeratorDecision,
+  type MemorialTributeStatus,
+  type TributeCosignerProof,
+  type TributeModeratorDecision,
+} from './memorial/TributeService';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -303,8 +312,15 @@ export interface MemorialTribute {
   id: string;
   createdBy: string;
   createdAt: number;
+  updatedAt: number | null;
   personName: string;
+  college: string | null;
   message: string;
+  status: MemorialTributeStatus;
+  contentVersion: number;
+  contentHash: string;
+  cosignerProofs: TributeCosignerProof[];
+  moderatorDecision: TributeModeratorDecision | null;
   candles: MemorialCandle[];
   milestoneRewardAwarded: boolean;
 }
@@ -366,8 +382,23 @@ export interface ChannelMuteStatus {
 export interface ModeratorAction {
   id: string;
   moderatorId: string;
-  actionType: 'blur_post' | 'hide_post' | 'verify_advice' | 'review_report' | 'restore_post' | 'pin_community_post' | 'unpin_community_post' | 'delete_community_post' | 'ban_member' | 'warn_member' | 'mute_channel' | 'create_announcement';
-  targetId: string; // postId, commentId, reportId, memberId, or 'channel'
+  actionType:
+    | 'blur_post'
+    | 'hide_post'
+    | 'verify_advice'
+    | 'review_report'
+    | 'restore_post'
+    | 'pin_community_post'
+    | 'unpin_community_post'
+    | 'delete_community_post'
+    | 'ban_member'
+    | 'warn_member'
+    | 'mute_channel'
+    | 'create_announcement'
+    | 'approve_tribute'
+    | 'reject_tribute'
+    | 'edit_tribute';
+  targetId: string; // postId, commentId, reportId, memberId, tributeId, or 'channel'
   timestamp: number;
   rewardAwarded: boolean;
   metadata?: Record<string, unknown>;
@@ -895,7 +926,14 @@ export interface StoreState {
 
   // Memorial Wall
   memorialTributes: MemorialTribute[];
-  createTribute: (personName: string, message: string) => boolean;
+  createTribute: (personName: string, message: string, college?: string) => boolean;
+  cosignTribute: (tributeId: string) => Promise<boolean>;
+  approveTribute: (tributeId: string, reason?: string) => Promise<boolean>;
+  rejectTribute: (tributeId: string, reason: string) => Promise<boolean>;
+  editTribute: (
+    tributeId: string,
+    updates: { personName: string; message: string; college?: string | null }
+  ) => Promise<{ success: boolean; error?: string }>;
   lightCandle: (tributeId: string) => void;
   loadMemorialData: () => void;
 
@@ -1828,6 +1866,9 @@ const MODERATOR_ACTION_TYPES: ModeratorAction['actionType'][] = [
   'warn_member',
   'mute_channel',
   'create_announcement',
+  'approve_tribute',
+  'reject_tribute',
+  'edit_tribute',
 ];
 const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = {
   blur_post: 'Sensitive content blurred',
@@ -1842,6 +1883,9 @@ const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = 
   warn_member: 'Community member warned',
   mute_channel: 'Channel muted for community safety',
   create_announcement: 'Community announcement created',
+  approve_tribute: 'Memorial tribute approved',
+  reject_tribute: 'Memorial tribute rejected',
+  edit_tribute: 'Memorial tribute edited',
 };
 const VOLUNTEER_MOD_ACTION_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_MODERATOR_ACTIONS = 200;
@@ -5910,12 +5954,107 @@ export const useStore = create<StoreState>((set, get) => {
             })
           : [];
 
+        const personName = rawTribute.personName?.toString() ?? 'Beloved Soul';
+        const rawCollege = (rawTribute as { college?: unknown }).college;
+        const college = typeof rawCollege === 'string' ? rawCollege.trim() || null : null;
+        const message = rawTribute.message?.toString() ?? '';
+        const updatedAt =
+          typeof rawTribute.updatedAt === 'number' && Number.isFinite(rawTribute.updatedAt)
+            ? rawTribute.updatedAt
+            : null;
+
+        const rawVersion = (rawTribute as { contentVersion?: unknown }).contentVersion;
+        const contentVersion =
+          typeof rawVersion === 'number' && Number.isFinite(rawVersion)
+            ? Math.max(1, Math.round(rawVersion))
+            : 1;
+
+        const contentHash = computeTributeContentHash({
+          personName,
+          college,
+          message,
+          contentVersion,
+        });
+
+        const rawProofs = (rawTribute as { cosignerProofs?: unknown }).cosignerProofs;
+        const cosignerProofs = Array.isArray(rawProofs)
+          ? rawProofs.map((proof) => {
+              const partial = proof as Partial<TributeCosignerProof>;
+              return {
+                id: partial.id ?? crypto.randomUUID(),
+                tributeId,
+                cosignerId:
+                  typeof partial.cosignerId === 'string' ? partial.cosignerId : 'UnknownCosigner',
+                publicKey: typeof partial.publicKey === 'string' ? partial.publicKey : '',
+                signature: typeof partial.signature === 'string' ? partial.signature : '',
+                signedAt:
+                  typeof partial.signedAt === 'number' ? partial.signedAt : Date.now(),
+                contentHash:
+                  typeof partial.contentHash === 'string' ? partial.contentHash : contentHash,
+              } satisfies TributeCosignerProof;
+            })
+          : [];
+
+        const rawDecision = (rawTribute as { moderatorDecision?: unknown }).moderatorDecision;
+        const moderatorDecision =
+          rawDecision && typeof rawDecision === 'object'
+            ? (() => {
+                const partial = rawDecision as Partial<TributeModeratorDecision>;
+                const action =
+                  partial.action === 'approve' || partial.action === 'reject' ? partial.action : null;
+                if (!action) return null;
+
+                return {
+                  id: partial.id ?? crypto.randomUUID(),
+                  tributeId,
+                  moderatorId:
+                    typeof partial.moderatorId === 'string'
+                      ? partial.moderatorId
+                      : 'UnknownModerator',
+                  publicKey: typeof partial.publicKey === 'string' ? partial.publicKey : '',
+                  signature: typeof partial.signature === 'string' ? partial.signature : '',
+                  decidedAt:
+                    typeof partial.decidedAt === 'number' ? partial.decidedAt : Date.now(),
+                  action,
+                  reason: typeof partial.reason === 'string' ? partial.reason : null,
+                  contentHash:
+                    typeof partial.contentHash === 'string' ? partial.contentHash : contentHash,
+                } satisfies TributeModeratorDecision;
+              })()
+            : null;
+
+        const validCosignerCount = cosignerProofs.filter((proof) => proof.contentHash === contentHash).length;
+        const rawStatus = (rawTribute as { status?: unknown }).status;
+
+        let status: MemorialTributeStatus;
+        if (
+          rawStatus === 'draft' ||
+          rawStatus === 'pending_moderation' ||
+          rawStatus === 'published' ||
+          rawStatus === 'rejected'
+        ) {
+          status = rawStatus;
+        } else if (moderatorDecision) {
+          status = moderatorDecision.action === 'reject' ? 'rejected' : 'published';
+        } else if (cosignerProofs.length > 0) {
+          status = validCosignerCount >= 3 ? 'pending_moderation' : 'draft';
+        } else {
+          status = 'published';
+        }
+
         return {
           id: tributeId,
           createdBy: typeof rawTribute.createdBy === 'string' ? rawTribute.createdBy : 'UnknownGuardian',
           createdAt: typeof rawTribute.createdAt === 'number' ? rawTribute.createdAt : Date.now(),
-          personName: rawTribute.personName?.toString() ?? 'Beloved Soul',
-          message: rawTribute.message?.toString() ?? '',
+          updatedAt,
+          personName,
+          college,
+          message,
+          status,
+          contentVersion,
+          contentHash,
+          cosignerProofs,
+          moderatorDecision,
           candles,
           milestoneRewardAwarded: Boolean(rawTribute.milestoneRewardAwarded),
         } satisfies MemorialTribute;
@@ -5928,10 +6067,12 @@ export const useStore = create<StoreState>((set, get) => {
     }
   },
 
-  createTribute: (personName: string, message: string) => {
+  createTribute: (personName: string, message: string, college?: string) => {
     const currentStudentId = get().studentId;
     const trimmedName = personName.trim();
     const trimmedMessage = message.trim();
+    const trimmedCollege = typeof college === 'string' ? college.trim() : '';
+    const normalizedCollege = trimmedCollege.length > 0 ? trimmedCollege : null;
 
     if (!trimmedName || !trimmedMessage) {
       toast.error('Please provide both a name and a tribute message.');
@@ -5943,12 +6084,28 @@ export const useStore = create<StoreState>((set, get) => {
       return false;
     }
 
+    const now = Date.now();
+    const contentVersion = 1;
+    const contentHash = computeTributeContentHash({
+      personName: trimmedName,
+      college: normalizedCollege,
+      message: trimmedMessage,
+      contentVersion,
+    });
+
     const newTribute: MemorialTribute = {
       id: crypto.randomUUID(),
       createdBy: currentStudentId,
-      createdAt: Date.now(),
+      createdAt: now,
+      updatedAt: null,
       personName: trimmedName,
+      college: normalizedCollege,
       message: trimmedMessage,
+      status: 'draft',
+      contentVersion,
+      contentHash,
+      cosignerProofs: [],
+      moderatorDecision: null,
       candles: [],
       milestoneRewardAwarded: false,
     };
@@ -5961,11 +6118,301 @@ export const useStore = create<StoreState>((set, get) => {
     get().earnVoice(EARN_RULES.memorialTribute, `Tribute created for ${trimmedName} 🕊️`, 'bonuses', {
       tributeId: newTribute.id,
       personName: newTribute.personName,
+      college: newTribute.college,
       action: 'create_tribute',
       feature: 'memorial_wall',
+      status: newTribute.status,
     });
 
     return true;
+  },
+
+  cosignTribute: async (tributeId: string) => {
+    const currentStudentId = get().studentId;
+    const tribute = get().memorialTributes.find((t) => t.id === tributeId);
+
+    if (!tribute) {
+      toast.error('Tribute not found');
+      return false;
+    }
+
+    if (tribute.status === 'published' || tribute.status === 'rejected') {
+      toast.error('This tribute is no longer open for cosigning.');
+      return false;
+    }
+
+    const alreadySigned = tribute.cosignerProofs.some(
+      (proof) => proof.cosignerId === currentStudentId && proof.contentHash === tribute.contentHash
+    );
+
+    if (alreadySigned) {
+      toast('You have already cosigned this tribute.', { icon: 'ℹ️' });
+      return false;
+    }
+
+    try {
+      const baseProof = await createCosignerProof({
+        tributeId,
+        cosignerId: currentStudentId,
+        contentHash: tribute.contentHash,
+      });
+
+      const now = Date.now();
+      const proof: TributeCosignerProof = {
+        ...baseProof,
+        id: crypto.randomUUID(),
+        signedAt: now,
+      };
+
+      set((state) => ({
+        memorialTributes: state.memorialTributes.map((t) => {
+          if (t.id !== tributeId) {
+            return t;
+          }
+
+          const nextProofs = [...t.cosignerProofs, proof];
+          const validCount = nextProofs.filter((p) => p.contentHash === t.contentHash).length;
+          const nextStatus: MemorialTributeStatus =
+            t.status === 'draft' && validCount >= 3 ? 'pending_moderation' : t.status;
+
+          return {
+            ...t,
+            cosignerProofs: nextProofs,
+            status: nextStatus,
+            updatedAt: now,
+          };
+        }),
+      }));
+
+      get().saveToLocalStorage();
+      toast.success('Cosign recorded. Thank you for supporting this tribute.');
+      return true;
+    } catch (error) {
+      console.error('Failed to cosign tribute:', error);
+      toast.error('Failed to cosign tribute');
+      return false;
+    }
+  },
+
+  approveTribute: async (tributeId: string, reason?: string) => {
+    const { isModerator, studentId } = get();
+
+    if (!isModerator) {
+      toast.error('Enable moderator mode to perform this action.');
+      return false;
+    }
+
+    const tribute = get().memorialTributes.find((t) => t.id === tributeId);
+
+    if (!tribute) {
+      toast.error('Tribute not found');
+      return false;
+    }
+
+    const validCosigners = tribute.cosignerProofs.filter((proof) => proof.contentHash === tribute.contentHash);
+    if (validCosigners.length < 3) {
+      toast.error('This tribute needs at least 3 cosigners before it can be approved.');
+      return false;
+    }
+
+    try {
+      const baseDecision = await createModeratorDecision({
+        tributeId,
+        moderatorId: studentId,
+        action: 'approve',
+        reason: reason ?? null,
+        contentHash: tribute.contentHash,
+      });
+
+      const now = Date.now();
+      const decision: TributeModeratorDecision = {
+        ...baseDecision,
+        id: crypto.randomUUID(),
+        decidedAt: now,
+      };
+
+      set((state) => ({
+        memorialTributes: state.memorialTributes.map((t) =>
+          t.id === tributeId
+            ? {
+                ...t,
+                status: 'published',
+                moderatorDecision: decision,
+                updatedAt: now,
+              }
+            : t
+        ),
+      }));
+      get().saveToLocalStorage();
+
+      get().recordModeratorAction('approve_tribute', tributeId, {
+        contentHash: tribute.contentHash,
+        cosignerCount: validCosigners.length,
+        decisionSignature: decision.signature,
+      });
+
+      toast.success('Tribute approved and published.');
+      return true;
+    } catch (error) {
+      console.error('Failed to approve tribute:', error);
+      toast.error('Failed to approve tribute');
+      return false;
+    }
+  },
+
+  rejectTribute: async (tributeId: string, reason: string) => {
+    const { isModerator, studentId } = get();
+
+    if (!isModerator) {
+      toast.error('Enable moderator mode to perform this action.');
+      return false;
+    }
+
+    const tribute = get().memorialTributes.find((t) => t.id === tributeId);
+
+    if (!tribute) {
+      toast.error('Tribute not found');
+      return false;
+    }
+
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) {
+      toast.error('Please provide a rejection reason.');
+      return false;
+    }
+
+    try {
+      const baseDecision = await createModeratorDecision({
+        tributeId,
+        moderatorId: studentId,
+        action: 'reject',
+        reason: trimmedReason,
+        contentHash: tribute.contentHash,
+      });
+
+      const now = Date.now();
+      const decision: TributeModeratorDecision = {
+        ...baseDecision,
+        id: crypto.randomUUID(),
+        decidedAt: now,
+      };
+
+      set((state) => ({
+        memorialTributes: state.memorialTributes.map((t) =>
+          t.id === tributeId
+            ? {
+                ...t,
+                status: 'rejected',
+                moderatorDecision: decision,
+                updatedAt: now,
+              }
+            : t
+        ),
+      }));
+      get().saveToLocalStorage();
+
+      get().recordModeratorAction('reject_tribute', tributeId, {
+        contentHash: tribute.contentHash,
+        reason: trimmedReason,
+        decisionSignature: decision.signature,
+      });
+
+      toast.success('Tribute rejected.');
+      return true;
+    } catch (error) {
+      console.error('Failed to reject tribute:', error);
+      toast.error('Failed to reject tribute');
+      return false;
+    }
+  },
+
+  editTribute: async (tributeId: string, updates: { personName: string; message: string; college?: string | null }) => {
+    const { isModerator, studentId } = get();
+
+    if (!isModerator) {
+      return { success: false, error: 'Enable moderator mode to edit tributes.' };
+    }
+
+    const tribute = get().memorialTributes.find((t) => t.id === tributeId);
+
+    if (!tribute) {
+      return { success: false, error: 'Tribute not found.' };
+    }
+
+    const trimmedName = updates.personName.trim();
+    const trimmedMessage = updates.message.trim();
+    const rawCollege = updates.college;
+    const trimmedCollege = typeof rawCollege === 'string' ? rawCollege.trim() : '';
+    const normalizedCollege = trimmedCollege.length > 0 ? trimmedCollege : null;
+
+    if (!trimmedName || !trimmedMessage) {
+      return { success: false, error: 'Name and message are required.' };
+    }
+
+    if (trimmedMessage.length > 600) {
+      return { success: false, error: 'Tribute message is too long. Keep it under 600 characters.' };
+    }
+
+    const moderationText = `${trimmedName}\n${normalizedCollege ?? ''}\n${trimmedMessage}`.trim();
+
+    const moderation = await moderateContent(moderationText, { userPosts: [] });
+
+    if (moderation.blocked) {
+      return { success: false, error: moderation.reason ?? 'This edit was blocked by moderation.' };
+    }
+
+    const disallowedIssue = moderation.issues?.find(
+      (issue) => issue.type === 'profanity' || issue.type === 'harassment'
+    );
+
+    if (disallowedIssue) {
+      return {
+        success: false,
+        error:
+          disallowedIssue.type === 'profanity'
+            ? 'Please remove profanity before saving edits.'
+            : 'Please remove harassment before saving edits.',
+      };
+    }
+
+    const now = Date.now();
+    const nextContentVersion = Math.max(1, tribute.contentVersion + 1);
+    const nextContentHash = computeTributeContentHash({
+      personName: trimmedName,
+      college: normalizedCollege,
+      message: trimmedMessage,
+      contentVersion: nextContentVersion,
+    });
+
+    set((state) => ({
+      memorialTributes: state.memorialTributes.map((t) =>
+        t.id === tributeId
+          ? {
+              ...t,
+              personName: trimmedName,
+              college: normalizedCollege,
+              message: trimmedMessage,
+              status: 'draft',
+              contentVersion: nextContentVersion,
+              contentHash: nextContentHash,
+              cosignerProofs: [],
+              moderatorDecision: null,
+              updatedAt: now,
+            }
+          : t
+      ),
+    }));
+
+    get().saveToLocalStorage();
+
+    get().recordModeratorAction('edit_tribute', tributeId, {
+      previousContentHash: tribute.contentHash,
+      nextContentHash,
+      editedBy: studentId,
+    });
+
+    toast.success('Tribute updated. Cosigner confirmations have been reset.');
+    return { success: true };
   },
 
   lightCandle: (tributeId: string) => {

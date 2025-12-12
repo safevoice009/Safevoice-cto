@@ -1,5 +1,5 @@
-import MemorialWallComponent from '../components/memorial/MemorialWall';
+import MemorialPage from './MemorialPage';
 
 export default function MemorialWall() {
-  return <MemorialWallComponent />;
+  return <MemorialPage />;
 }
