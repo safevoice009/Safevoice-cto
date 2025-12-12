@@ -675,6 +675,7 @@ export interface NetworkSecurityState {
   torModeEnabled: boolean;
   torModeForced: boolean;
   torModeReason: string | null;
+  onionRouterInitialized: boolean;
   lastDetection: {
     profileId: string | null;
     confidence: number;
@@ -1463,7 +1464,6 @@ const STORAGE_KEYS = {
   COMMUNITY_MEMBERSHIPS: 'safevoice_memberships',      // User memberships
   COMMUNITY_NOTIFICATIONS: 'safevoice_community_notifications', // Community notification settings
   COMMUNITY_POSTS_META: 'safevoice_community_posts_meta', // Channel-level metrics
-  NETWORK_SECURITY: 'safevoice_network_security',      // Network security settings (Tor mode)
   COMMUNITY_ACTIVITY: 'safevoice_community_activity',  // Activity tracking for heatmaps
   COMMUNITY_STATE_VERSION: 'safevoice_community_state_version', // Versioning for community data migrations
   CURRENT_COMMUNITY: 'safevoice_current_community',     // Last selected community
