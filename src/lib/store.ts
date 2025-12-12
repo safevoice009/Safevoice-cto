@@ -1394,16 +1394,6 @@ export interface StoreState {
   saveHybridKeys: (threadId: string, keys: HybridPrivateKey) => void;
   loadHybridKeys: (threadId: string) => HybridPrivateKey | null;
 
-  // Network Security State
-  networkSecurity: {
-    torModeEnabled: boolean;
-    onionRouterInitialized: boolean;
-  };
-
-  // Network Security Actions
-  toggleTorMode: () => Promise<void>;
-  initializeOnionRouter: () => Promise<void>;
-
   // Alert Preferences State
   alertPreferences: AlertPreferences;
   trustedContacts: TrustedContact[];
