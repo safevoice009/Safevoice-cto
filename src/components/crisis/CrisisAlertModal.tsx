@@ -1,7 +1,10 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, AlertTriangle } from 'lucide-react';
+import { Phone, AlertTriangle, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useEffect, useState } from 'react';
 import { helplines } from '../../lib/helplines';
+import * as HelplineRegistry from '../../lib/crisisAI/HelplineRegistry';
+import type { Helpline } from '../../lib/crisisAI/HelplineRegistry';
 import ZKProofPrompt from './ZKProofPrompt';
 import ZKProofStatusBadge from './ZKProofStatusBadge';
 import { useStore } from '../../lib/store';
@@ -25,9 +28,45 @@ export default function CrisisAlertModal({
   const zkProofs = useStore((state) => state.zkProofs);
   const modalRef = useFocusTrap(isOpen, { restoreFocus: true });
   
-  const primaryHelplines = helplines.filter((h) =>
-    ['aasra', 'vandrevala', 'kiran'].includes(h.id)
-  );
+  const [registryHelplines, setRegistryHelplines] = useState<Helpline[]>([]);
+  const [verificationStatus, setVerificationStatus] = useState<{
+    isValid: boolean;
+    lastVerified: string | null;
+    timeAgo: string | null;
+    lastError: string | null;
+  }>({
+    isValid: false,
+    lastVerified: null,
+    timeAgo: null,
+    lastError: null,
+  });
+
+  // Initialize helpline registry on mount
+  useEffect(() => {
+    const initRegistry = async () => {
+      try {
+        await HelplineRegistry.initialize();
+        const helplinesList = HelplineRegistry.getPrimaryHelplines();
+        setRegistryHelplines(helplinesList);
+        setVerificationStatus(HelplineRegistry.getVerificationStatus());
+      } catch (error) {
+        console.warn('[CrisisAlertModal] Failed to initialize helpline registry:', error);
+        // Fall back to hardcoded helplines
+        setRegistryHelplines(helplines.filter((h) =>
+          ['aasra', 'vandrevala', 'kiran'].includes(h.id)
+        ));
+      }
+    };
+
+    if (isOpen) {
+      initRegistry();
+    }
+  }, [isOpen]);
+
+  // Use registry helplines if available, otherwise fall back to hardcoded
+  const displayHelplines = registryHelplines.length > 0
+    ? registryHelplines
+    : helplines.filter((h) => ['aasra', 'vandrevala', 'kiran'].includes(h.id));
 
   // Generate witness data from student ID and timestamp for ZK proof
   const getWitnessData = () => {
@@ -79,7 +118,7 @@ export default function CrisisAlertModal({
 
               <div className="p-6 space-y-6">
                 <div className="space-y-4">
-                  {primaryHelplines.map((helpline) => (
+                  {displayHelplines.map((helpline) => (
                     <motion.a
                       key={helpline.id}
                       href={`tel:${helpline.number}`}
@@ -99,6 +138,12 @@ export default function CrisisAlertModal({
                                 {helpline.badge}
                               </span>
                             )}
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+                            (helpline as any).verified && (
+                              <span className="px-2 py-0.5 bg-green-500/20 text-green-300 text-xs rounded-full">
+                                ✓ Verified
+                              </span>
+                            )}
                           </div>
                           <p className="text-2xl font-bold text-primary group-hover:text-purple-300 transition-colors">
                             {helpline.number}
@@ -110,6 +155,16 @@ export default function CrisisAlertModal({
                     </motion.a>
                   ))}
                 </div>
+
+                {/* Registry verification status */}
+                {verificationStatus.isValid && verificationStatus.timeAgo && (
+                  <div className="flex items-center justify-center space-x-2 px-4 py-2 bg-green-500/10 border border-green-500/30 rounded-lg">
+                    <Clock className="w-4 h-4 text-green-400" />
+                    <p className="text-xs text-green-300">
+                      Helplines verified {verificationStatus.timeAgo}
+                    </p>
+                  </div>
+                )}
 
                 {/* ZK Proof Section */}
                 {enableZKProof && requestId && (

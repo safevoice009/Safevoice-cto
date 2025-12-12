@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import { toHaveNoViolations } from 'jest-axe';
 import 'fake-indexeddb/auto';
 
@@ -20,6 +20,35 @@ ed25519.hashes.sha512 = (...messages: Uint8Array[]): Uint8Array => {
 };
 
 expect.extend(toHaveNoViolations);
+
+// Mock performance.now for consistent timing in tests
+let mockNowTime = 1000;
+Object.defineProperty(performance, 'now', {
+  writable: true,
+  value: vi.fn(() => {
+    return mockNowTime++;
+  }),
+});
+
+// Export function to set performance time for tests
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(globalThis as any).setMockPerformanceTime = (time: number) => {
+  mockNowTime = time;
+};
+
+// Mock TensorFlow.js for tests
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(globalThis as any).tf = {
+  loadLayersModel: vi.fn(),
+  tensor2d: vi.fn(() => ({
+    dispose: vi.fn(),
+    data: vi.fn().mockResolvedValue(new Float32Array([0.5])),
+  })),
+  tensor: vi.fn(() => ({
+    dispose: vi.fn(),
+    data: vi.fn().mockResolvedValue(new Float32Array([0.5])),
+  })),
+};
 
 // Mock IntersectionObserver
 class MockIntersectionObserver implements IntersectionObserver {
