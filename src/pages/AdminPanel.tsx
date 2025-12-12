@@ -14,6 +14,7 @@ import MemberTable from '../components/admin/MemberTable';
 import CrisisAnalytics from '../components/admin/CrisisAnalytics';
 import CrisisTimeline from '../components/admin/CrisisTimeline';
 import ReportingExport from '../components/admin/ReportingExport';
+import ZeroLogAuditPanel from '../components/admin/ZeroLogAuditPanel';
 
 type AdminTab = 'moderation' | 'members' | 'crisis' | 'reporting';
 
@@ -173,6 +174,11 @@ export default function AdminPanel() {
                 </p>
               </div>
               <ReportingExport />
+              
+              {/* Zero-Log Auditor */}
+              <div className="mt-8">
+                <ZeroLogAuditPanel />
+              </div>
             </div>
           )}
         </motion.div>
