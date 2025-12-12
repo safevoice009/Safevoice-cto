@@ -71,6 +71,7 @@ import { getOnionRouter, destroyOnionRouter } from './routing/OnionRouter';
 import type { RoutingMetadata } from './routing/types';
 import { runZeroLogAudit as runAudit, haltOperations, unlockSystem as unlockSystemAudit, isSystemLocked } from './audit/ZeroLogAuditor';
 import type { ZeroLogAuditReport } from './audit/ZeroLogAuditor';
+import { TributeService } from './memorial/TributeService';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -299,6 +300,29 @@ export interface MemorialCandle {
   lightedAt: number;
 }
 
+export interface TributeCosigner {
+  peerId: string;
+  signature: string;
+  signedAt: number;
+  publicKey: string;
+}
+
+export interface TributeModeratorDecision {
+  moderatorId: string;
+  decision: 'approved' | 'rejected';
+  reason?: string;
+  timestamp: number;
+}
+
+export interface TributeAuditEntry {
+  action: string;
+  timestamp: number;
+  actor: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type TributeStatus = 'draft' | 'pending_review' | 'published' | 'rejected' | 'archived';
+
 export interface MemorialTribute {
   id: string;
   createdBy: string;
@@ -307,6 +331,14 @@ export interface MemorialTribute {
   message: string;
   candles: MemorialCandle[];
   milestoneRewardAwarded: boolean;
+  // Consensus fields (Phase 13 - Task 5A)
+  status?: TributeStatus;
+  cosigners?: TributeCosigner[];
+  moderatorDecision?: TributeModeratorDecision;
+  auditTrail?: TributeAuditEntry[];
+  honoreeHash?: string;
+  expiresAt?: number;
+  dateOfRemembrance?: string;
 }
 
 export interface CommunityAnnouncement {
@@ -895,9 +927,15 @@ export interface StoreState {
 
   // Memorial Wall
   memorialTributes: MemorialTribute[];
-  createTribute: (personName: string, message: string) => boolean;
+  createTribute: (personName: string, message: string, dateOfRemembrance?: string) => boolean;
   lightCandle: (tributeId: string) => void;
   loadMemorialData: () => void;
+  
+  // Tribute Consensus (Phase 13 - Task 5A)
+  addTributeCosigner: (tributeId: string, peerId: string, signature: string, publicKey: string) => Promise<boolean>;
+  finalizeTributeDraft: (tributeId: string) => boolean;
+  publishTribute: (tributeId: string, moderatorId: string, reason?: string) => boolean;
+  rejectTribute: (tributeId: string, moderatorId: string, reason?: string) => boolean;
 
   // Referral System
   generateReferralCode: () => string;
@@ -5928,29 +5966,46 @@ export const useStore = create<StoreState>((set, get) => {
     }
   },
 
-  createTribute: (personName: string, message: string) => {
+  createTribute: (personName: string, message: string, dateOfRemembrance?: string) => {
     const currentStudentId = get().studentId;
-    const trimmedName = personName.trim();
-    const trimmedMessage = message.trim();
 
-    if (!trimmedName || !trimmedMessage) {
-      toast.error('Please provide both a name and a tribute message.');
+    // Use TributeService to create draft with consensus requirements
+    const result = TributeService.createDraft(
+      currentStudentId,
+      personName,
+      message,
+      dateOfRemembrance
+    );
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to create tribute draft');
       return false;
     }
 
-    if (trimmedMessage.length > 600) {
-      toast.error('Tribute message is too long. Please keep it under 600 characters.');
-      return false;
-    }
+    const draft = result.draft!;
 
+    // Convert TributeDraft to MemorialTribute
     const newTribute: MemorialTribute = {
-      id: crypto.randomUUID(),
-      createdBy: currentStudentId,
-      createdAt: Date.now(),
-      personName: trimmedName,
-      message: trimmedMessage,
+      id: draft.id,
+      createdBy: draft.creator,
+      createdAt: draft.createdAt,
+      personName: draft.honoree,
+      message: draft.message,
       candles: [],
       milestoneRewardAwarded: false,
+      // Consensus fields
+      status: draft.status,
+      cosigners: draft.cosigners.map(c => ({
+        peerId: c.peerId,
+        signature: c.signature,
+        signedAt: c.signedAt,
+        publicKey: c.publicKey,
+      })),
+      moderatorDecision: draft.moderatorDecision,
+      auditTrail: draft.auditTrail,
+      honoreeHash: draft.honoreeHash,
+      expiresAt: draft.expiresAt,
+      dateOfRemembrance: draft.dateOfRemembrance,
     };
 
     set((state) => ({
@@ -5958,12 +6013,8 @@ export const useStore = create<StoreState>((set, get) => {
     }));
     get().saveToLocalStorage();
 
-    get().earnVoice(EARN_RULES.memorialTribute, `Tribute created for ${trimmedName} 🕊️`, 'bonuses', {
-      tributeId: newTribute.id,
-      personName: newTribute.personName,
-      action: 'create_tribute',
-      feature: 'memorial_wall',
-    });
+    // Note: VOICE rewards are only awarded when consensus is reached (after finalize)
+    toast.success(`Tribute draft created for ${personName}. Needs 3 cosigners to publish.`);
 
     return true;
   },
@@ -5974,6 +6025,12 @@ export const useStore = create<StoreState>((set, get) => {
 
     if (!tribute) {
       toast.error('Tribute not found');
+      return;
+    }
+
+    // Only allow lighting candles on published tributes
+    if (tribute.status && tribute.status !== 'published') {
+      toast.error(`Cannot light candles on ${tribute.status} tributes. Tribute must be published first.`);
       return;
     }
 
@@ -6034,6 +6091,220 @@ export const useStore = create<StoreState>((set, get) => {
         duration: 5000,
       });
     }
+  },
+
+  // Tribute Consensus Actions (Phase 13 - Task 5A)
+
+  addTributeCosigner: async (tributeId: string, peerId: string, signature: string, publicKey: string) => {
+    const tribute = get().memorialTributes.find((t) => t.id === tributeId);
+
+    if (!tribute) {
+      toast.error('Tribute not found');
+      return false;
+    }
+
+    if (tribute.status !== 'draft') {
+      toast.error('Can only add cosigners to draft tributes');
+      return false;
+    }
+
+    // Add cosigner through TributeService
+    const result = await TributeService.addCosigner(tributeId, peerId, signature, publicKey);
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to add cosigner');
+      return false;
+    }
+
+    // Reload the draft from TributeService and update store
+    const updatedDraft = TributeService.getDraftById(tributeId);
+    if (!updatedDraft) {
+      return false;
+    }
+
+    const updatedTributes = get().memorialTributes.map((t) => {
+      if (t.id !== tributeId) return t;
+      
+      return {
+        ...t,
+        cosigners: updatedDraft.cosigners.map(c => ({
+          peerId: c.peerId,
+          signature: c.signature,
+          signedAt: c.signedAt,
+          publicKey: c.publicKey,
+        })),
+        auditTrail: updatedDraft.auditTrail,
+      };
+    });
+
+    set({ memorialTributes: updatedTributes });
+    get().saveToLocalStorage();
+
+    const consensus = TributeService.hasConsensus(tributeId);
+    toast.success(`Cosigner added (${consensus.count}/${consensus.required})`);
+
+    return true;
+  },
+
+  finalizeTributeDraft: (tributeId: string) => {
+    const tribute = get().memorialTributes.find((t) => t.id === tributeId);
+
+    if (!tribute) {
+      toast.error('Tribute not found');
+      return false;
+    }
+
+    if (tribute.status !== 'draft') {
+      toast.error('Can only finalize draft tributes');
+      return false;
+    }
+
+    // Finalize through TributeService
+    const result = TributeService.finalize(tributeId);
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to finalize tribute');
+      return false;
+    }
+
+    // Reload the draft and update store
+    const updatedDraft = TributeService.getDraftById(tributeId);
+    if (!updatedDraft) {
+      return false;
+    }
+
+    const updatedTributes = get().memorialTributes.map((t) => {
+      if (t.id !== tributeId) return t;
+      
+      return {
+        ...t,
+        status: updatedDraft.status,
+        auditTrail: updatedDraft.auditTrail,
+      };
+    });
+
+    set({ memorialTributes: updatedTributes });
+    get().saveToLocalStorage();
+
+    toast.success(`Tribute finalized! Now pending moderator review.`);
+
+    return true;
+  },
+
+  publishTribute: (tributeId: string, moderatorId: string, reason?: string) => {
+    const tribute = get().memorialTributes.find((t) => t.id === tributeId);
+
+    if (!tribute) {
+      toast.error('Tribute not found');
+      return false;
+    }
+
+    if (tribute.status !== 'pending_review') {
+      toast.error('Can only publish tributes pending review');
+      return false;
+    }
+
+    // Publish through TributeService
+    const result = TributeService.publishDraft(tributeId, moderatorId, reason);
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to publish tribute');
+      return false;
+    }
+
+    // Reload the draft and update store
+    const updatedDraft = TributeService.getDraftById(tributeId);
+    if (!updatedDraft) {
+      return false;
+    }
+
+    const updatedTributes = get().memorialTributes.map((t) => {
+      if (t.id !== tributeId) return t;
+      
+      return {
+        ...t,
+        status: updatedDraft.status,
+        moderatorDecision: updatedDraft.moderatorDecision ? {
+          moderatorId: updatedDraft.moderatorDecision.moderatorId,
+          decision: updatedDraft.moderatorDecision.decision,
+          reason: updatedDraft.moderatorDecision.reason,
+          timestamp: updatedDraft.moderatorDecision.timestamp,
+        } : undefined,
+        auditTrail: updatedDraft.auditTrail,
+      };
+    });
+
+    set({ memorialTributes: updatedTributes });
+    get().saveToLocalStorage();
+
+    // Award VOICE tokens now that consensus is reached
+    get().earnVoice(
+      EARN_RULES.memorialTribute, 
+      `Tribute published for ${tribute.personName} 🕊️`, 
+      'bonuses', 
+      {
+        tributeId: tribute.id,
+        personName: tribute.personName,
+        action: 'publish_tribute',
+        feature: 'memorial_wall',
+        cosignerCount: tribute.cosigners?.length || 0,
+      }
+    );
+
+    toast.success(`Tribute published for ${tribute.personName}! +${EARN_RULES.memorialTribute} VOICE`);
+
+    return true;
+  },
+
+  rejectTribute: (tributeId: string, moderatorId: string, reason?: string) => {
+    const tribute = get().memorialTributes.find((t) => t.id === tributeId);
+
+    if (!tribute) {
+      toast.error('Tribute not found');
+      return false;
+    }
+
+    if (tribute.status !== 'pending_review') {
+      toast.error('Can only reject tributes pending review');
+      return false;
+    }
+
+    // Reject through TributeService
+    const result = TributeService.rejectDraft(tributeId, moderatorId, reason);
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to reject tribute');
+      return false;
+    }
+
+    // Reload the draft and update store
+    const updatedDraft = TributeService.getDraftById(tributeId);
+    if (!updatedDraft) {
+      return false;
+    }
+
+    const updatedTributes = get().memorialTributes.map((t) => {
+      if (t.id !== tributeId) return t;
+      
+      return {
+        ...t,
+        status: updatedDraft.status,
+        moderatorDecision: updatedDraft.moderatorDecision ? {
+          moderatorId: updatedDraft.moderatorDecision.moderatorId,
+          decision: updatedDraft.moderatorDecision.decision,
+          reason: updatedDraft.moderatorDecision.reason,
+          timestamp: updatedDraft.moderatorDecision.timestamp,
+        } : undefined,
+        auditTrail: updatedDraft.auditTrail,
+      };
+    });
+
+    set({ memorialTributes: updatedTributes });
+    get().saveToLocalStorage();
+
+    toast(`Tribute rejected${reason ? ': ' + reason : ''}`);
+
+    return true;
   },
 
   joinCommunity: (communityId: string) => {
