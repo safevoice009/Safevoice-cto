@@ -1,0 +1,66 @@
+{
+  "version": "1.0.0",
+  "timestamp": 1702425600000,
+  "helplines": [
+    {
+      "id": "aasra",
+      "name": "AASRA (Assistance for Suicidal & Self-Harm Attitudes)",
+      "number": "+91 22 27546669",
+      "hours": "24/7",
+      "badge": "24/7",
+      "category": "suicide",
+      "country": "India",
+      "verified": true
+    },
+    {
+      "id": "vandrevala",
+      "name": "Vandrevala Foundation",
+      "number": "+91 9999 666 555",
+      "hours": "24/7 (Mon-Fri 9am-8pm)",
+      "badge": "National",
+      "category": "suicide",
+      "country": "India",
+      "verified": true
+    },
+    {
+      "id": "kiran",
+      "name": "iCall - Kiran Helpline",
+      "number": "+91 9152987821",
+      "hours": "24/7",
+      "badge": "24/7",
+      "category": "crisis",
+      "country": "India",
+      "verified": true
+    },
+    {
+      "id": "aamkhas",
+      "name": "Aamkhas",
+      "number": "+91 9321322333",
+      "hours": "Mon-Fri 9am-9pm",
+      "category": "mental_health",
+      "country": "India",
+      "verified": true
+    },
+    {
+      "id": "lifeline",
+      "name": "Lifeline (USA)",
+      "number": "988",
+      "hours": "24/7",
+      "badge": "24/7",
+      "category": "suicide",
+      "country": "USA",
+      "verified": true
+    },
+    {
+      "id": "crisis_text_line",
+      "name": "Crisis Text Line",
+      "number": "Text HOME to 741741",
+      "hours": "24/7",
+      "badge": "Text",
+      "category": "crisis",
+      "country": "USA",
+      "verified": true
+    }
+  ],
+  "signature": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

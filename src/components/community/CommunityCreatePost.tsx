@@ -6,7 +6,7 @@ import type { Community, CommunityChannel } from '../../lib/communities/types';
 import { useStore, type PostLifetime } from '../../lib/store';
 import { encryptContent } from '../../lib/encryption';
 import { moderateContent } from '../../lib/contentModeration';
-import { detectCrisis, getCrisisSeverity } from '../../lib/crisisDetection';
+import { getCrisisSeverity, classifyCrisis } from '../../lib/crisisDetection';
 
 const categories = [
   'Mental Health',
@@ -102,7 +102,9 @@ export default function CommunityCreatePost({ community, channels, activeChannel
         return;
       }
 
-      const isCrisis = detectCrisis(trimmedContent);
+      // Classify crisis with AI model and get probability scores
+      const crisisClassification = await classifyCrisis(trimmedContent);
+      const isCrisis = crisisClassification.shouldEscalate;
       const crisisLevel = isCrisis ? getCrisisSeverity(trimmedContent) : undefined;
 
       let encryptedData: { encrypted: string; iv: string; keyId: string } | undefined;
@@ -125,6 +127,9 @@ export default function CommunityCreatePost({ community, channels, activeChannel
           moderation.issues?.find((issue) => issue.type === 'profanity')?.message || null,
         isCrisisFlagged: isCrisis,
         crisisLevel,
+        crisisProbability: crisisClassification.probability,
+        crisisKeywords: crisisClassification.keywords,
+        crisisIsCritical: crisisClassification.isCritical,
       };
 
       const communityMeta = {

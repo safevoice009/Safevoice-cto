@@ -4,7 +4,7 @@ import { Send, X, Lock, Clock, Database, Mic, ChevronDown, Image, Music, Trash2 
 import { useStore, type PostLifetime, type PostEmotionAnalysis, type MediaAttachment } from '../../lib/store';
 import { encryptContent } from '../../lib/encryption';
 import { moderateContent } from '../../lib/contentModeration';
-import { detectCrisis, getCrisisSeverity } from '../../lib/crisisDetection';
+import { getCrisisSeverity, classifyCrisis } from '../../lib/crisisDetection';
 import { uploadToIPFS } from '../../lib/ipfs';
 import toast from 'react-hot-toast';
 import VoiceRecorder from './VoiceRecorder';
@@ -134,7 +134,9 @@ export default function CreatePost() {
         return;
       }
 
-      const isCrisis = detectCrisis(trimmedContent);
+      // Classify crisis with AI model and get probability scores
+      const crisisClassification = await classifyCrisis(trimmedContent);
+      const isCrisis = crisisClassification.shouldEscalate;
       const crisisLevel = isCrisis ? getCrisisSeverity(trimmedContent) : undefined;
 
       let encryptedData: { encrypted: string; iv: string; keyId: string } | undefined;
@@ -157,6 +159,9 @@ export default function CreatePost() {
           moderation.issues?.find((issue) => issue.type === 'profanity')?.message || null,
         isCrisisFlagged: isCrisis,
         crisisLevel,
+        crisisProbability: crisisClassification.probability,
+        crisisKeywords: crisisClassification.keywords,
+        crisisIsCritical: crisisClassification.isCritical,
       };
 
       // Try to upload to IPFS if user opted in
