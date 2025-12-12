@@ -10,6 +10,7 @@ interface CreateTributeModalProps {
 
 export default function CreateTributeModal({ isOpen, onClose }: CreateTributeModalProps) {
   const [personName, setPersonName] = useState('');
+  const [college, setCollege] = useState('');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const createTribute = useStore((state) => state.createTribute);
@@ -24,9 +25,10 @@ export default function CreateTributeModal({ isOpen, onClose }: CreateTributeMod
     setIsSubmitting(true);
 
     try {
-      const success = createTribute(personName, message);
+      const success = createTribute(personName, message, college);
       if (success) {
         setPersonName('');
+        setCollege('');
         setMessage('');
         onClose();
       }
@@ -38,6 +40,7 @@ export default function CreateTributeModal({ isOpen, onClose }: CreateTributeMod
   const handleClose = () => {
     if (!isSubmitting) {
       setPersonName('');
+      setCollege('');
       setMessage('');
       onClose();
     }
@@ -93,6 +96,22 @@ export default function CreateTributeModal({ isOpen, onClose }: CreateTributeMod
                   <p className="text-xs text-gray-500 mt-1">
                     {personName.length}/100 characters
                   </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    College (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={college}
+                    onChange={(e) => setCollege(e.target.value)}
+                    placeholder="Enter college name..."
+                    maxLength={100}
+                    className="w-full bg-surface border border-white/10 rounded-lg p-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary transition-colors"
+                    disabled={isSubmitting}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">{college.length}/100 characters</p>
                 </div>
 
                 <div>
