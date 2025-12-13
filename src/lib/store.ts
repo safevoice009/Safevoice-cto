@@ -72,6 +72,7 @@ import type { RoutingMetadata } from './routing/types';
 import { runZeroLogAudit as runAudit, haltOperations, unlockSystem as unlockSystemAudit, isSystemLocked } from './audit/ZeroLogAuditor';
 import type { ZeroLogAuditReport } from './audit/ZeroLogAuditor';
 import { TributeService } from './memorial/TributeService';
+import { moderateContent } from './contentModeration';
 
 // Re-export premium types and achievement
 export type { Achievement, PremiumFeatureType, SubscriptionState };
@@ -339,6 +340,25 @@ export interface MemorialTribute {
   honoreeHash?: string;
   expiresAt?: number;
   dateOfRemembrance?: string;
+  
+  // Extended fields (Phase 14 - Memorial Store Extensions)
+  collegeAttribution?: string; // College/university affiliation
+  timelineMetadata?: {
+    lifeStart?: string; // Birth date
+    lifeEnd?: string;   // Death date
+    significantEvents?: Array<{
+      date: string;
+      title: string;
+      description: string;
+    }>;
+  };
+  editVersion: number; // Track number of edits (invalidates signatures when > 0)
+  moderatorNotes?: string; // Internal moderator notes
+  sessionRateLimitState?: {
+    lastAccessAt: number;
+    accessCount: number;
+    sessionStart: number;
+  };
 }
 
 export interface CommunityAnnouncement {
@@ -398,8 +418,8 @@ export interface ChannelMuteStatus {
 export interface ModeratorAction {
   id: string;
   moderatorId: string;
-  actionType: 'blur_post' | 'hide_post' | 'verify_advice' | 'review_report' | 'restore_post' | 'pin_community_post' | 'unpin_community_post' | 'delete_community_post' | 'ban_member' | 'warn_member' | 'mute_channel' | 'create_announcement';
-  targetId: string; // postId, commentId, reportId, memberId, or 'channel'
+  actionType: 'blur_post' | 'hide_post' | 'verify_advice' | 'review_report' | 'restore_post' | 'pin_community_post' | 'unpin_community_post' | 'delete_community_post' | 'ban_member' | 'warn_member' | 'mute_channel' | 'create_announcement' | 'publish_memorial_tribute' | 'reject_memorial_tribute';
+  targetId: string; // postId, commentId, reportId, memberId, tributeId, or 'channel'
   timestamp: number;
   rewardAwarded: boolean;
   metadata?: Record<string, unknown>;
@@ -488,6 +508,38 @@ export interface AlertPreferences {
   mentions: boolean;
   crisisAlerts: boolean;
   dailyDigest: boolean;
+}
+
+// Memorial Wall Session Tracking
+export interface MemorialSessionState {
+  sessionStart: number;
+  lastAccessAt: number;
+  accessCount: number;
+  maxAccessCount: number; // Rate limit per session
+  isActive: boolean;
+}
+
+export interface MemorialWallAccessLog {
+  studentId: string;
+  timestamp: number;
+  action: 'view' | 'search' | 'filter' | 'create_tribute' | 'view_tribute' | 'light_candle';
+  tributeId?: string;
+  searchQuery?: string;
+  filterCriteria?: Record<string, unknown>;
+}
+
+// Tribute Filter and Sort Options
+export interface TributeFilterOptions {
+  status?: TributeStatus[];
+  dateRange?: {
+    start: string;
+    end: string;
+  };
+  creator?: string;
+  hasCosigners?: boolean;
+  searchQuery?: string;
+  sortBy?: 'createdAt' | 'personName' | 'candleCount' | 'cosignerCount';
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface NetworkSecurityState {
@@ -927,7 +979,8 @@ export interface StoreState {
 
   // Memorial Wall
   memorialTributes: MemorialTribute[];
-  createTribute: (personName: string, message: string, dateOfRemembrance?: string) => boolean;
+  memorialSessionState: MemorialSessionState;
+  createTribute: (personName: string, message: string, dateOfRemembrance?: string) => Promise<boolean>;
   lightCandle: (tributeId: string) => void;
   loadMemorialData: () => void;
   
@@ -936,6 +989,14 @@ export interface StoreState {
   finalizeTributeDraft: (tributeId: string) => boolean;
   publishTribute: (tributeId: string, moderatorId: string, reason?: string) => boolean;
   rejectTribute: (tributeId: string, moderatorId: string, reason?: string) => boolean;
+  
+  // Memorial Store Extensions (Phase 14)
+  editTribute: (tributeId: string, updates: Partial<Pick<MemorialTribute, 'personName' | 'message' | 'collegeAttribution' | 'timelineMetadata' | 'moderatorNotes'>>) => Promise<boolean>;
+  updateMemorialSessionAccess: (action: MemorialWallAccessLog['action'], options?: { tributeId?: string; searchQuery?: string; filterCriteria?: Record<string, unknown> }) => void;
+  getFilteredTributes: (filters: TributeFilterOptions) => MemorialTribute[];
+  getSortedTributes: (sortBy: TributeFilterOptions['sortBy'], sortOrder: TributeFilterOptions['sortOrder']) => MemorialTribute[];
+  getMemorialSessionState: () => MemorialSessionState;
+  clearMemorialSession: () => void;
 
   // Referral System
   generateReferralCode: () => string;
@@ -1880,6 +1941,8 @@ const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = 
   warn_member: 'Community member warned',
   mute_channel: 'Channel muted for community safety',
   create_announcement: 'Community announcement created',
+  publish_memorial_tribute: 'Memorial tribute approved for publication',
+  reject_memorial_tribute: 'Memorial tribute rejected, requires revision',
 };
 const VOLUNTEER_MOD_ACTION_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_MODERATOR_ACTIONS = 200;
@@ -2651,6 +2714,31 @@ export const useStore = create<StoreState>((set, get) => {
     emergencyBannerDismissedUntil: getEmergencyBannerDismissedUntil(),
     memorialTributes: [],
     communityEvents: typeof window !== 'undefined' ? readStoredCommunityEvents() : createDefaultCommunityEvents(),
+
+    // Memorial Store Extensions (Phase 14) - Session State
+    memorialSessionState: (typeof window !== 'undefined') ? (() => {
+      const stored = sessionStorage.getItem('safevoice_memorial_session');
+      if (stored) {
+        try {
+          return JSON.parse(stored) as MemorialSessionState;
+        } catch {
+          // fall through to default
+        }
+      }
+      return {
+        sessionStart: Date.now(),
+        lastAccessAt: 0,
+        accessCount: 0,
+        maxAccessCount: 100, // Memorial wall access limit per session
+        isActive: true,
+      };
+    })() : {
+      sessionStart: Date.now(),
+      lastAccessAt: 0,
+      accessCount: 0,
+      maxAccessCount: 100,
+      isActive: true,
+    },
     nftBadges: initialNFTBadges,
 
     // Crisis Queue state
@@ -5956,6 +6044,12 @@ export const useStore = create<StoreState>((set, get) => {
           message: rawTribute.message?.toString() ?? '',
           candles,
           milestoneRewardAwarded: Boolean(rawTribute.milestoneRewardAwarded),
+          // Extended fields with defaults
+          editVersion: rawTribute.editVersion || 0,
+          collegeAttribution: rawTribute.collegeAttribution,
+          timelineMetadata: rawTribute.timelineMetadata,
+          moderatorNotes: rawTribute.moderatorNotes,
+          sessionRateLimitState: rawTribute.sessionRateLimitState,
         } satisfies MemorialTribute;
       });
 
@@ -5966,7 +6060,7 @@ export const useStore = create<StoreState>((set, get) => {
     }
   },
 
-  createTribute: (personName: string, message: string, dateOfRemembrance?: string) => {
+  createTribute: async (personName: string, message: string, dateOfRemembrance?: string) => {
     const currentStudentId = get().studentId;
 
     // Use TributeService to create draft with consensus requirements
@@ -5984,7 +6078,26 @@ export const useStore = create<StoreState>((set, get) => {
 
     const draft = result.draft!;
 
-    // Convert TributeDraft to MemorialTribute
+    // Run content moderation on the tribute message
+    const moderationResult = await moderateContent(message, {
+      userPosts: [], // Could add user's recent posts for spam detection
+    });
+
+    if (!moderationResult.allowed) {
+      toast.error(moderationResult.reason || 'Content failed moderation check');
+      return false;
+    }
+
+    if (moderationResult.issues && moderationResult.issues.length > 0) {
+      const hasHighSeverity = moderationResult.issues.some(issue => issue.severity === 'high');
+      if (hasHighSeverity) {
+        toast.error('Content contains issues that require review. Please revise your tribute.');
+        return false;
+      }
+      toast('Content flagged for review but proceeding...', { icon: '⚠️' });
+    }
+
+    // Convert TributeDraft to MemorialTribute with extended fields
     const newTribute: MemorialTribute = {
       id: draft.id,
       createdBy: draft.creator,
@@ -6006,12 +6119,18 @@ export const useStore = create<StoreState>((set, get) => {
       honoreeHash: draft.honoreeHash,
       expiresAt: draft.expiresAt,
       dateOfRemembrance: draft.dateOfRemembrance,
+      // Extended fields (Phase 14)
+      editVersion: 0,
+      collegeAttribution: currentStudentId.includes('#') ? currentStudentId.split('#')[0] : undefined,
     };
 
     set((state) => ({
       memorialTributes: [newTribute, ...state.memorialTributes],
     }));
     get().saveToLocalStorage();
+
+    // Update session access tracking
+    get().updateMemorialSessionAccess('create_tribute');
 
     // Note: VOICE rewards are only awarded when consensus is reached (after finalize)
     toast.success(`Tribute draft created for ${personName}. Needs 3 cosigners to publish.`);
@@ -6237,6 +6356,14 @@ export const useStore = create<StoreState>((set, get) => {
     set({ memorialTributes: updatedTributes });
     get().saveToLocalStorage();
 
+    // Log moderator action
+    get().recordModeratorAction('publish_memorial_tribute', tributeId, {
+      personName: tribute.personName,
+      reason,
+      cosignerCount: tribute.cosigners?.length || 0,
+      createdBy: tribute.createdBy,
+    });
+
     // Award VOICE tokens now that consensus is reached
     get().earnVoice(
       EARN_RULES.memorialTribute, 
@@ -6302,9 +6429,243 @@ export const useStore = create<StoreState>((set, get) => {
     set({ memorialTributes: updatedTributes });
     get().saveToLocalStorage();
 
+    // Log moderator action
+    get().recordModeratorAction('reject_memorial_tribute', tributeId, {
+      personName: tribute.personName,
+      reason,
+      cosignerCount: tribute.cosigners?.length || 0,
+      createdBy: tribute.createdBy,
+    });
+
     toast(`Tribute rejected${reason ? ': ' + reason : ''}`);
 
     return true;
+  },
+
+  // Memorial Store Extensions (Phase 14)
+  editTribute: async (tributeId: string, updates: Partial<Pick<MemorialTribute, 'personName' | 'message' | 'collegeAttribution' | 'timelineMetadata' | 'moderatorNotes'>>) => {
+    const tribute = get().memorialTributes.find((t) => t.id === tributeId);
+    if (!tribute) {
+      toast.error('Tribute not found');
+      return false;
+    }
+
+    // Only allow editing drafts (not published, rejected, etc.)
+    if (tribute.status && tribute.status !== 'draft') {
+      toast.error('Can only edit tribute drafts');
+      return false;
+    }
+
+    // Run moderation on updated message if provided
+    if (updates.message) {
+      const moderationResult = await moderateContent(updates.message, {
+        userPosts: [], // Could add user's recent posts for spam detection
+      });
+
+      if (!moderationResult.allowed) {
+        toast.error(moderationResult.reason || 'Updated content failed moderation check');
+        return false;
+      }
+
+      if (moderationResult.issues && moderationResult.issues.length > 0) {
+        const hasHighSeverity = moderationResult.issues.some(issue => issue.severity === 'high');
+        if (hasHighSeverity) {
+          toast.error('Updated content contains issues that require review. Please revise your tribute.');
+          return false;
+        }
+        toast('Updated content flagged for review but proceeding...', { icon: '⚠️' });
+      }
+    }
+
+    // Update tribute in store
+    const updatedTributes = get().memorialTributes.map((t) => {
+      if (t.id !== tributeId) return t;
+
+      const updatedTribute = { ...t, ...updates };
+      
+      // Increment edit version and invalidate signatures if content changed
+      if (updates.message || updates.personName) {
+        updatedTribute.editVersion = (t.editVersion || 0) + 1;
+        updatedTribute.cosigners = []; // Clear existing signatures
+        
+        // Add audit trail entry
+        updatedTribute.auditTrail = [
+          ...(updatedTribute.auditTrail || []),
+          {
+            action: 'tribute_edited',
+            timestamp: Date.now(),
+            actor: get().studentId,
+            metadata: {
+              updatedFields: Object.keys(updates),
+              newEditVersion: updatedTribute.editVersion,
+            },
+          },
+        ];
+      }
+
+      return updatedTribute;
+    });
+
+    set({ memorialTributes: updatedTributes });
+    get().saveToLocalStorage();
+
+    toast.success('Tribute updated successfully. New signatures required.');
+    return true;
+  },
+
+  updateMemorialSessionAccess: (action: MemorialWallAccessLog['action'], options?: { tributeId?: string; searchQuery?: string; filterCriteria?: Record<string, unknown> }) => {
+    const currentState = get().memorialSessionState;
+    const now = Date.now();
+    
+    // Check if session has expired (30 minutes)
+    const sessionTimeout = 30 * 60 * 1000;
+    const isSessionExpired = now - currentState.sessionStart > sessionTimeout;
+
+    let newAccessCount = currentState.accessCount;
+    let newSessionStart = currentState.sessionStart;
+
+    if (isSessionExpired) {
+      // Reset session
+      newSessionStart = now;
+      newAccessCount = 0;
+    }
+
+    // Increment access count for certain actions
+    const incrementCountActions: MemorialWallAccessLog['action'][] = ['view', 'search', 'filter', 'view_tribute'];
+    if (incrementCountActions.includes(action)) {
+      newAccessCount += 1;
+    }
+
+    const updatedState: MemorialSessionState = {
+      ...currentState,
+      sessionStart: newSessionStart,
+      lastAccessAt: now,
+      accessCount: newAccessCount,
+      isActive: newAccessCount < currentState.maxAccessCount,
+    };
+
+    set({ memorialSessionState: updatedState });
+    
+    // Persist to sessionStorage
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('safevoice_memorial_session', JSON.stringify(updatedState));
+    }
+
+    // Log the access action if tracking is enabled
+    if (options) {
+      const accessLog: MemorialWallAccessLog = {
+        studentId: get().studentId,
+        timestamp: now,
+        action,
+        ...options,
+      };
+      
+      // Store access log in sessionStorage for analytics
+      const logsKey = 'safevoice_memorial_access_logs';
+      const existingLogs = sessionStorage.getItem(logsKey);
+      const logs = existingLogs ? JSON.parse(existingLogs) : [];
+      logs.push(accessLog);
+      
+      // Keep only last 100 logs per session
+      if (logs.length > 100) {
+        logs.splice(0, logs.length - 100);
+      }
+      
+      sessionStorage.setItem(logsKey, JSON.stringify(logs));
+    }
+
+    // Show warning if approaching rate limit
+    const warningThreshold = Math.floor(updatedState.maxAccessCount * 0.8);
+    if (newAccessCount === warningThreshold) {
+      toast(`Approaching memorial wall access limit (${newAccessCount}/${updatedState.maxAccessCount})`, { icon: '⚠️' });
+    }
+
+    // Block access if rate limit exceeded
+    if (newAccessCount >= updatedState.maxAccessCount && updatedState.isActive) {
+      toast.error('Memorial wall access limit reached for this session. Please refresh to continue.');
+    }
+  },
+
+  getFilteredTributes: (filters: TributeFilterOptions) => {
+    let tributes = get().memorialTributes;
+
+    // Filter by status
+    if (filters.status && filters.status.length > 0) {
+      tributes = tributes.filter(t => t.status && filters.status!.includes(t.status));
+    }
+
+    // Filter by creator
+    if (filters.creator) {
+      tributes = tributes.filter(t => t.createdBy === filters.creator);
+    }
+
+    // Filter by cosigners
+    if (filters.hasCosigners !== undefined) {
+      tributes = tributes.filter(t => 
+        filters.hasCosigners ? (t.cosigners && t.cosigners.length > 0) : (!t.cosigners || t.cosigners.length === 0)
+      );
+    }
+
+    // Filter by date range
+    if (filters.dateRange) {
+      const startDate = new Date(filters.dateRange.start).getTime();
+      const endDate = new Date(filters.dateRange.end).getTime();
+      tributes = tributes.filter(t => {
+        const tributeDate = t.dateOfRemembrance ? new Date(t.dateOfRemembrance).getTime() : t.createdAt;
+        return tributeDate >= startDate && tributeDate <= endDate;
+      });
+    }
+
+    // Search query
+    if (filters.searchQuery) {
+      const query = filters.searchQuery.toLowerCase();
+      tributes = tributes.filter(t => 
+        t.personName.toLowerCase().includes(query) ||
+        t.message.toLowerCase().includes(query)
+      );
+    }
+
+    return tributes;
+  },
+
+  getSortedTributes: (sortBy: TributeFilterOptions['sortBy'], sortOrder: TributeFilterOptions['sortOrder'] = 'desc') => {
+    const tributes = [...get().memorialTributes];
+
+    const sortFunctions: Record<string, (a: MemorialTribute, b: MemorialTribute) => number> = {
+      createdAt: (a, b) => a.createdAt - b.createdAt,
+      personName: (a, b) => a.personName.localeCompare(b.personName),
+      candleCount: (a, b) => a.candles.length - b.candles.length,
+      cosignerCount: (a, b) => (a.cosigners?.length || 0) - (b.cosigners?.length || 0),
+    };
+
+    const sortFunction = sortFunctions[sortBy || 'createdAt'];
+    if (!sortFunction) {
+      return tributes;
+    }
+
+    const sorted = tributes.sort(sortFunction);
+    return sortOrder === 'asc' ? sorted : sorted.reverse();
+  },
+
+  getMemorialSessionState: () => {
+    return get().memorialSessionState;
+  },
+
+  clearMemorialSession: () => {
+    const clearedState: MemorialSessionState = {
+      sessionStart: Date.now(),
+      lastAccessAt: 0,
+      accessCount: 0,
+      maxAccessCount: 100,
+      isActive: true,
+    };
+
+    set({ memorialSessionState: clearedState });
+    
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('safevoice_memorial_session');
+      sessionStorage.removeItem('safevoice_memorial_access_logs');
+    }
   },
 
   joinCommunity: (communityId: string) => {

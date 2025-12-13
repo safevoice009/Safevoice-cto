@@ -746,6 +746,7 @@ describe('Community rewards - memorial tributes and candles', () => {
           message: 'Forever in our hearts',
           candles: [],
           milestoneRewardAwarded: false,
+          editVersion: 0,
         },
       ],
     });
@@ -791,6 +792,7 @@ describe('Community rewards - memorial tributes and candles', () => {
           message: 'Testing milestone',
           candles: existingCandles,
           milestoneRewardAwarded: false,
+          editVersion: 0,
         },
       ],
     });
@@ -840,6 +842,7 @@ describe('Community rewards - memorial tributes and candles', () => {
           message: 'Already hit milestone',
           candles: existingCandles,
           milestoneRewardAwarded: true,
+          editVersion: 0,
         },
       ],
     });
