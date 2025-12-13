@@ -339,6 +339,7 @@ export interface MemorialTribute {
   honoreeHash?: string;
   expiresAt?: number;
   dateOfRemembrance?: string;
+  college?: string;
 }
 
 export interface CommunityAnnouncement {
@@ -927,7 +928,7 @@ export interface StoreState {
 
   // Memorial Wall
   memorialTributes: MemorialTribute[];
-  createTribute: (personName: string, message: string, dateOfRemembrance?: string) => boolean;
+  createTribute: (personName: string, message: string, dateOfRemembrance?: string, college?: string) => boolean;
   lightCandle: (tributeId: string) => void;
   loadMemorialData: () => void;
   
@@ -5966,7 +5967,7 @@ export const useStore = create<StoreState>((set, get) => {
     }
   },
 
-  createTribute: (personName: string, message: string, dateOfRemembrance?: string) => {
+  createTribute: (personName: string, message: string, dateOfRemembrance?: string, college?: string) => {
     const currentStudentId = get().studentId;
 
     // Use TributeService to create draft with consensus requirements
@@ -5974,7 +5975,8 @@ export const useStore = create<StoreState>((set, get) => {
       currentStudentId,
       personName,
       message,
-      dateOfRemembrance
+      dateOfRemembrance,
+      college
     );
 
     if (!result.success) {
@@ -6006,6 +6008,7 @@ export const useStore = create<StoreState>((set, get) => {
       honoreeHash: draft.honoreeHash,
       expiresAt: draft.expiresAt,
       dateOfRemembrance: draft.dateOfRemembrance,
+      college: draft.college,
     };
 
     set((state) => ({
