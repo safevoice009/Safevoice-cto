@@ -24,7 +24,7 @@ export default function CreateTributeModal({ isOpen, onClose }: CreateTributeMod
     setIsSubmitting(true);
 
     try {
-      const success = createTribute(personName, message);
+      const success = await createTribute(personName, message);
       if (success) {
         setPersonName('');
         setMessage('');
