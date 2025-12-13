@@ -53,6 +53,7 @@ export interface TributeDraft {
   honoree: string; // person being remembered
   message: string;
   dateOfRemembrance?: string; // ISO date string
+  college?: string; // optional college affiliation
   status: TributeStatus;
   cosigners: Cosigner[];
   moderatorDecision?: ModeratorDecision;
@@ -381,6 +382,7 @@ export function createDraft(
     honoree: honoree.trim(),
     message: message.trim(),
     dateOfRemembrance,
+    college: college?.trim(),
     status: 'draft',
     cosigners: [],
     auditTrail: [
