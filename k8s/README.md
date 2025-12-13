@@ -206,7 +206,7 @@ The application exposes a `/health` endpoint for health checks:
 
 ```bash
 # Test health endpoint
-kubectl exec -it deployment/safevoice-frontend -n safevoice -- curl http://localhost/health
+kubectl exec -it deployment/safevoice-frontend -n safevoice -- wget -qO- http://localhost/health
 ```
 
 ## Monitoring Integration
