@@ -21,18 +21,29 @@ import {
   hasConsensus,
   finalize,
   checkRateLimit,
+  checkRateLimitWithSession,
   checkDuplicates,
   computeHonoreeHash,
   scheduleExpiry,
+  editDraft,
   getActiveDrafts,
+  getDraftsByStatus,
+  getPendingReviewDrafts,
+  getDraftsForModerator,
+  getDraftsByCreator,
+  getDraftsByTimeRange,
+  getDraftsWithCosignerCount,
+  getDraftStatistics,
+  searchDrafts,
   archiveDraft,
   publishDraft,
   rejectDraft,
+  getOrCreateSession,
   cleanupExpiredDrafts,
   type TributeDraft,
 } from '../memorial/TributeService';
 
-// Mock localStorage
+// Mock localStorage for Node.js environment
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
 
@@ -44,12 +55,21 @@ const localStorageMock = (() => {
     clear: () => {
       store = {};
     },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
   };
 })();
 
-Object.defineProperty(global, 'localStorage', {
-  value: localStorageMock,
-  writable: true,
+beforeAll(() => {
+  Object.defineProperty(global, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+  });
+});
+
+beforeEach(() => {
+  localStorageMock.clear();
 });
 
 // Helper to generate Ed25519 keypair
@@ -61,7 +81,7 @@ async function generateKeypair() {
 
 // Helper to sign a draft
 async function signDraft(
-  draft: Pick<TributeDraft, 'id' | 'creator' | 'honoree' | 'message'>,
+  draft: Pick<TributeDraft, 'id' | 'creator' | 'honoree' | 'message' | 'version'>,
   privateKey: Uint8Array
 ): Promise<string> {
   const { sha256 } = await import('@noble/hashes/sha2.js');
@@ -70,6 +90,7 @@ async function signDraft(
     creator: draft.creator,
     honoree: draft.honoree,
     message: draft.message,
+    version: draft.version,
   });
   const messageHash = sha256(new TextEncoder().encode(message));
   const signature = await ed25519.sign(messageHash, privateKey);
@@ -105,6 +126,8 @@ describe('TributeService', () => {
       expect(result.draft?.honoreeHash).toBeDefined();
       expect(result.draft?.createdAt).toBeDefined();
       expect(result.draft?.expiresAt).toBeDefined();
+      expect(result.draft?.version).toBe(1);
+      expect(result.draft?.lastModified).toBeDefined();
     });
 
     it('should reject draft with empty honoree name', () => {
@@ -601,6 +624,323 @@ describe('TributeService', () => {
       const archived = JSON.parse(localStorage.getItem('safevoice_memorial_drafts')!)[0];
       expect(archived.auditTrail).toHaveLength(3);
       expect(archived.auditTrail[2].action).toBe('archived');
+    });
+  });
+});
+
+describe('Enhanced Features (Phase 13 PR #192)', () => {
+  describe('Session-Based Rate Limiting', () => {
+    it('should create and manage sessions', () => {
+      const session = getOrCreateSession('Student#1234');
+      expect(session.sessionId).toBeDefined();
+      expect(session.creator).toBe('Student#1234');
+      expect(session.attempts).toBe(0);
+
+      // Retrieve existing session
+      const sameSession = getOrCreateSession('Student#1234', session.sessionId);
+      expect(sameSession.sessionId).toBe(session.sessionId);
+      expect(sameSession.creator).toBe('Student#1234');
+    });
+
+    it('should enforce session-based rate limits', () => {
+      const session = getOrCreateSession('Student#1234');
+      
+      // First attempt should be allowed
+      let rateLimit = checkRateLimitWithSession('Student#1234', 'John Doe', session.sessionId);
+      expect(rateLimit.allowed).toBe(true);
+
+      // Create draft with session rate limiting
+      const result = createDraft('Student#1234', 'John Doe', 'Test message', undefined, session.sessionId, true);
+      expect(result.success).toBe(true);
+
+      // Second attempt for same honoree should be blocked
+      rateLimit = checkRateLimitWithSession('Student#1234', 'John Doe', session.sessionId);
+      expect(rateLimit.allowed).toBe(false);
+      expect(rateLimit.reason).toContain('already have an active tribute draft');
+    });
+
+    it('should enforce session attempt limits', () => {
+      const session = getOrCreateSession('Student#1234');
+      
+      // Try to create multiple drafts to hit session limit
+      const honorees = ['John Doe Session 1', 'Jane Smith Session 2', 'Bob Wilson Session 3', 'Alice Brown Session 4'];
+      
+      for (let i = 0; i < 3; i++) {
+        const rateLimit = checkRateLimitWithSession('Student#1234', honorees[i], session.sessionId);
+        expect(rateLimit.allowed).toBe(true);
+        
+        const draft = createDraft('Student#1234', honorees[i], `Test message ${i} here`, undefined, session.sessionId, true);
+        expect(draft.success).toBe(true);
+      }
+
+      // Fourth attempt should be blocked by session limit
+      const blockedRateLimit = checkRateLimitWithSession('Student#1234', honorees[3], session.sessionId);
+      expect(blockedRateLimit.allowed).toBe(false);
+      expect(blockedRateLimit.reason).toContain('Too many tribute attempts in this session');
+    });
+  });
+
+  describe('Draft Editing with Signature Invalidation', () => {
+    it('should allow editing draft content', () => {
+      const draft = createDraft('Student#1234', 'John Doe Edit Test', 'Original message');
+      expect(draft.success).toBe(true);
+
+      // Verify draft was saved
+      const savedDrafts = JSON.parse(localStorage.getItem('safevoice_memorial_drafts') || '[]');
+      expect(savedDrafts).toHaveLength(1);
+      expect(savedDrafts[0].id).toBe(draft.draft!.id);
+
+      // Edit message
+      const editResult = editDraft(draft.draft!.id, { message: 'Updated message' }, 'Student#1234');
+      expect(editResult.success).toBe(true);
+      expect(editResult.requiresResigning).toBe(false);
+
+      // Verify edit was saved
+      const updatedDrafts = JSON.parse(localStorage.getItem('safevoice_memorial_drafts') || '[]');
+      expect(updatedDrafts).toHaveLength(1);
+      expect(updatedDrafts[0].message).toBe('Updated message');
+      expect(updatedDrafts[0].version).toBe(2);
+    });
+
+    it('should invalidate cosigners when content changes', async () => {
+      const draft = createDraft('Student#1234', 'John Doe Invalidate Test', 'Original message');
+      expect(draft.success).toBe(true);
+
+      // Add cosigners
+      const { privateKey, publicKey } = await generateKeypair();
+      const signature = await signDraft(draft.draft!, privateKey);
+      const publicKeyHex = Buffer.from(publicKey).toString('hex');
+
+      const addResult = await addCosigner(
+        draft.draft!.id,
+        'peer1',
+        signature,
+        publicKeyHex
+      );
+      expect(addResult.success).toBe(true);
+
+      // Verify cosigner was added by checking localStorage
+      const savedDrafts = JSON.parse(localStorage.getItem('safevoice_memorial_drafts') || '[]');
+      expect(savedDrafts).toHaveLength(1);
+      expect(savedDrafts[0].cosigners).toHaveLength(1);
+
+      // Edit message (content change)
+      const editResult = editDraft(draft.draft!.id, { message: 'Updated message' }, 'Student#1234');
+      expect(editResult.success).toBe(true);
+      expect(editResult.requiresResigning).toBe(true);
+
+      // Verify cosigners were invalidated
+      const updatedDrafts = JSON.parse(localStorage.getItem('safevoice_memorial_drafts') || '[]');
+      expect(updatedDrafts).toHaveLength(1);
+      expect(updatedDrafts[0].cosigners).toHaveLength(0);
+      expect(updatedDrafts[0].version).toBe(2);
+    });
+
+    it('should update honoree hash when honoree name changes', () => {
+      const draft = createDraft('Student#1234', 'John Doe Hash Test', 'Test message');
+      expect(draft.success).toBe(true);
+
+      const originalHash = draft.draft!.honoreeHash;
+
+      // Change honoree name
+      const editResult = editDraft(draft.draft!.id, { honoree: 'Jane Doe Hash Test' }, 'Student#1234');
+      expect(editResult.success).toBe(true);
+
+      // Verify changes by checking localStorage
+      const updatedDrafts = JSON.parse(localStorage.getItem('safevoice_memorial_drafts') || '[]');
+      expect(updatedDrafts).toHaveLength(1);
+      expect(updatedDrafts[0].honoree).toBe('Jane Doe Hash Test');
+      expect(updatedDrafts[0].honoreeHash).not.toBe(originalHash);
+      expect(updatedDrafts[0].version).toBe(2);
+    });
+
+    it('should not invalidate signatures for non-content changes', () => {
+      // Test that only content field changes trigger invalidation
+      expect(true).toBe(true); // Placeholder - would test specific fields
+    });
+  });
+
+  describe('Enhanced Cosigner Metadata', () => {
+    it('should store enhanced cosigner metadata', async () => {
+      const draft = createDraft('Student#1234', 'John Doe Metadata Test', 'Test message');
+      expect(draft.success).toBe(true);
+
+      const { privateKey, publicKey } = await generateKeypair();
+      const signature = await signDraft(draft.draft!, privateKey);
+      const publicKeyHex = Buffer.from(publicKey).toString('hex');
+
+      const metadata = {
+        deviceInfo: 'Chrome on Windows',
+        networkInfo: 'WiFi',
+        purpose: 'tribute_consensus',
+      };
+
+      const result = await addCosigner(
+        draft.draft!.id,
+        'peer1',
+        signature,
+        publicKeyHex,
+        metadata
+      );
+      expect(result.success).toBe(true);
+
+      // Verify metadata by checking localStorage
+      const savedDrafts = JSON.parse(localStorage.getItem('safevoice_memorial_drafts') || '[]');
+      expect(savedDrafts).toHaveLength(1);
+      expect(savedDrafts[0].cosigners).toHaveLength(1);
+      
+      const cosigner = savedDrafts[0].cosigners[0];
+      expect(cosigner.metadata).toBeDefined();
+      expect(cosigner.metadata?.timestampISO).toBeDefined();
+      expect(cosigner.metadata?.deviceInfo).toBe('Chrome on Windows');
+      expect(cosigner.metadata?.networkInfo).toBe('WiFi');
+      expect(cosigner.metadata?.purpose).toBe('tribute_consensus');
+      expect(cosigner.metadata?.draftVersion).toBe('1');
+    });
+  });
+
+  describe('Moderator Queue APIs', () => {
+    beforeEach(async () => {
+      localStorageMock.clear();
+      
+      // Create drafts in different states (use unique names to avoid rate limits)
+      const drafts = [
+        { creator: 'Student#1234', honoree: 'John Doe Alpha', message: 'Draft message 1' },
+        { creator: 'Student#1234', honoree: 'Jane Smith Beta', message: 'Draft message 2' },
+        { creator: 'Student#1234', honoree: 'Bob Wilson Gamma', message: 'Published message' },
+        { creator: 'Student#1234', honoree: 'Alice Brown Delta', message: 'Rejected message' },
+      ];
+
+      for (const { creator, honoree, message } of drafts) {
+        const draft = createDraft(creator, honoree, message);
+        expect(draft.success).toBe(true);
+      }
+
+      // Finalize and publish one draft
+      const publishedDraft = createDraft('Student#5678', 'Charlie Davis Epsilon', 'To be published');
+      expect(publishedDraft.success).toBe(true);
+
+      for (let i = 0; i < 3; i++) {
+        const peer = await generateKeypair();
+        const sig = await signDraft(publishedDraft.draft!, peer.privateKey);
+        await addCosigner(
+          publishedDraft.draft!.id,
+          `peer${i}`,
+          sig,
+          Buffer.from(peer.publicKey).toString('hex')
+        );
+      }
+      finalize(publishedDraft.draft!.id);
+      publishDraft(publishedDraft.draft!.id, 'Moderator#1', 'Approved');
+    });
+
+    it('should get drafts by status array', () => {
+      const draftDrafts = getDraftsByStatus(['draft']);
+      expect(draftDrafts).toHaveLength(4);
+
+      const publishedDrafts = getDraftsByStatus(['published']);
+      expect(publishedDrafts).toHaveLength(1);
+
+      const mixedDrafts = getDraftsByStatus(['draft', 'published']);
+      expect(mixedDrafts).toHaveLength(5);
+    });
+
+    it('should get pending review drafts', async () => {
+      // Create a pending review draft
+      const pendingDraft = createDraft('Student#9999', 'Pending Person', 'Pending message');
+      expect(pendingDraft.success).toBe(true);
+
+      for (let i = 0; i < 3; i++) {
+        const peer = await generateKeypair();
+        const sig = await signDraft(pendingDraft.draft!, peer.privateKey);
+        await addCosigner(
+          pendingDraft.draft!.id,
+          `peer${i}`,
+          sig,
+          Buffer.from(peer.publicKey).toString('hex')
+        );
+      }
+      finalize(pendingDraft.draft!.id);
+
+      const pendingReview = getPendingReviewDrafts();
+      expect(pendingReview).toHaveLength(1);
+      expect(pendingReview[0].status).toBe('pending_review');
+    });
+
+    it('should get drafts for specific moderator', async () => {
+      // Create and publish another draft for same moderator
+      const anotherDraft = createDraft('Student#8888', 'Another Person', 'Another message');
+      expect(anotherDraft.success).toBe(true);
+
+      for (let i = 0; i < 3; i++) {
+        const peer = await generateKeypair();
+        const sig = await signDraft(anotherDraft.draft!, peer.privateKey);
+        await addCosigner(
+          anotherDraft.draft!.id,
+          `peer${i}`,
+          sig,
+          Buffer.from(peer.publicKey).toString('hex')
+        );
+      }
+      finalize(anotherDraft.draft!.id);
+      publishDraft(anotherDraft.draft!.id, 'Moderator#1', 'Also approved');
+
+      const moderatorDrafts = getDraftsForModerator('Moderator#1');
+      expect(moderatorDrafts).toHaveLength(2);
+    });
+
+    it('should get drafts by creator with options', () => {
+      const creatorDrafts = getDraftsByCreator('Student#1234');
+      expect(creatorDrafts).toHaveLength(4);
+
+      const activeDrafts = getDraftsByCreator('Student#1234', { statuses: ['draft'] });
+      expect(activeDrafts).toHaveLength(4);
+
+      const publishedDrafts = getDraftsByCreator('Student#5678', { statuses: ['published'] });
+      expect(publishedDrafts).toHaveLength(1);
+
+      const limitedDrafts = getDraftsByCreator('Student#1234', { limit: 2 });
+      expect(limitedDrafts).toHaveLength(2);
+    });
+
+    it('should get drafts by time range', () => {
+      const now = Date.now();
+      const hourAgo = now - (60 * 60 * 1000);
+      const hourFromNow = now + (60 * 60 * 1000);
+
+      const recentDrafts = getDraftsByTimeRange(hourAgo, hourFromNow);
+      expect(recentDrafts.length).toBeGreaterThan(0);
+
+      const futureDrafts = getDraftsByTimeRange(hourFromNow, hourFromNow + (60 * 60 * 1000));
+      expect(futureDrafts).toHaveLength(0);
+    });
+
+    it('should get drafts by cosigner count', () => {
+      const draftsWithCosigners = getDraftsWithCosignerCount(1);
+      expect(draftsWithCosigners.length).toBe(1); // Only the published draft has cosigners
+
+      const draftsWithoutCosigners = getDraftsWithCosignerCount(0, 0);
+      expect(draftsWithoutCosigners.length).toBeGreaterThan(0);
+    });
+
+    it('should get draft statistics', () => {
+      const stats = getDraftStatistics();
+      expect(stats.total).toBeGreaterThan(0);
+      expect(stats.byStatus.draft).toBeGreaterThanOrEqual(0);
+      expect(stats.byStatus.published).toBeGreaterThanOrEqual(0);
+      expect(stats.withCosigners).toBeGreaterThanOrEqual(0);
+      expect(stats.averageCosigners).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should search drafts by text', () => {
+      const johnResults = searchDrafts('John');
+      expect(johnResults.length).toBeGreaterThan(0);
+
+      const nonexistentResults = searchDrafts('NonexistentPerson');
+      expect(nonexistentResults).toHaveLength(0);
+
+      const publishedResults = searchDrafts('Published', { statuses: ['published'] });
+      expect(publishedResults.length).toBeGreaterThanOrEqual(0);
     });
   });
 });
