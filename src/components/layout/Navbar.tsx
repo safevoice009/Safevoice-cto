@@ -34,12 +34,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const mobileMenuId = 'mobile-navigation';
   const navLabel = t('nav.primaryNavigation', { defaultValue: 'Primary navigation' });
-  const mobileMenuLabel = t('nav.mobileMenu', { defaultValue: 'Mobile navigation menu' });
-  const toggleMenuLabel = isOpen
-    ? t('nav.closeMenu', { defaultValue: 'Close menu' })
-    : t('nav.openMenu', { defaultValue: 'Open menu' });
 
   useEffect(() => {
     const controlNavbar = () => {

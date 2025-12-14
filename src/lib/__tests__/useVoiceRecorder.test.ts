@@ -12,7 +12,6 @@ import {
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 class MockSpeechRecognition {
   static instances: MockSpeechRecognition[] = [];
   static shouldThrowOnStart = false;

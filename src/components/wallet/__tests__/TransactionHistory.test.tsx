@@ -54,12 +54,6 @@ describe('TransactionHistory component', () => {
 
     render(<TransactionHistory transactions={transactions} showPagination={false} />);
 
-    render(<TransactionHistory transactions={transactions} showPagination={false} />);
-
-    const earnBadges = screen.getAllByText('EARN');
-    const spendBadges = screen.getAllByText('SPEND');
-    const claimBadges = screen.getAllByText('CLAIM');
-
     await waitFor(() => {
       expect(screen.getByText('Date Range')).toBeInTheDocument();
     });

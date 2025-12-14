@@ -24,17 +24,6 @@ import {
   FINGERPRINT_DEFAULTS,
 } from '../privacy/fingerprint';
 import { getCrisisQueueService } from '../crisisQueue';
-import type { CrisisRequest } from '../crisisQueue';
-
-
-type CrisisService = ReturnType<typeof getCrisisQueueService>;
-
-const createMockCrisisService = (
-  requests: CrisisRequest[]
-): Pick<CrisisService, 'isSupabaseAvailable' | 'getSnapshot'> => ({
-  isSupabaseAvailable: vi.fn(() => true),
-  getSnapshot: vi.fn(() => requests),
-});
 
 // Mock localStorage
 const localStorageMock = (() => {

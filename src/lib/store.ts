@@ -1704,7 +1704,9 @@ const sortAndTrimCrisisQueue = (entries: CrisisQueueEntry[]): CrisisQueueEntry[]
   return trimmedUnresolved.concat(resolved.slice(0, remainingSlots));
 };
 
-const readStoredCrisisQueue = (): CrisisQueueEntry[] => {
+// Helper functions for future use - currently kept for API consistency
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _readStoredCrisisQueue = (): CrisisQueueEntry[] => {
   if (typeof window === 'undefined') {
     return [];
   }
@@ -1729,7 +1731,8 @@ const readStoredCrisisQueue = (): CrisisQueueEntry[] => {
   }
 };
 
-const persistCrisisQueue = (entries: CrisisQueueEntry[]): void => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _persistCrisisQueue = (entries: CrisisQueueEntry[]): void => {
   if (typeof window === 'undefined') {
     return;
   }
@@ -1746,7 +1749,8 @@ const persistCrisisQueue = (entries: CrisisQueueEntry[]): void => {
   }
 };
 
-const readStoredCrisisMetrics = (): CrisisBroadcastMetrics => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _readStoredCrisisMetrics = (): CrisisBroadcastMetrics => {
   if (typeof window === 'undefined') {
     return { ...DEFAULT_CRISIS_BROADCAST_METRICS };
   }
@@ -1786,7 +1790,8 @@ const readStoredCrisisMetrics = (): CrisisBroadcastMetrics => {
   }
 };
 
-const persistCrisisMetrics = (metrics: CrisisBroadcastMetrics): void => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _persistCrisisMetrics = (metrics: CrisisBroadcastMetrics): void => {
   if (typeof window === 'undefined') {
     return;
   }
@@ -1807,7 +1812,7 @@ interface CrisisBroadcastResult {
   fallbackReason?: string | null;
 }
 
-const broadcastCrisisEntry = async (entry: CrisisQueueEntry): Promise<CrisisBroadcastResult> => {
+const _broadcastCrisisEntry = async (entry: CrisisQueueEntry): Promise<CrisisBroadcastResult> => {
   if (typeof window === 'undefined') {
     return { success: false, error: 'Broadcast unavailable in this environment' };
   }
