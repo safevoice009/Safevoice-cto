@@ -1812,6 +1812,7 @@ interface CrisisBroadcastResult {
   fallbackReason?: string | null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _broadcastCrisisEntry = async (entry: CrisisQueueEntry): Promise<CrisisBroadcastResult> => {
   if (typeof window === 'undefined') {
     return { success: false, error: 'Broadcast unavailable in this environment' };
