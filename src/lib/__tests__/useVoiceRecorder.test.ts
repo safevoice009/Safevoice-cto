@@ -10,8 +10,8 @@ import {
 } from 'vitest';
 
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
 class MockSpeechRecognition {
   static instances: MockSpeechRecognition[] = [];
   static shouldThrowOnStart = false;
@@ -677,6 +677,7 @@ describe('useVoiceRecorder', () => {
 
     await startPromise;
 
-    expect(abortSignal?.aborted).toBe(true);
+    expect(abortSignal).not.toBeNull();
+    expect(abortSignal!.aborted).toBe(true);
   });
 });

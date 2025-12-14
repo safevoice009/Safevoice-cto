@@ -207,6 +207,96 @@ export default function PostCard({ post }: PostCardProps) {
     return () => window.clearInterval(interval);
   }, [post.highlightedUntil, post.crossCampusUntil]);
 
+  const canExtend = useMemo(() => {
+    if (!isOwnPost || !post.expiresAt || !timeRemainingMs) return false;
+    if (timeRemainingMs <= 0) return false;
+    return timeRemainingMs <= 6 * 60 * 60 * 1000;
+  }, [isOwnPost, post.expiresAt, timeRemainingMs]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (post.isEncrypted && post.encryptionMeta) {
+      const key = getEncryptionKey(post.encryptionMeta.keyId);
+      if (!key) {
+        setIsDecrypting(false);
+        setDecryptError(true);
+        return;
+      }
+
+      setIsDecrypting(true);
+      decryptContent(post.content, post.encryptionMeta.iv, key)
+        .then((decoded) => {
+          if (!isMounted) return;
+          setDecryptedContent(decoded);
+          setEditContent(decoded);
+          setDecryptError(false);
+        })
+        .catch(() => {
+          if (!isMounted) return;
+          setDecryptError(true);
+          setDecryptedContent('');
+        })
+        .finally(() => {
+          if (!isMounted) return;
+          setIsDecrypting(false);
+        });
+    } else {
+      setDecryptedContent(post.content);
+      setEditContent(post.content);
+      setIsDecrypting(false);
+      setDecryptError(false);
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [post.content, post.encryptionMeta, post.id, post.isEncrypted, getEncryptionKey]);
+
+  useEffect(() => {
+    const updateTimer = () => {
+      if (!post.expiresAt) {
+        setTimeLabel(null);
+        setTimerColor(getTimerColor(null));
+        setTimeRemainingMs(null);
+        return;
+      }
+
+      const remaining = post.expiresAt - Date.now();
+      setTimeRemainingMs(remaining);
+      setTimeLabel(formatTimeRemaining(post.expiresAt));
+      setTimerColor(getTimerColor(post.expiresAt));
+    };
+
+    updateTimer();
+
+    if (!post.expiresAt) return;
+
+    const interval = window.setInterval(updateTimer, 60000);
+    return () => window.clearInterval(interval);
+  }, [post.expiresAt]);
+
+  useEffect(() => {
+    const updateBoostTimers = () => {
+      if (post.highlightedUntil) {
+        setHighlightLabel(formatTimeRemaining(post.highlightedUntil));
+      } else {
+        setHighlightLabel(null);
+      }
+
+      if (post.crossCampusUntil) {
+        setCrossCampusLabel(formatTimeRemaining(post.crossCampusUntil));
+      } else {
+        setCrossCampusLabel(null);
+      }
+    };
+
+    updateBoostTimers();
+
+    const interval = window.setInterval(updateBoostTimers, 60000);
+    return () => window.clearInterval(interval);
+  }, [post.highlightedUntil, post.crossCampusUntil]);
+
   const handleShare = () => {
     setShowShareMenu(!showShareMenu);
   };
@@ -411,6 +501,33 @@ export default function PostCard({ post }: PostCardProps) {
             <div className="flex items-center space-x-1 text-xs text-orange-400 bg-orange-500/20 px-2 py-1 rounded-full">
               <Pin className="w-3 h-3" />
               <span>Community</span>
+            </div>
+          )}
+
+          {isHighlighted && (
+            <div className="flex items-center space-x-1 text-xs text-yellow-300 bg-yellow-500/20 px-2 py-1 rounded-full">
+              <Sparkles className="w-3 h-3" />
+              <span>Highlighted</span>
+              {highlightLabel && highlightLabel !== 'Expired' && (
+                <span className="text-xs opacity-75">({highlightLabel} left)</span>
+              )}
+            </div>
+          )}
+
+          {crossCampusActive && (
+            <div className="flex items-center space-x-1 text-xs text-blue-300 bg-blue-500/20 px-2 py-1 rounded-full">
+              <Zap className="w-3 h-3" />
+              <span>Cross-Campus</span>
+              {crossCampusLabel && crossCampusLabel !== 'Expired' && (
+                <span className="text-xs opacity-75">({crossCampusLabel} left)</span>
+              )}
+            </div>
+          )}
+
+          {extendedHours > 0 && (
+            <div className="flex items-center space-x-1 text-xs text-green-300 bg-green-500/20 px-2 py-1 rounded-full">
+              <Clock className="w-3 h-3" />
+              <span>+{extendedHours}h</span>
             </div>
           )}
 

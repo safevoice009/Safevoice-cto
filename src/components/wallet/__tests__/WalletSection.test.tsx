@@ -494,6 +494,171 @@ describe('WalletSection - Error States', () => {
     setupStore({ walletLoading: true });
     renderWalletSection();
 
+    const button = screen.getByRole('button', { name: /connect wallet to claim/i });
+    expect(button).toBeDisabled();
+  });
+
+  it('shows claiming state during claim operation', async () => {
+    renderWalletSection();
+
+    expect(screen.getAllByText('Network issue').length).toBeGreaterThan(0);
+  });
+
+  it('displays error in claim section', () => {
+    setupStore({ walletError: 'Connection timeout' });
+    renderWalletSection();
+
+    expect(screen.getAllByText('Connection timeout').length).toBeGreaterThan(0);
+  });
+
+  it('shows error when both local and wallet errors exist', () => {
+    setupStore({ walletError: 'Wallet error' });
+    renderWalletSection();
+
+    expect(screen.getAllByText('Wallet error').length).toBeGreaterThan(0);
+  });
+
+  it('displays transaction error when present', () => {
+    setupStore({
+      walletError: 'Failed to load transactions',
+      transactionHistory: [
+        {
+          id: 'earn-1',
+          type: 'earn',
+          amount: 25,
+          reason: 'Post reward',
+          reasonCode: 'posts',
+          metadata: {},
+          timestamp: Date.now(),
+          balance: 180,
+          pending: 45,
+        },
+      ],
+    });
+    renderWalletSection();
+
+    expect(screen.getAllByText('Failed to load transactions').length).toBeGreaterThan(0);
+  });
+});
+
+describe('WalletSection - Copy Address Functionality', () => {
+  it('copies address to clipboard on button click', async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    });
+
+    renderWalletSection();
+
+    const addressRow = screen.getByText(/0x1234...5678/).closest('div');
+    expect(addressRow).not.toBeNull();
+
+    const copyButton = within(addressRow as HTMLElement).getByRole('button');
+    fireEvent.click(copyButton);
+
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith('0x1234567890abcdef1234567890abcdef12345678');
+    });
+  });
+});
+
+describe('WalletSection - Quick Actions', () => {
+  it('renders disabled quick action buttons', () => {
+    renderWalletSection();
+
+    expect(screen.getByText('Send VOICE')).toBeInTheDocument();
+    expect(screen.getByText('View Staking')).toBeInTheDocument();
+
+    const sendButton = screen.getByText('Send VOICE').closest('button');
+    const viewStakingButton = screen.getByText('View Staking').closest('button');
+
+    expect(sendButton).toBeDisabled();
+    expect(viewStakingButton).not.toBeDisabled();
+  });
+
+  it('handles claim error correctly', async () => {
+    const errorClaimStub = vi.fn(async () => {
+      throw new Error('Network error');
+    });
+
+    setupStore({ claimRewards: errorClaimStub });
+    renderWalletSection();
+
+    const button = screen.getByRole('button', { name: /claim rewards/i });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(errorClaimStub).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(screen.getByText('Network error')).toBeInTheDocument();
+    });
+  });
+
+  it('disables claim button during loading', () => {
+    setupStore({ walletLoading: true });
+    renderWalletSection();
+
+    const button = screen.getByRole('button', { name: /syncing wallet/i });
+    expect(button).toBeDisabled();
+  });
+});
+
+describe('WalletSection - Animated Counters', () => {
+  it('displays animated counter values for all balance cards', () => {
+    renderWalletSection();
+
+    const totalEarnedCard = screen.getAllByText('360.0 VOICE');
+    expect(totalEarnedCard.length).toBeGreaterThan(0);
+
+    const pendingCard = screen.getAllByText('45.0 VOICE');
+    expect(pendingCard.length).toBeGreaterThan(0);
+
+    const claimedCard = screen.getAllByText('220.0 VOICE');
+    expect(claimedCard.length).toBeGreaterThan(0);
+  });
+
+  it('animates counter updates when values change', async () => {
+    const { rerender } = renderWalletSection();
+
+    expect(screen.getAllByText('45.0 VOICE').length).toBeGreaterThan(0);
+
+    act(() => {
+      useStore.setState({ pendingRewards: 100 });
+    });
+
+    rerender(
+      <MemoryRouter>
+        <WalletSection />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText('100.0 VOICE').length).toBeGreaterThan(0);
+    });
+  });
+
+  it('handles zero values in animated counters', () => {
+    setupStore({
+      voiceBalance: 0,
+      pendingRewards: 0,
+      totalRewardsEarned: 0,
+      claimedRewards: 0,
+      spentRewards: 0,
+      availableBalance: 0,
+    });
+    renderWalletSection();
+
+    const zeroValues = screen.getAllByText('0.0 VOICE');
+    expect(zeroValues.length).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe('WalletSection - Error States', () => {
+  it('shows syncing state when wallet loading', () => {
+    setupStore({ walletLoading: true });
+    renderWalletSection();
+
     expect(screen.getByText(/syncing wallet/i)).toBeInTheDocument();
     const button = screen.getByRole('button', { name: /syncing wallet/i });
     expect(button).toBeDisabled();

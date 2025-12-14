@@ -20,6 +20,7 @@ import PostDetail from './pages/PostDetail';
 import HelplinesPage from './pages/Helplines';
 import GuidelinesPage from './pages/Guidelines';
 import MemorialWallPage from './pages/MemorialWall';
+import PrivacyEducationPage from './pages/PrivacyEducation';
 import TokenMarketplace from './pages/TokenMarketplace';
 import LeaderboardPage from './pages/Leaderboard';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
@@ -31,6 +32,7 @@ import AdminPanel from './pages/AdminPanel';
 import AppearanceSettings from './components/settings/AppearanceSettingsPage';
 import ResponsiveLayout from './components/responsive/ResponsiveLayout';
 import CrisisAlertModal from './components/crisis/CrisisAlertModal';
+import PrivacyOnboardingModal from './components/privacy/PrivacyOnboardingModal';
 import AchievementToastContainer from './components/wallet/AchievementToastContainer';
 import { useStore } from './lib/store';
 import PostLifecycleManager from './lib/postLifecycleManager';
@@ -230,6 +232,54 @@ function AnimatedRoutes() {
     setPendingPost(null);
   };
 
+  useEffect(() => {
+    loadWalletData();
+    grantDailyLoginBonus();
+  }, [loadWalletData, grantDailyLoginBonus]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    lifecycleManagerRef.current = new PostLifecycleManager(useStore);
+    lifecycleManagerRef.current.start();
+
+    return () => {
+      lifecycleManagerRef.current?.stop();
+    };
+  }, []);
+
+  const handleCrisisAcknowledge = (action: 'call_helpline' | 'continue') => {
+    if (action === 'call_helpline') {
+      toast.success(t('crisis.thankYou'));
+    }
+
+    if (pendingPost && pendingPost.moderationData) {
+      addPost(
+        pendingPost.content,
+        pendingPost.category,
+        pendingPost.lifetime,
+        pendingPost.customLifetimeHours || undefined,
+        pendingPost.isEncrypted,
+        pendingPost.encryptionData,
+        pendingPost.moderationData,
+        pendingPost.imageUrl,
+        pendingPost.communityId
+          ? {
+              communityId: pendingPost.communityId ?? undefined,
+              channelId: pendingPost.channelId ?? undefined,
+              visibility: pendingPost.visibility,
+              isAnonymous: pendingPost.isAnonymous,
+            }
+          : undefined,
+        pendingPost.emotionAnalysis ?? null,
+        pendingPost.ipfsCid ?? undefined
+      );
+    }
+
+    setShowCrisisModal(false);
+    setPendingPost(null);
+  };
+
   return (
     <>
       <SkipLink targetId="main-content" />
@@ -256,6 +306,7 @@ function AnimatedRoutes() {
             <Route path="/mentors" element={<MentorDashboard />} />
             <Route path="/helplines" element={<HelplinesPage />} />
             <Route path="/guidelines" element={<GuidelinesPage />} />
+            <Route path="/privacy" element={<PrivacyEducationPage />} />
             <Route path="/memorial" element={<MemorialWallPage />} />
             <Route path="/marketplace" element={<TokenMarketplace />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
@@ -270,6 +321,7 @@ function AnimatedRoutes() {
           isOpen={showCrisisModal}
           onAcknowledge={handleCrisisAcknowledge}
         />
+        <PrivacyOnboardingModal />
       </ResponsiveLayout>
     </>
   );

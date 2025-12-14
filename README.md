@@ -5,19 +5,23 @@
 ## 🚀 Features
 
 - **100% Anonymous** - No login, no tracking. Your identity stays completely private.
+- **Anonymous Post Feed** - Share your story anonymously with emoji reactions and comments.
 - **24/7 Crisis Support** - Instant access to verified helplines and mental health resources.
 - **Community Spaces** - Connect with fellow students anonymously. Share experiences safely.
 - **Safe Whistleblowing** - Expose institutional corruption. Your voice, their accountability.
+- **Post Lifetime Control** - Set custom expiration times for your posts (1 hour to 30 days or never).
+- **Image Support** - Attach images to your stories (up to 5MB).
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React 18 + TypeScript
+- **Frontend**: React 19 + TypeScript
 - **Styling**: TailwindCSS v3
 - **Animations**: Framer Motion
 - **Routing**: React Router v6
 - **State Management**: Zustand
 - **Icons**: Lucide React
 - **Notifications**: React Hot Toast
+- **Virtual Scrolling**: TanStack Virtual
 - **Deployment**: GitHub Pages
 
 ## 📦 Installation
@@ -221,6 +225,32 @@ For comprehensive guides and technical details:
 ### Safety & Privacy
 
 SafeVoice is built with zero-tracking guarantees and hardened privacy defaults:
+
+- ✅ **Analytics policy: none by default** – No Google Analytics, Meta Pixel, or telemetry. Future analytics (if ever introduced) must be opt-in and privacy-preserving.
+- ✅ **Local-first storage** – All state lives in your browser. No backend databases or remote logs.
+- ✅ **Cookie-free experience** – Cookies are programmatically blocked; encrypted localStorage powers persistence.
+- ✅ **Strict network allowlist** – Outbound requests are limited to SafeVoice and web3 RPC endpoints only.
+- ✅ **WebRTC protections** – RTCPeerConnection is shimmed to relay-only to prevent local IP leaks.
+- ✅ **Fingerprinting defenses** – Automated tests block canvas/audio/device fingerprinting patterns.
+- ✅ **End-to-end encryption** – Optional AES-GCM-256 for sensitive posts and direct support messages.
+- ✅ **Safety tooling** – Automated moderation, crisis detection, and transparent reporting remain active without tracking users.
+
+#### Privacy Middleware
+- `initializePrivacyProtections()` runs before React mounts, enforcing cookie blocking, localStorage sanitization, and WebRTC IP leak mitigation.
+- `privacyFetch` wraps every fetch call, strips cookies/credentials, enforces HTTPS (with localhost exceptions), and blocks domains outside a strict allowlist.
+- A storage whitelist removes any unexpected keys (e.g., `_ga`, `tracking_id`) on startup.
+
+#### Security Headers & Frontend Hardening
+- **Content Security Policy**: `default-src 'self'` with explicit `connect-src` overrides for approved RPC providers.
+- **Strict-Transport-Security**: Enforces HTTPS for one year with subdomain coverage.
+- **Referrer-Policy**: `no-referrer` ensures no navigation metadata leaks.
+- **Permissions-Policy**: Sensitive APIs (camera, mic, geolocation, etc.) are disabled by default.
+- **X-Frame-Options & X-Content-Type-Options**: Protect against clickjacking and MIME sniffing.
+- **Subresource Integrity metadata**: Documented in `index.html` to require hashed assets for any future third-party resources.
+
+#### Privacy Testing & Audits
+- Run automated privacy checks with `npm run test:privacy` (existing suite) and unit coverage in `src/lib/__tests__/privacyMiddleware.test.ts`.
+- Manual review steps are documented in [Privacy Audit Checklist](./docs/PRIVACY_AUDIT_CHECKLIST.md), including browser extension tooling and remediation tips.
 
 - ✅ **Analytics policy: none by default** – No Google Analytics, Meta Pixel, or telemetry. Future analytics (if ever introduced) must be opt-in and privacy-preserving.
 - ✅ **Local-first storage** – All state lives in your browser. No backend databases or remote logs.
@@ -454,6 +484,154 @@ npm run security:gas
 - [Container Guide](./docs/devops/CONTAINERS.md) - Docker setup, build process, and deployment
 - [Kubernetes Deployment](./k8s/README.md) - K8s manifests and deployment instructions
 - [Scaling Playbook](./docs/devops/SCALING_PLAYBOOK.md) - CDN configuration and database scaling strategies
+
+### Community System
+- [Communities User Guide](./docs/COMMUNITIES_USER_GUIDE.md) - Step-by-step instructions for students
+- [Community Moderation Guide](./docs/COMMUNITY_MODERATION_GUIDE.md) - Policies and workflows for moderators
+- [Communities Technical Overview](./docs/COMMUNITIES_TECH_OVERVIEW.md) - Developer reference for data models, store actions, and APIs
+- [Communities QA Checklist](./docs/COMMUNITIES_QA_CHECKLIST.md) - Manual testing scenarios for end-to-end validation
+
+### Privacy & Security
+- [Privacy Configuration Guide](./docs/PRIVACY_CONFIGURATION.md) - Deep dive into middleware, security headers, and testing
+- [Privacy Audit Checklist](./docs/PRIVACY_AUDIT_CHECKLIST.md) - Manual audit procedures and tooling
+
+### Token Economics & Rewards
+- [Reward Engine](./REWARD_ENGINE_DOCS.md) - Complete reward system documentation
+- [Staking & Governance](./STAKING_GOVERNANCE_DOCS.md) - Staking and on-chain governance guide
+- [NFT Rewards](./docs/NFT_REWARDS_DOCS.md) - Achievement NFT system documentation
+
+### Web3 Integration
+- [Web3 Bridge](./docs/WEB3_BRIDGE_DOCS.md) - **NEW!** Reward Engine ↔ blockchain integration
+- [Web3 Deployment Guide](./docs/web3-deployment.md) - Security best practices and deployment procedures
+
+### Smart Contract Reference
+- [VoiceToken API](./docs/VOICE_TOKEN_API.md) - Complete VoiceToken contract reference
+- [Vesting Module](./docs/VESTING_MODULE.md) - Full VoiceVesting documentation with examples
+- [Vesting Quick Start](./docs/VESTING_QUICK_START.md) - Quick reference for common operations
+
+### Achievement NFTs (ERC1155)
+
+Milestone achievements and community recognitions are minted through the on-chain [`VoiceAchievementNFT`](./contracts/src/VoiceAchievementNFT.sol) contract. The collection is designed for large-scale reward drops while supporting unique badges and soulbound tiers.
+
+Key capabilities:
+- **Role-Gated Minting** – RewardEngine and bridge adapters operate behind dedicated MINTER and BRIDGE roles
+- **Soulbound Achievements** – Legendary tiers can be locked to wallets while everyday badges remain transferable
+- **Metadata Flexibility** – Hierarchical base URIs with per-chain overrides and token-specific IPFS links
+- **Bridge Hooks** – `bridgeTransfer`/`bridgeReceive` enable cross-chain portability for non-soulbound tiers
+- **Batch Operations** – `mintBatch` and `airdrop` keep gas costs low for large cohorts
+
+Frontend teams can hydrate achievement tiles by calling `uri(tokenId)` and `balanceOfBatch`, then fetching the returned JSON metadata. A full integration cookbook, including tier taxonomy, sample UI components, and notification flows, lives in [docs/NFT_REWARDS_DOCS.md](./docs/NFT_REWARDS_DOCS.md).
+
+## 🔒 Web3 Security & Deployment
+
+### Security Documentation
+
+SafeVoice implements comprehensive security practices and operational procedures:
+
+- **[Web3 Deployment Playbook](./docs/web3-deployment.md)** - Complete deployment guide with security best practices, contract verification, key management, and rollback strategies
+- **[Gas Management Runbook](./docs/runbook-gas-management.md)** - Procedures for handling high gas fees, optimizing costs, and managing user expectations
+- **[Chain Outages Runbook](./docs/runbook-chain-outages.md)** - Response procedures for RPC failures, network halts, and chain reorganizations
+- **[Contract Upgrades Runbook](./docs/runbook-contract-upgrades.md)** - Safe upgrade procedures for proxy patterns and new contract deployments
+- **[Security Incidents Runbook](./docs/runbook-security-incidents.md)** - Incident response procedures, detection, containment, and recovery
+
+### Automated Security Checks
+
+The project includes automated security tooling in CI/CD:
+
+- **NPM Audit** - Daily dependency vulnerability scanning
+- **ESLint Security** - Code quality and security pattern enforcement
+- **Test Coverage** - 80% coverage threshold enforced via Vitest
+- **TypeScript Safety** - Strict type checking across the codebase
+- **Web3 Security Patterns** - Validation of address handling, sanitization, and error handling
+- **Slither Analysis** - Static analysis for smart contracts (when present)
+- **Environment Validation** - Secrets detection and configuration checks
+
+Run security checks locally:
+```bash
+npm run lint                # ESLint checks
+npm run test:coverage       # Tests with coverage thresholds
+npm audit                   # Dependency vulnerability scan
+```
+
+### Environment Setup
+
+Create a `.env` file for local development:
+```bash
+# Required: WalletConnect Project ID
+VITE_WALLETCONNECT_PROJECT_ID=your_project_id
+
+# Web3 bridge configuration (optional)
+VITE_WEB3_ENABLED=false
+VITE_CHAIN_ID=31337
+VITE_BRIDGE_SOURCE_CHAIN_ID=0
+VITE_POLLING_INTERVAL=5000
+
+# Optional: Custom RPC endpoints (falls back to public RPCs)
+VITE_RPC_MAINNET=https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY
+VITE_RPC_POLYGON=https://polygon-mainnet.g.alchemy.com/v2/YOUR-API-KEY
+VITE_RPC_LOCALHOST=http://127.0.0.1:8545
+
+# Optional: Contract addresses per chain (only needed when enabling web3)
+VITE_LOCALHOST_VOICE_TOKEN=0x5FbDB2315678afecb367f032d93F642f64180aa3
+VITE_LOCALHOST_VOICE_STAKING=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+VITE_LOCALHOST_VOICE_ACHIEVEMENT_NFT=0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+VITE_LOCALHOST_VOICE_GOVERNOR=0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+
+# Application configuration
+VITE_APP_ENV=development
+```
+
+**Security Note**: Never commit `.env` files. Use `.env.local` for sensitive local configuration.
+
+### Testing
+
+```bash
+# Run all tests
+npm test
+
+# Run tests with UI
+npm run test:ui
+
+# Generate coverage report
+npm run test:coverage
+
+# Run tests in watch mode
+npm test -- --watch
+```
+
+**Coverage Thresholds**:
+- Statements: 80%
+- Branches: 70%
+- Functions: 80%
+- Lines: 80%
+
+### Hardhat & Smart Contract Tooling
+
+Smart contract tooling now lives in the `contracts/` workspace and can be driven from the project root:
+
+```bash
+# Compile contracts
+npm run hardhat:compile
+
+# Run Hardhat unit tests
+npm run test:contracts
+
+# Lint Solidity sources with Solhint
+npm run lint:contracts
+
+# Run coverage with threshold enforcement
+npm run coverage:contracts
+
+# Deploy tagged deployments (uses hardhat-deploy)
+npm run deploy:voice
+
+# Run gas benchmarking with thresholds
+npm run security:gas
+```
+
+> **Note:** Hardhat tasks rely on the placeholder `SafeVoiceVault` contract. Replace with production contracts before mainnet deployment and update thresholds accordingly. See [`contracts/README.md`](./contracts/README.md) for a detailed walkthrough of the new setup, environment variables, and deployment instructions.
+
+## 📚 Documentation
 
 ### Community System
 - [Communities User Guide](./docs/COMMUNITIES_USER_GUIDE.md) - Step-by-step instructions for students

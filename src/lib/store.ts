@@ -100,6 +100,16 @@ export interface TipEvent {
   isAnonymous?: boolean;
 }
 
+export type PrivacyOnboardingStep = 1 | 2 | 3;
+
+export interface PrivacyOnboardingState {
+  currentStep: PrivacyOnboardingStep;
+  isCompleted: boolean;
+  isOpen: boolean;
+  snoozedUntil: number | null;
+  startedAt: number | null;
+}
+
 export type PostLifetime = '1h' | '6h' | '24h' | '7d' | '30d' | 'custom' | 'never';
 
 export interface EncryptionMeta {
@@ -172,6 +182,13 @@ export interface Comment {
   crisisSupportRewardAwarded: boolean;
   isVerifiedAdvice: boolean;
   verifiedAdviceRewardAwarded: boolean;
+}
+
+export interface PostModerationIssue {
+  type: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  action: 'support' | 'blur' | 'flag';
+  message: string;
 }
 
 export interface PostModerationIssue {
@@ -339,6 +356,171 @@ export interface MemorialTribute {
   honoreeHash?: string;
   expiresAt?: number;
   dateOfRemembrance?: string;
+  college?: string;
+}
+
+export interface CommunityAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  createdBy: string;
+  createdAt: number;
+  isPinned: boolean;
+  pinnedAt?: number;
+  expiresAt?: number;
+}
+
+export interface CommunityModerationLog {
+  id: string;
+  moderatorId: string;
+  actionType: 'pin_community_post' | 'unpin_community_post' | 'delete_community_post' | 'ban_member' | 'warn_member' | 'mute_channel' | 'create_announcement';
+  targetId: string; // postId, memberId, or 'channel'
+  description: string;
+  timestamp: number;
+  metadata: {
+    reason?: string;
+    duration?: number; // for mute/ban duration in hours
+    targetName?: string; // for member actions
+    communityImpact?: string;
+    action?: string; // for unmute actions
+    title?: string; // for announcements
+    isPinned?: boolean; // for announcements
+    expiresAt?: number; // for announcements
+    [key: string]: unknown; // Allow additional properties
+  };
+}
+
+export interface MemberStatus {
+  studentId: string;
+  isBanned: boolean;
+  bannedAt?: number;
+  bannedUntil?: number;
+  banReason?: string;
+  warnings: Array<{
+    id: string;
+    reason: string;
+    timestamp: number;
+    issuedBy: string;
+  }>;
+  lastWarningAt?: number;
+}
+
+export interface ChannelMuteStatus {
+  isMuted: boolean;
+  mutedBy?: string;
+  mutedAt?: number;
+  mutedUntil?: number;
+  reason?: string;
+}
+
+export interface ModeratorAction {
+  id: string;
+  moderatorId: string;
+  actionType: 'blur_post' | 'hide_post' | 'verify_advice' | 'review_report' | 'restore_post' | 'pin_community_post' | 'unpin_community_post' | 'delete_community_post' | 'ban_member' | 'warn_member' | 'mute_channel' | 'create_announcement';
+  targetId: string; // postId, commentId, reportId, memberId, or 'channel'
+  timestamp: number;
+  rewardAwarded: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export type NFTBadgeTier = 'bronze' | 'silver' | 'gold' | 'lifetime';
+
+export interface NFTBadge {
+  id: string;
+  tier: NFTBadgeTier;
+  purchasedAt: number;
+  purchasedBy: string;
+  cost: number;
+}
+
+export interface CommunityEvent {
+  id: string;
+  title: string;
+  date: string;
+  location: string;
+  description: string;
+  createdBy: string;
+  createdAt: number;
+  rsvps: string[];
+}
+
+export type TrendingTopicType = 'hashtag' | 'category';
+
+export interface TrendingTopic {
+  label: string;
+  count: number;
+  type: TrendingTopicType;
+}
+
+export interface TopContributor {
+  studentId: string;
+  postCount: number;
+  totalReactions: number;
+  totalHelpfulReceived: number;
+  commentCount: number;
+  score: number;
+}
+
+export type PostSortOption = 'relevant' | 'recent' | 'popular';
+
+export interface PostSearchFilters {
+  query?: string;
+  channel?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  hasMedia?: boolean;
+  minReactions?: number;
+  minComments?: number;
+  authorType?: 'any' | 'me' | 'mentor' | 'peer';
+  sort?: PostSortOption;
+}
+
+export interface ZKProofState {
+  artifacts?: ZKProofArtifacts;
+  status: 'pending' | 'success' | 'failed' | 'verified' | 'verification_failed';
+  error?: string;
+  timestamp: number;
+}
+
+export interface PrivacyOnboardingState {
+  isOpen: boolean;
+  currentStep: number;
+  isCompleted: boolean;
+  snoozedUntil: number | null;
+  startedAt: number | null;
+}
+
+export interface TrustedContact {
+  name: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface AlertPreferences {
+  emailOnAlertsEnabled: boolean;
+  pushNotificationsEnabled: boolean;
+  smsAlertsEnabled: boolean;
+  digestFrequency: 'daily' | 'weekly' | 'never';
+  highlightCritical: boolean;
+  messages: boolean;
+  mentions: boolean;
+  crisisAlerts: boolean;
+  dailyDigest: boolean;
+}
+
+export interface NetworkSecurityState {
+  torModeEnabled: boolean;
+  torModeForced: boolean;
+  torModeReason: string | null;
+  onionRouterInitialized: boolean;
+  lastDetection: {
+    profileId: string | null;
+    confidence: number;
+    captivePortal: boolean;
+    timestamp: number;
+    badgeCopy: string;
+  } | null;
+  showInstitutionBadge: boolean;
 }
 
 export interface CommunityAnnouncement {
@@ -675,6 +857,123 @@ export interface StoreState {
   verifyZKProof: (requestId: string, witness: string | Uint8Array) => Promise<ZKProofResult>;
   clearZKProof: (requestId: string) => void;
 
+  // Wallet & Token state
+  connectedAddress: string | null;
+  anonymousWalletAddress: string | null;
+  voiceBalance: number;
+  pendingRewards: number;
+  totalRewardsEarned: number;
+  claimedRewards: number;
+  spentRewards: number;
+  availableBalance: number;
+  pendingRewardBreakdown: PendingRewardEntry[];
+  earningsBreakdown: EarningsBreakdown;
+  transactionHistory: VoiceTransaction[];
+  lastLoginDate: string | null;
+  loginStreak: number;
+  lastPostDate: string | null;
+  postingStreak: number;
+  premiumSubscriptions: SubscriptionState;
+  walletLoading: boolean;
+  walletError: string | null;
+  achievements: Achievement[];
+  achievementProgress: Record<string, { progress: number; total: number; percentage: number }>;
+  currentRank: RankDefinition;
+  nextRank: RankDefinition | null;
+  rankProgressPercentage: number;
+  voiceToNextRank: number;
+
+  selectedChainId: number;
+  chainBalances: Record<number, ChainBalance>;
+  bridgeStatus: BridgeStatus | null;
+  bridgeTransactions: QueuedTransaction[];
+  stakingPositions: StakingPosition[];
+  governanceProposals: GovernanceProposal[];
+  governanceVotingPower: number;
+  nftAchievements: NFTAchievement[];
+
+  firstPostAwarded: boolean;
+
+  referralCode: string;
+  referredByCode: string | null;
+  referredFriends: ReferralFriend[];
+
+  setConnectedAddress: (address: string | null) => void;
+  setAnonymousWallet: (address: string | null) => void;
+  generateAnonymousWallet: (password: string) => Promise<{ address: string; mnemonic: string }>;
+  importAnonymousWallet: (mnemonic: string, password: string) => Promise<{ address: string }>;
+  loadAnonymousWallet: (password: string) => Promise<Wallet | null>;
+  clearAnonymousWallet: () => void;
+
+  earnVoice: (
+    amount: number,
+    reason: string,
+    category?: keyof EarningsBreakdown,
+    metadata?: Record<string, unknown>
+  ) => void;
+  spendVoice: (amount: number, reason: string, metadata?: Record<string, unknown>) => void;
+  claimRewards: () => Promise<void>;
+  loadWalletData: () => void;
+  grantDailyLoginBonus: () => void;
+  checkSubscriptionRenewals: () => void;
+
+  // Web3 Advanced Operations
+  stakeVoiceTokens: (amount: number, lockPeriod: number) => Promise<boolean>;
+  unstakeVoiceTokens: (amount: number) => Promise<boolean>;
+  claimStakingRewards: (stakeId?: number) => Promise<boolean>;
+  castGovernanceVote: (proposalId: number, support: number, reason?: string) => Promise<boolean>;
+  switchWeb3Chain: (chainId: number) => Promise<void>;
+  hydrateDeFiYields: () => Promise<void>;
+  refreshStakingPositions: () => Promise<void>;
+  refreshChainBalances: () => Promise<void>;
+
+  // Premium subscriptions
+  activatePremium: (feature: PremiumFeatureType, cost?: number) => Promise<boolean>;
+  deactivatePremium: (feature: PremiumFeatureType) => Promise<boolean>;
+  isPremiumActive: (feature: PremiumFeatureType) => boolean;
+
+  // Crisis support
+  showCrisisModal: boolean;
+  pendingPost: AddPostPayload | null;
+  setShowCrisisModal: (show: boolean) => void;
+  setPendingPost: (post: AddPostPayload | null) => void;
+
+  // Saved helplines
+  savedHelplines: string[];
+  toggleSaveHelpline: (helplineId: string) => void;
+
+  emergencyBannerDismissedUntil: number | null;
+  dismissEmergencyBanner: () => void;
+  checkEmergencyBannerStatus: () => void;
+
+  // Crisis Queue
+  crisisRequests: CrisisRequest[];
+  crisisAuditLog: CrisisAuditEntry[];
+  crisisSessionExpiresAt: number | null;
+  isCrisisQueueLive: boolean;
+  createCrisisRequest: (crisisLevel: 'high' | 'critical', postId?: string) => Promise<CrisisRequest>;
+  updateCrisisRequest: (requestId: string, updates: Partial<Pick<CrisisRequest, 'status' | 'volunteerId' | 'metadata'>>) => Promise<void>;
+  deleteCrisisRequest: (requestId: string) => Promise<void>;
+  getCrisisRequestById: (requestId: string) => CrisisRequest | undefined;
+  getActiveCrisisRequests: () => CrisisRequest[];
+  subscribeToQueue: () => void;
+  unsubscribeFromQueue: () => void;
+  addCrisisAuditEntry: (entry: Omit<CrisisAuditEntry, 'id' | 'timestamp'>) => void;
+  cleanupExpiredAuditEntries: () => void;
+
+  // Mentor reviews
+  mentorReviews: MentorReview[];
+  submitMentorReview: (matchId: string, mentorId: string, menteeId: string, rating: number, feedback?: string) => void;
+  getMentorReviewSummary: (mentorId: string) => MentorReviewSummary;
+  getMentorReviewsByMatch: (matchId: string) => MentorReview[];
+
+  // ZK Proofs
+  zkProofs: Record<string, ZKProofState>;
+  prepareZKProof: (requestId: string, witness: string | Uint8Array) => Promise<ZKProofResult>;
+  submitZKProof: (requestId: string, witness: string | Uint8Array, additionalData?: string | Uint8Array) => Promise<void>;
+  verifyZKProof: (requestId: string, witness: string | Uint8Array) => Promise<ZKProofResult>;
+  clearZKProof: (requestId: string) => void;
+
   // Initialization
   initStudentId: () => void;
   initializeStore: () => void;
@@ -927,7 +1226,7 @@ export interface StoreState {
 
   // Memorial Wall
   memorialTributes: MemorialTribute[];
-  createTribute: (personName: string, message: string, dateOfRemembrance?: string) => boolean;
+  createTribute: (personName: string, message: string, dateOfRemembrance?: string, college?: string) => boolean;
   lightCandle: (tributeId: string) => void;
   loadMemorialData: () => void;
   
@@ -936,6 +1235,45 @@ export interface StoreState {
   finalizeTributeDraft: (tributeId: string) => boolean;
   publishTribute: (tributeId: string, moderatorId: string, reason?: string) => boolean;
   rejectTribute: (tributeId: string, moderatorId: string, reason?: string) => boolean;
+
+  // Referral System
+  generateReferralCode: () => string;
+  simulateReferralJoin: (code: string, friendName: string) => boolean;
+  markReferralFirstPost: (friendId: string) => boolean;
+  loadReferralData: () => void;
+
+  // Social Spending (tips, gifts, sponsorships)
+  tipUser: (userId: string, postId: string, amount: number) => boolean;
+  sendAnonymousGift: (userId: string, amount: number) => boolean;
+  sponsorHelpline: (amount: number) => boolean;
+
+  // NFT Badges
+  nftBadges: NFTBadge[];
+  purchaseNFTBadge: (tier: NFTBadgeTier, cost: number) => boolean;
+  hasNFTBadge: (tier: NFTBadgeTier) => boolean;
+  loadNFTBadges: () => void;
+
+  // Special Utilities
+  changeStudentId: (newId: string) => boolean;
+  downloadDataBackup: () => void;
+
+  // Achievement & Rank
+  getUserRank: () => RankDefinition;
+  checkAchievements: () => Promise<void>;
+  getAchievementProgress: (achievementId: string) => { progress: number; total: number; percentage: number } | null;
+
+  // Community Discovery
+  getHotPosts: (limit?: number) => Post[];
+  getNewPosts: (limit?: number) => Post[];
+  getMostCommentedPosts: (limit?: number) => Post[];
+  getTrendingTopics: (limit?: number) => TrendingTopic[];
+  getTopContributors: (limit?: number) => TopContributor[];
+  searchPosts: (filters: PostSearchFilters) => Post[];
+
+  // Community Events
+  addCommunityEvent: (title: string, date: string, location: string, description: string) => boolean;
+  toggleEventRsvp: (eventId: string) => void;
+  loadCommunityEvents: () => void;
 
   // Referral System
   generateReferralCode: () => string;
@@ -1250,6 +1588,303 @@ const normalizePost = (post: Partial<Post>): Post | null => {
     isAnonymous: post.isAnonymous,
     archived: post.archived,
     archivedAt: post.archivedAt,
+  };
+};
+
+const CRISIS_QUEUE_STORAGE_VERSION = 1;
+const MAX_CRISIS_QUEUE_ENTRIES = 50;
+
+const DEFAULT_CRISIS_BROADCAST_METRICS: CrisisBroadcastMetrics = {
+  successCount: 0,
+  failureCount: 0,
+  lastSuccessAt: null,
+  lastFailureAt: null,
+  lastSyncAt: null,
+};
+
+type SafevoiceWindow = Window & {
+  safevoice?: {
+    supabase?: {
+      broadcastCrisisUpdate?: (entry: CrisisQueueEntry) => Promise<void>;
+    };
+  };
+};
+
+const isCrisisStatus = (value: unknown): value is CrisisQueueStatus =>
+  value === 'pending' || value === 'broadcasted' || value === 'acknowledged' || value === 'resolved';
+
+const isCrisisSource = (value: unknown): value is CrisisQueueSource =>
+  value === 'automatic' || value === 'report' || value === 'manual';
+
+const sanitizeNullableString = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim().length > 0 ? value : null;
+
+const normalizeCrisisQueueEntry = (raw: Partial<CrisisQueueEntry>): CrisisQueueEntry | null => {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const postId = sanitizeNullableString(raw.postId);
+  if (!postId) {
+    return null;
+  }
+
+  const id = sanitizeNullableString(raw.id) ?? crypto.randomUUID();
+  const authorId = sanitizeNullableString(raw.authorId) ?? 'unknown';
+  const detectedAt =
+    typeof raw.detectedAt === 'number' && Number.isFinite(raw.detectedAt) ? raw.detectedAt : Date.now();
+  const severity: 'high' | 'critical' = raw.severity === 'critical' ? 'critical' : 'high';
+  const status: CrisisQueueStatus = isCrisisStatus(raw.status) ? raw.status : 'pending';
+  const source: CrisisQueueSource = isCrisisSource(raw.source) ? raw.source : 'automatic';
+  const broadcastAttempts =
+    typeof raw.broadcastAttempts === 'number' && Number.isFinite(raw.broadcastAttempts) && raw.broadcastAttempts >= 0
+      ? Math.floor(raw.broadcastAttempts)
+      : 0;
+  const lastBroadcastAt =
+    typeof raw.lastBroadcastAt === 'number' && Number.isFinite(raw.lastBroadcastAt) ? raw.lastBroadcastAt : null;
+  const lastError = sanitizeNullableString(raw.lastError);
+  const message = sanitizeNullableString(raw.message);
+  const metadata = raw.metadata && typeof raw.metadata === 'object' ? (raw.metadata as Record<string, unknown>) : null;
+  const ipfsCid = sanitizeNullableString(raw.ipfsCid);
+  const communityId = sanitizeNullableString(raw.communityId);
+  const channelId = sanitizeNullableString(raw.channelId);
+  const postPreview = sanitizeNullableString(raw.postPreview);
+  const fallbackUsed = raw.fallbackUsed === true || raw.fallbackUsed === false ? raw.fallbackUsed : false;
+  const fallbackReason = sanitizeNullableString(raw.fallbackReason);
+  const acknowledgedBy = sanitizeNullableString(raw.acknowledgedBy);
+  const acknowledgedAt =
+    typeof raw.acknowledgedAt === 'number' && Number.isFinite(raw.acknowledgedAt) ? raw.acknowledgedAt : null;
+  const resolvedBy = sanitizeNullableString(raw.resolvedBy);
+  const resolvedAt =
+    typeof raw.resolvedAt === 'number' && Number.isFinite(raw.resolvedAt) ? raw.resolvedAt : null;
+  const resolutionNote = sanitizeNullableString(raw.resolutionNote);
+
+  return {
+    id,
+    postId,
+    authorId,
+    detectedAt,
+    severity,
+    status,
+    source,
+    broadcastAttempts,
+    lastBroadcastAt,
+    lastError,
+    message,
+    metadata,
+    ipfsCid,
+    communityId,
+    channelId,
+    postPreview,
+    fallbackUsed,
+    fallbackReason,
+    acknowledgedBy,
+    acknowledgedAt,
+    resolvedBy,
+    resolvedAt,
+    resolutionNote,
+  };
+};
+
+const sortAndTrimCrisisQueue = (entries: CrisisQueueEntry[]): CrisisQueueEntry[] => {
+  const sorted = [...entries].sort((a, b) => b.detectedAt - a.detectedAt);
+  if (sorted.length <= MAX_CRISIS_QUEUE_ENTRIES) {
+    return sorted;
+  }
+
+  const unresolved = sorted.filter((entry) => entry.status !== 'resolved');
+  const resolved = sorted.filter((entry) => entry.status === 'resolved');
+  const trimmedUnresolved = unresolved.slice(0, MAX_CRISIS_QUEUE_ENTRIES);
+
+  if (trimmedUnresolved.length >= MAX_CRISIS_QUEUE_ENTRIES) {
+    return trimmedUnresolved;
+  }
+
+  const remainingSlots = MAX_CRISIS_QUEUE_ENTRIES - trimmedUnresolved.length;
+  return trimmedUnresolved.concat(resolved.slice(0, remainingSlots));
+};
+
+// Helper functions for future use - currently kept for API consistency
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _readStoredCrisisQueue = (): CrisisQueueEntry[] => {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  const raw = localStorage.getItem(STORAGE_KEYS.CRISIS_QUEUE);
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as
+      | { version?: number; items?: Array<Partial<CrisisQueueEntry>> }
+      | Array<Partial<CrisisQueueEntry>>;
+    const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items ?? [] : [];
+    const normalized = items
+      .map((item) => normalizeCrisisQueueEntry(item ?? {}))
+      .filter((entry): entry is CrisisQueueEntry => entry !== null);
+    return sortAndTrimCrisisQueue(normalized);
+  } catch (error) {
+    console.error('Failed to parse crisis queue from storage', error);
+    return [];
+  }
+};
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _persistCrisisQueue = (entries: CrisisQueueEntry[]): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const payload = {
+    version: CRISIS_QUEUE_STORAGE_VERSION,
+    items: sortAndTrimCrisisQueue(entries),
+  };
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.CRISIS_QUEUE, JSON.stringify(payload));
+  } catch (error) {
+    console.error('Failed to persist crisis queue', error);
+  }
+};
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _readStoredCrisisMetrics = (): CrisisBroadcastMetrics => {
+  if (typeof window === 'undefined') {
+    return { ...DEFAULT_CRISIS_BROADCAST_METRICS };
+  }
+
+  const raw = localStorage.getItem(STORAGE_KEYS.CRISIS_QUEUE_META);
+  if (!raw) {
+    return { ...DEFAULT_CRISIS_BROADCAST_METRICS };
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<CrisisBroadcastMetrics>;
+    return {
+      successCount:
+        typeof parsed.successCount === 'number' && Number.isFinite(parsed.successCount) && parsed.successCount >= 0
+          ? Math.floor(parsed.successCount)
+          : 0,
+      failureCount:
+        typeof parsed.failureCount === 'number' && Number.isFinite(parsed.failureCount) && parsed.failureCount >= 0
+          ? Math.floor(parsed.failureCount)
+          : 0,
+      lastSuccessAt:
+        typeof parsed.lastSuccessAt === 'number' && Number.isFinite(parsed.lastSuccessAt)
+          ? parsed.lastSuccessAt
+          : null,
+      lastFailureAt:
+        typeof parsed.lastFailureAt === 'number' && Number.isFinite(parsed.lastFailureAt)
+          ? parsed.lastFailureAt
+          : null,
+      lastSyncAt:
+        typeof parsed.lastSyncAt === 'number' && Number.isFinite(parsed.lastSyncAt)
+          ? parsed.lastSyncAt
+          : null,
+    };
+  } catch (error) {
+    console.error('Failed to parse crisis broadcast metrics', error);
+    return { ...DEFAULT_CRISIS_BROADCAST_METRICS };
+  }
+};
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _persistCrisisMetrics = (metrics: CrisisBroadcastMetrics): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.CRISIS_QUEUE_META, JSON.stringify(metrics));
+  } catch (error) {
+    console.error('Failed to persist crisis broadcast metrics', error);
+  }
+};
+
+type CrisisBroadcastTransport = 'supabase' | 'localStorage';
+
+interface CrisisBroadcastResult {
+  success: boolean;
+  error?: string;
+  transport?: CrisisBroadcastTransport;
+  fallbackReason?: string | null;
+}
+
+const _broadcastCrisisEntry = async (entry: CrisisQueueEntry): Promise<CrisisBroadcastResult> => {
+  if (typeof window === 'undefined') {
+    return { success: false, error: 'Broadcast unavailable in this environment' };
+  }
+
+  const globalWindow = window as SafevoiceWindow;
+  const supabaseFn = globalWindow.safevoice?.supabase?.broadcastCrisisUpdate;
+  let supabaseError: string | null = null;
+
+  if (typeof supabaseFn === 'function') {
+    try {
+      await supabaseFn(entry);
+      return { success: true, transport: 'supabase' };
+    } catch (error) {
+      supabaseError = error instanceof Error ? error.message : 'Supabase broadcast failed';
+      console.warn('Supabase crisis broadcast failed, falling back to local storage:', supabaseError);
+    }
+  }
+
+  try {
+    const payload = { entry, attemptedAt: Date.now(), supabaseError };
+    localStorage.setItem(STORAGE_KEYS.CRISIS_BROADCAST_SHADOW, JSON.stringify(payload));
+
+    if (typeof CustomEvent === 'function') {
+      try {
+        const event = new CustomEvent('safevoice:crisis-broadcast', { detail: payload });
+        globalWindow.dispatchEvent(event);
+      } catch (eventError) {
+        console.warn('Failed to dispatch crisis broadcast event', eventError);
+      }
+    }
+
+    return { success: true, transport: 'localStorage', fallbackReason: supabaseError };
+  } catch (error) {
+    const fallbackError = error instanceof Error ? error.message : 'Local fallback failed';
+    const combinedError = supabaseError ? `${supabaseError}; ${fallbackError}` : fallbackError;
+    return { success: false, error: combinedError };
+  }
+};
+
+const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
+const EMOTION_SOURCES: readonly EmotionAnalysisResult['source'][] = ['api', 'offline', 'manual'];
+
+const isEmotionType = (value: unknown): value is EmotionType =>
+  typeof value === 'string' && EMOTION_TYPES.includes(value as EmotionType);
+
+const isEmotionSource = (value: unknown): value is EmotionAnalysisResult['source'] =>
+  typeof value === 'string' && EMOTION_SOURCES.includes(value as EmotionAnalysisResult['source']);
+
+const normalizeEmotionAnalysis = (value: unknown): PostEmotionAnalysis | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const data = value as Partial<PostEmotionAnalysis>;
+
+  if (!isEmotionType(data.emotion) || !isEmotionSource(data.source)) {
+    return undefined;
+  }
+
+  if (typeof data.confidence !== 'number' || !Number.isFinite(data.confidence)) {
+    return undefined;
+  }
+
+  if (typeof data.detectedAt !== 'number' || !Number.isFinite(data.detectedAt)) {
+    return undefined;
+  }
+
+  return {
+    emotion: data.emotion,
+    source: data.source,
+    confidence: Math.max(0, Math.min(1, data.confidence)),
+    detectedAt: data.detectedAt,
   };
 };
 
@@ -1884,6 +2519,38 @@ const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = 
 const VOLUNTEER_MOD_ACTION_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_MODERATOR_ACTIONS = 200;
 
+type BoostType = 'highlight' | 'crossCampus';
+const MODERATOR_ACTION_TYPES: ModeratorAction['actionType'][] = [
+  'blur_post',
+  'hide_post',
+  'verify_advice',
+  'review_report',
+  'restore_post',
+  'pin_community_post',
+  'unpin_community_post',
+  'delete_community_post',
+  'ban_member',
+  'warn_member',
+  'mute_channel',
+  'create_announcement',
+];
+const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = {
+  blur_post: 'Sensitive content blurred',
+  hide_post: 'Harmful content removed',
+  verify_advice: 'Verified community advice',
+  review_report: 'Community report reviewed',
+  restore_post: 'Content restored after review',
+  pin_community_post: 'Community post pinned for visibility',
+  unpin_community_post: 'Community post unpinned',
+  delete_community_post: 'Community post removed by moderator',
+  ban_member: 'Community member banned',
+  warn_member: 'Community member warned',
+  mute_channel: 'Channel muted for community safety',
+  create_announcement: 'Community announcement created',
+};
+const VOLUNTEER_MOD_ACTION_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_MODERATOR_ACTIONS = 200;
+
 // Helper to generate random student ID
 const generateStudentId = () => `Student#${Math.floor(Math.random() * 9000 + 1000)}`;
 
@@ -2370,6 +3037,15 @@ export const useStore = create<StoreState>((set, get) => {
     void syncRewardState();
   });
 
+  rewardEngine.onSubscription(() => {
+    void syncRewardState();
+  });
+
+  rewardEngine.onAchievementUnlocked((achievement) => {
+    addAchievementToast(achievement);
+    void syncRewardState();
+  });
+
   const initialStudentId = typeof window !== 'undefined'
     ? localStorage.getItem(STORAGE_KEYS.STUDENT_ID) || generateStudentId()
     : generateStudentId();
@@ -2728,6 +3404,31 @@ export const useStore = create<StoreState>((set, get) => {
       : null,
     isZeroLogAuditRunning: false,
     systemLocked: typeof window !== 'undefined' ? isSystemLocked() : false,
+
+    // Alert Preferences state
+    ...loadAlertPreferences(),
+
+    // Network Security state
+    networkSecurity: loadNetworkSecurity(),
+
+    toggleModeratorMode: () => {
+      set((state) => {
+        const next = !state.isModerator;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEYS.IS_MODERATOR, next ? 'true' : 'false');
+        }
+        if (next) {
+          toast.success('Moderator mode enabled');
+        } else {
+          toast('Moderator mode disabled', { icon: 'ℹ️' });
+        }
+        return { isModerator: next };
+      });
+    },
+
+    referralCode: initialReferralState.code,
+    referredByCode: initialReferralState.referredByCode,
+    referredFriends: initialReferralState.friends,
 
     // Alert Preferences state
     ...loadAlertPreferences(),
@@ -3475,6 +4176,529 @@ export const useStore = create<StoreState>((set, get) => {
     } catch (error) {
       console.error('Failed to refresh chain balances:', error);
     }
+  },
+
+  generateReferralCode: () => {
+    const state = get();
+    const currentNormalized = normalizeInviteCode(state.referralCode);
+    let newCode = generateReferralCodeForStudent(state.studentId);
+    let attempts = 0;
+
+    while (normalizeInviteCode(newCode) === currentNormalized && attempts < 5) {
+      attempts += 1;
+      newCode = generateReferralCodeForStudent(`${state.studentId}-${Math.random().toString(36).slice(2, 4)}`);
+    }
+
+    const snapshot: ReferralStorageState = {
+      code: normalizeInviteCode(newCode),
+      referredByCode: state.referredByCode ? normalizeInviteCode(state.referredByCode) : null,
+      friends: state.referredFriends.map((friend) => ({
+        ...friend,
+        codeUsed: normalizeInviteCode(friend.codeUsed),
+      })),
+    };
+
+    set({ referralCode: snapshot.code, referredFriends: snapshot.friends });
+    persistReferralState(snapshot);
+    toast.success('Invite code refreshed!');
+    return snapshot.code;
+  },
+
+  simulateReferralJoin: (code: string, friendName: string) => {
+    const normalizedCode = normalizeInviteCode(code);
+    const trimmedName = friendName.trim();
+
+    if (normalizedCode.length === 0) {
+      toast.error('Enter an invite code to simulate a join.');
+      return false;
+    }
+
+    if (trimmedName.length === 0) {
+      toast.error('Give your friend a name to track their progress.');
+      return false;
+    }
+
+    const state = get();
+    const userCode = normalizeInviteCode(state.referralCode);
+
+    if (normalizedCode !== userCode) {
+      toast.error('That invite code does not match your current referral code.');
+      return false;
+    }
+
+    const duplicate = state.referredFriends.some(
+      (friend) =>
+        normalizeInviteCode(friend.codeUsed) === normalizedCode && friend.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (duplicate) {
+      toast.error(`${trimmedName} is already linked to this invite code.`);
+      return false;
+    }
+
+    const newFriend: ReferralFriend = {
+      id: crypto.randomUUID(),
+      name: trimmedName,
+      codeUsed: normalizedCode,
+      joinedAt: Date.now(),
+      firstPostAt: null,
+      firstPostRewarded: false,
+    };
+
+    const updatedFriends = [newFriend, ...state.referredFriends].sort((a, b) => b.joinedAt - a.joinedAt);
+
+    set({ referredFriends: updatedFriends });
+
+    persistReferralState({
+      code: userCode,
+      referredByCode: state.referredByCode ? normalizeInviteCode(state.referredByCode) : null,
+      friends: updatedFriends,
+    });
+
+    get().earnVoice(EARN_RULES.referralJoin, 'Friend joined with your invite', 'referrals', {
+      referralEvent: 'friend_join',
+      friendId: newFriend.id,
+      friendName: newFriend.name,
+      inviteCode: userCode,
+    });
+
+    toast.success(`${newFriend.name} joined! +${EARN_RULES.referralJoin} VOICE earned.`);
+    return true;
+  },
+
+  markReferralFirstPost: (friendId: string) => {
+    const state = get();
+    const target = state.referredFriends.find((friend) => friend.id === friendId);
+
+    if (!target) {
+      toast.error('Could not find that referral friend.');
+      return false;
+    }
+
+    if (target.firstPostRewarded) {
+      toast('First-post reward already granted for this friend.', { icon: 'ℹ️' });
+      return false;
+    }
+
+    const updatedFriend: ReferralFriend = {
+      ...target,
+      firstPostRewarded: true,
+      firstPostAt: Date.now(),
+    };
+
+    const updatedFriends = state.referredFriends
+      .map((friend) => (friend.id === friendId ? updatedFriend : friend))
+      .sort((a, b) => b.joinedAt - a.joinedAt);
+
+    set({ referredFriends: updatedFriends });
+
+    persistReferralState({
+      code: normalizeInviteCode(state.referralCode),
+      referredByCode: state.referredByCode ? normalizeInviteCode(state.referredByCode) : null,
+      friends: updatedFriends,
+    });
+
+    get().earnVoice(EARN_RULES.referralFirstPost, 'Referred friend shared their first post', 'referrals', {
+      referralEvent: 'friend_first_post',
+      friendId: updatedFriend.id,
+      friendName: updatedFriend.name,
+      inviteCode: updatedFriend.codeUsed,
+    });
+
+    toast.success(`Celebrating ${updatedFriend.name}'s first post! +${EARN_RULES.referralFirstPost} VOICE earned.`);
+    return true;
+  },
+
+  loadReferralData: () => {
+    const snapshot = readReferralState(get().studentId);
+    set({
+      referralCode: snapshot.code,
+      referredByCode: snapshot.referredByCode,
+      referredFriends: snapshot.friends,
+    });
+  },
+
+  // Social Spending Functions
+  tipUser: (userId: string, postId: string, amount: number) => {
+    const state = get();
+    const post = state.posts.find((p) => p.id === postId);
+    
+    if (!post) {
+      toast.error('Post not found');
+      return false;
+    }
+
+    if (post.studentId !== userId) {
+      toast.error('User ID does not match post author');
+      return false;
+    }
+
+    if (userId === state.studentId) {
+      toast.error('You cannot tip your own post');
+      return false;
+    }
+
+    if (amount < 1 || amount > 100) {
+      toast.error('Tip amount must be between 1 and 100 VOICE');
+      return false;
+    }
+
+    if (state.voiceBalance < amount) {
+      toast.error(`Insufficient balance. Need ${amount} VOICE to send tip`);
+      return false;
+    }
+
+    // Deduct from tipper
+    get().spendVoice(amount, `Tip for post`, {
+      postId,
+      recipientId: userId,
+      action: 'tip_user',
+      tipAmount: amount,
+    });
+
+    // Award to recipient
+    void rewardEngine.awardTokens(userId, amount, `Received tip from ${state.studentId}`, 'bonuses', {
+      postId,
+      tipperId: state.studentId,
+      action: 'received_tip',
+      tipAmount: amount,
+    });
+
+    // Notify recipient
+    get().addNotification({
+      recipientId: userId,
+      type: 'award',
+      postId,
+      actorId: state.studentId,
+      message: `Received ${amount} VOICE tip on your post! 💰`,
+    });
+
+    toast.success(`Sent ${amount} VOICE tip! 💰`);
+    return true;
+  },
+
+  sendAnonymousGift: (userId: string, amount: number) => {
+    const state = get();
+
+    if (userId === state.studentId) {
+      toast.error('You cannot gift yourself');
+      return false;
+    }
+
+    if (amount !== 10) {
+      toast.error('Anonymous gift amount must be 10 VOICE');
+      return false;
+    }
+
+    if (state.voiceBalance < amount) {
+      toast.error(`Insufficient balance. Need ${amount} VOICE to send gift`);
+      return false;
+    }
+
+    // Deduct from sender
+    get().spendVoice(amount, `Anonymous gift sent`, {
+      recipientId: userId,
+      action: 'anonymous_gift',
+      giftAmount: amount,
+    });
+
+    // Award to recipient
+    void rewardEngine.awardTokens(userId, amount, `Received anonymous gift`, 'bonuses', {
+      action: 'received_anonymous_gift',
+      giftAmount: amount,
+    });
+
+    // Notify recipient
+    get().addNotification({
+      recipientId: userId,
+      type: 'award',
+      postId: '',
+      actorId: 'anonymous',
+      message: `Someone sent you an anonymous gift of ${amount} VOICE! 🎁`,
+    });
+
+    toast.success(`Sent ${amount} VOICE anonymous gift! 🎁`);
+    return true;
+  },
+
+  sponsorHelpline: (amount: number) => {
+    const state = get();
+
+    if (amount !== 100) {
+      toast.error('Helpline sponsorship amount must be 100 VOICE');
+      return false;
+    }
+
+    if (state.voiceBalance < amount) {
+      toast.error(`Insufficient balance. Need ${amount} VOICE to sponsor helpline`);
+      return false;
+    }
+
+    // Deduct from sponsor
+    get().spendVoice(amount, `Sponsored helpline support`, {
+      action: 'sponsor_helpline',
+      sponsorshipAmount: amount,
+    });
+
+    toast.success(`Sponsored helpline with ${amount} VOICE! 💙 Thank you for supporting mental health resources.`, {
+      duration: 5000,
+    });
+    return true;
+  },
+
+  purchaseNFTBadge: (tier, cost) => {
+    const definition = NFT_BADGE_DEFINITIONS[tier];
+    if (!definition) {
+      toast.error('Badge tier unavailable right now.');
+      return false;
+    }
+
+    if (cost !== definition.cost) {
+      toast.error('Badge cost mismatch detected. Please refresh and try again.');
+      return false;
+    }
+
+    const state = get();
+
+    const ownsBadge = state.nftBadges.some((badge) => badge.tier === tier);
+    if (ownsBadge) {
+      toast('You already own this NFT badge!', { icon: '✨' });
+      return false;
+    }
+
+    if (state.voiceBalance < definition.cost) {
+      toast.error(`Insufficient balance. Need ${definition.cost} VOICE to purchase ${definition.label}.`);
+      return false;
+    }
+
+    const purchasedAt = Date.now();
+    const badge: NFTBadge = {
+      id: crypto.randomUUID(),
+      tier,
+      purchasedAt,
+      purchasedBy: state.studentId,
+      cost: definition.cost,
+    };
+
+    get().spendVoice(definition.cost, `Purchased ${definition.label} NFT Badge`, {
+      action: 'purchase_nft_badge',
+      badgeTier: tier,
+      badgeName: definition.label,
+      badgeCost: definition.cost,
+      purchasedAt,
+    });
+
+    set((current) => {
+      const nextBadges = [...current.nftBadges, badge];
+      persistNFTBadges(nextBadges);
+      return { nftBadges: nextBadges };
+    });
+
+    get().saveToLocalStorage();
+
+    toast.custom(
+      (t) =>
+        createElement(
+          'div',
+          {
+            className:
+              'pointer-events-auto bg-slate-950/90 backdrop-blur-md border border-white/20 rounded-xl px-4 py-3 flex items-center space-x-3 shadow-lg',
+            style: { borderColor: definition.accent },
+          },
+          createElement(
+            'div',
+            {
+              className: `w-12 h-12 rounded-full bg-gradient-to-br ${definition.gradientFrom} ${definition.gradientTo} flex items-center justify-center text-xl shadow-inner`,
+              style: { boxShadow: `0 0 18px ${definition.accent}55` },
+            },
+            definition.icon
+          ),
+          createElement(
+            'div',
+            { className: 'flex flex-col text-white text-sm max-w-xs' },
+            createElement('span', { className: 'font-semibold' }, `${definition.label} Badge Unlocked!`),
+            createElement('span', { className: 'text-xs text-gray-300 mt-1 leading-snug' }, definition.description),
+            createElement(
+              'span',
+              { className: 'text-[11px] text-primary font-semibold mt-2' },
+              `-${definition.cost} VOICE`
+            )
+          ),
+          createElement(
+            'button',
+            {
+              className: 'text-xs text-gray-400 hover:text-white transition-colors',
+              onClick: () => toast.dismiss(t.id),
+              type: 'button',
+            },
+            'Close'
+          )
+        ),
+      { duration: 5000 }
+    );
+
+    if (navigator.vibrate) {
+      navigator.vibrate(40);
+    }
+
+    return true;
+  },
+
+  hasNFTBadge: (tier) => {
+    return get().nftBadges.some((badge) => badge.tier === tier);
+  },
+
+  loadNFTBadges: () => {
+    if (typeof window === 'undefined') return;
+    const badges = readStoredNFTBadges();
+    set({ nftBadges: badges });
+  },
+
+  setConnectedAddress: (address: string | null) => {
+    set({ connectedAddress: address });
+  },
+
+  setAnonymousWallet: (address: string | null) => {
+    if (typeof window !== 'undefined') {
+      if (address) {
+        localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, address);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.ANON_WALLET_ADDRESS);
+        clearSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY);
+      }
+    }
+    set({ anonymousWalletAddress: address });
+  },
+
+  generateAnonymousWallet: async (password: string) => {
+    const wallet = Wallet.createRandom();
+    if (!wallet.privateKey) {
+      throw new Error('Failed to generate wallet');
+    }
+
+    setSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, { privateKey: wallet.privateKey }, password);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, wallet.address);
+    }
+
+    set({ anonymousWalletAddress: wallet.address });
+    toast.success('Anonymous wallet created successfully!');
+
+    return {
+      address: wallet.address,
+      mnemonic: wallet.mnemonic?.phrase ?? '',
+    };
+  },
+
+  importAnonymousWallet: async (mnemonic: string, password: string) => {
+    const wallet = Wallet.fromMnemonic(mnemonic.trim());
+    setSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, { privateKey: wallet.privateKey }, password);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, wallet.address);
+    }
+    set({ anonymousWalletAddress: wallet.address });
+    toast.success('Anonymous wallet imported');
+    return { address: wallet.address };
+  },
+
+  loadAnonymousWallet: async (password: string) => {
+    const stored = getSecureItem<{ privateKey: string }>(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, password);
+    if (!stored?.privateKey) {
+      return null;
+    }
+    return new Wallet(stored.privateKey);
+  },
+
+  clearAnonymousWallet: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEYS.ANON_WALLET_ADDRESS);
+    }
+    clearSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY);
+    set({ anonymousWalletAddress: null });
+  },
+
+  earnVoice: (
+    amount: number,
+    reason: string,
+    category: keyof EarningsBreakdown = 'bonuses',
+    metadata: Record<string, unknown> = {}
+  ) => {
+    const state = get();
+    rewardEngine.awardTokens(state.studentId, amount, reason, category, metadata);
+  },
+
+  spendVoice: (amount: number, reason: string, metadata: Record<string, unknown> = {}) => {
+    const state = get();
+    rewardEngine.spendTokens(state.studentId, amount, reason, metadata);
+  },
+
+  claimRewards: async () => {
+    set({ walletLoading: true, walletError: null });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const state = get();
+    const success = await rewardEngine.claimRewards(state.studentId, state.connectedAddress ?? undefined);
+    if (!success) {
+      set({ walletLoading: false, walletError: 'Failed to claim rewards. Please try again.' });
+      throw new Error('Failed to claim rewards. Please try again.');
+    }
+
+    syncRewardState();
+    set({ walletLoading: false, walletError: null });
+  },
+
+  loadWalletData: () => {
+    set({ walletLoading: true, walletError: null });
+    const snapshot = rewardEngine.getWalletSnapshot();
+    set({
+      voiceBalance: snapshot.balance,
+      pendingRewards: snapshot.pending,
+      totalRewardsEarned: snapshot.totalEarned,
+      claimedRewards: snapshot.claimed,
+      spentRewards: snapshot.spent,
+      availableBalance: rewardEngine.getAvailableBalance(),
+      pendingRewardBreakdown: rewardEngine.getPendingBreakdown(),
+      earningsBreakdown: snapshot.earningsBreakdown,
+      transactionHistory: snapshot.transactions,
+      anonymousWalletAddress:
+        typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS) : null,
+      lastLoginDate: snapshot.lastLogin,
+      loginStreak: snapshot.streakData.currentStreak,
+      lastPostDate: snapshot.streakData.lastPostDate,
+      postingStreak: snapshot.streakData.currentPostStreak,
+      premiumSubscriptions: snapshot.subscriptions,
+      walletLoading: false,
+    });
+
+    if (typeof window !== 'undefined') {
+      const state = get();
+      void rewardEngine.checkSubscriptionRenewals(state.studentId);
+    }
+  },
+
+  grantDailyLoginBonus: () => {
+    if (typeof window === 'undefined') return;
+    const state = get();
+    rewardEngine.processDailyBonus(state.studentId);
+    rewardEngine.checkSubscriptionRenewals(state.studentId);
+  },
+
+  checkSubscriptionRenewals: () => {
+    if (typeof window === 'undefined') return;
+    const state = get();
+    rewardEngine.checkSubscriptionRenewals(state.studentId);
+  },
+
+  activatePremium: async (feature: PremiumFeatureType, cost?: number) => {
+    const state = get();
+    return await rewardEngine.activatePremiumFeature(state.studentId, feature, cost);
+  },
+
+  deactivatePremium: async (feature: PremiumFeatureType) => {
+    return await rewardEngine.deactivatePremiumFeature(feature);
+  },
+
+  isPremiumActive: (feature: PremiumFeatureType) => {
+    return rewardEngine.isPremiumFeatureActive(feature);
   },
 
   generateReferralCode: () => {
@@ -5966,7 +7190,7 @@ export const useStore = create<StoreState>((set, get) => {
     }
   },
 
-  createTribute: (personName: string, message: string, dateOfRemembrance?: string) => {
+  createTribute: (personName: string, message: string, dateOfRemembrance?: string, college?: string) => {
     const currentStudentId = get().studentId;
 
     // Use TributeService to create draft with consensus requirements
@@ -5974,7 +7198,8 @@ export const useStore = create<StoreState>((set, get) => {
       currentStudentId,
       personName,
       message,
-      dateOfRemembrance
+      dateOfRemembrance,
+      college
     );
 
     if (!result.success) {
@@ -6006,6 +7231,7 @@ export const useStore = create<StoreState>((set, get) => {
       honoreeHash: draft.honoreeHash,
       expiresAt: draft.expiresAt,
       dateOfRemembrance: draft.dateOfRemembrance,
+      college: draft.college,
     };
 
     set((state) => ({
@@ -7696,14 +8922,123 @@ export const useStore = create<StoreState>((set, get) => {
         }
       }
       
-      toast.success('Fingerprint identity rotated successfully');
-      return saltRotation;
-    } catch (error) {
-      console.error('[Fingerprint] Failed to rotate identity:', error);
-      toast.error('Failed to rotate fingerprint identity');
-      return null;
-    }
-  },
+       toast.success('Fingerprint identity rotated successfully');
+       return saltRotation;
+     } catch (error) {
+       console.error('[Fingerprint] Failed to rotate identity:', error);
+       toast.error('Failed to rotate fingerprint identity');
+       return null;
+     }
+   },
+
+   // Privacy Onboarding actions
+   openPrivacyOnboarding: () => {
+     set((state) => {
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isOpen: true,
+         startedAt: state.privacyOnboarding.startedAt || Date.now(),
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   closePrivacyOnboarding: () => {
+     set((state) => {
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isOpen: false,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   advancePrivacyOnboardingStep: () => {
+     set((state) => {
+       const nextStep: PrivacyOnboardingStep = state.privacyOnboarding.currentStep === 3
+         ? 3
+         : (state.privacyOnboarding.currentStep + 1) as PrivacyOnboardingStep;
+
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         currentStep: nextStep,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   goBackPrivacyOnboardingStep: () => {
+     set((state) => {
+       const nextStep: PrivacyOnboardingStep = state.privacyOnboarding.currentStep === 1
+         ? 1
+         : (state.privacyOnboarding.currentStep - 1) as PrivacyOnboardingStep;
+
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         currentStep: nextStep,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   completePrivacyOnboarding: () => {
+     set((state) => {
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isCompleted: true,
+         isOpen: false,
+         currentStep: 1,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+     toast.success('Privacy controls guide completed!');
+   },
+
+   snoozePrivacyOnboarding: (daysUntil = 30) => {
+     set((state) => {
+       const snoozedUntil = Date.now() + (daysUntil * 24 * 60 * 60 * 1000);
+       const updated: PrivacyOnboardingState = {
+         ...state.privacyOnboarding,
+         isOpen: false,
+         snoozedUntil,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   resetPrivacyOnboarding: () => {
+     set(() => {
+       const updated: PrivacyOnboardingState = {
+         currentStep: 1,
+         isCompleted: false,
+         isOpen: false,
+         snoozedUntil: null,
+         startedAt: null,
+       };
+       savePrivacyOnboardingState(updated);
+       return { privacyOnboarding: updated };
+     });
+   },
+
+   shouldShowPrivacyOnboarding: () => {
+     const { privacyOnboarding } = get();
+
+     if (privacyOnboarding.isCompleted) {
+       return false;
+     }
+
+     if (privacyOnboarding.snoozedUntil && Date.now() < privacyOnboarding.snoozedUntil) {
+       return false;
+     }
+
+     return true;
+   },
 
   // Privacy Onboarding Actions
   openPrivacyOnboarding: () => {
@@ -8619,7 +9954,7 @@ export const useStore = create<StoreState>((set, get) => {
     toast.success('System unlocked. Please re-run audit to verify clean state.');
   },
 
-};
+      };
 });
 
 // Helper function to get emoji for reaction type

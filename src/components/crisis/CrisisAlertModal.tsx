@@ -77,6 +77,17 @@ export default function CrisisAlertModal({
   const zkProofState = requestId ? zkProofs[requestId] : undefined;
   const witnessData = getWitnessData();
 
+  // Generate witness data from student ID and timestamp for ZK proof
+  const getWitnessData = () => {
+    if (!requestId || !studentId) return '';
+    return `${studentId}-${requestId}-${Date.now()}`;
+  };
+
+  const zkProofState = requestId ? zkProofs[requestId] : undefined;
+  const witnessData = getWitnessData();
+  const dialogTitleId = requestId ? `crisis-alert-title-${requestId}` : 'crisis-alert-title';
+  const dialogDescriptionId = requestId ? `crisis-alert-description-${requestId}` : 'crisis-alert-description';
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -87,6 +98,7 @@ export default function CrisisAlertModal({
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50"
             onClick={(e) => e.stopPropagation()}
+            aria-hidden="true"
           />
           <motion.div
             ref={modalRef}
@@ -100,7 +112,13 @@ export default function CrisisAlertModal({
             aria-labelledby="crisis-modal-title"
             aria-describedby="crisis-modal-description"
           >
-            <div className="glass max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-2xl border-2 border-red-500/30">
+            <div
+              className="glass max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-2xl border-2 border-red-500/30"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={dialogTitleId}
+              aria-describedby={dialogDescriptionId}
+            >
               <div className="sticky top-0 glass p-6 border-b border-white/10 flex items-start justify-between">
                 <div className="flex items-start space-x-3">
                   <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0 mt-1" />

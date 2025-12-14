@@ -96,8 +96,10 @@ export default function ResponsiveLayout({
     <ResponsiveLayoutContext.Provider value={{ breakpoint, orientation, width, height }}>
       <div className={containerClassName} data-layout-breakpoint={breakpoint} data-orientation={orientation}>
         {header}
-        <div className="safe-area-layout" {...restMainProps}>
-          <div className={mainClassName}>{children}</div>
+        <div className="safe-area-layout">
+          <main className={mainClassName} {...restMainProps}>
+            {children}
+          </main>
         </div>
         {footer}
         {bottomNavigation}

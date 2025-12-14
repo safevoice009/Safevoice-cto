@@ -175,6 +175,17 @@ export default function Profile() {
             🏆 {t('profile.achievements', 'Achievements')}
           </button>
           <button
+            onClick={() => setActiveTab('achievements')}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              activeTab === 'achievements'
+                ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg'
+                : 'bg-surface/50 text-gray-300 hover:text-white'
+            }`}
+            type="button"
+          >
+            🏆 {t('profile.achievements', 'Achievements')}
+          </button>
+          <button
             onClick={() => setActiveTab('wallet')}
             className={`px-4 py-2 rounded-lg font-medium transition-all ${
               activeTab === 'wallet'
@@ -244,6 +255,25 @@ export default function Profile() {
             <PrivacySettings />
           </div>
         )}
+
+        {activeTab === 'achievements' && (
+          <div className="space-y-6">
+            <AchievementProgress
+              totalVoice={totalRewardsEarned}
+              achievementsUnlocked={achievements.length}
+              totalAchievements={ACHIEVEMENT_DEFINITIONS.length}
+            />
+            <div className="glass p-6">
+              <AchievementGrid
+                achievements={achievements}
+                showProgress
+                progressData={progressMap}
+              />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'wallet' && <WalletSection />}
       </div>
     </motion.section>
   );
