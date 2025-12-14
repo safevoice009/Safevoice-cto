@@ -985,7 +985,7 @@ export interface StoreState {
   loadMemorialData: () => void;
   
   // Tribute Consensus (Phase 13 - Task 5A)
-  addTributeCosigner: (tributeId: string, peerId: string, signature: string, publicKey: string) => Promise<boolean>;
+  addTributeCosigner: (tributeId: string, peerId: string, signature: string, publicKey: string, metadata?: { deviceInfo?: string; networkInfo?: string }) => Promise<boolean>;
   finalizeTributeDraft: (tributeId: string) => boolean;
   publishTribute: (tributeId: string, moderatorId: string, reason?: string) => boolean;
   rejectTribute: (tributeId: string, moderatorId: string, reason?: string) => boolean;
@@ -995,6 +995,8 @@ export interface StoreState {
   updateMemorialSessionAccess: (action: MemorialWallAccessLog['action'], options?: { tributeId?: string; searchQuery?: string; filterCriteria?: Record<string, unknown> }) => void;
   getFilteredTributes: (filters: TributeFilterOptions) => MemorialTribute[];
   getSortedTributes: (sortBy: TributeFilterOptions['sortBy'], sortOrder: TributeFilterOptions['sortOrder']) => MemorialTribute[];
+  getMemorialStatistics: () => ReturnType<typeof TributeService.getDraftStatistics>;
+  getPendingReviewTributes: () => MemorialTribute[];
   getMemorialSessionState: () => MemorialSessionState;
   clearMemorialSession: () => void;
 
@@ -6063,22 +6065,22 @@ export const useStore = create<StoreState>((set, get) => {
   createTribute: async (personName: string, message: string, dateOfRemembrance?: string) => {
     const currentStudentId = get().studentId;
 
-    // Use TributeService to create draft with consensus requirements
-    const result = TributeService.createDraft(
+    // Get or create session for rate limiting
+    const session = TributeService.getOrCreateSession();
+    
+    // Check session-based rate limit
+    const rateLimitResult = TributeService.checkRateLimitWithSession(
       currentStudentId,
       personName,
-      message,
-      dateOfRemembrance
+      session.sessionId
     );
-
-    if (!result.success) {
-      toast.error(result.error || 'Failed to create tribute draft');
+    
+    if (!rateLimitResult.allowed) {
+      toast.error(rateLimitResult.reason || 'Rate limit exceeded');
       return false;
     }
 
-    const draft = result.draft!;
-
-    // Run content moderation on the tribute message
+    // Run content moderation on the tribute message first
     const moderationResult = await moderateContent(message, {
       userPosts: [], // Could add user's recent posts for spam detection
     });
@@ -6096,6 +6098,28 @@ export const useStore = create<StoreState>((set, get) => {
       }
       toast('Content flagged for review but proceeding...', { icon: '⚠️' });
     }
+
+    // Use TributeService to create draft
+    const result = TributeService.createDraft(
+      currentStudentId,
+      personName,
+      message,
+      dateOfRemembrance
+    );
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to create tribute draft');
+      return false;
+    }
+
+    const draft = result.draft!;
+
+    // Record session attempt
+    TributeService.recordAttemptWithSession(
+      currentStudentId,
+      personName,
+      session.sessionId
+    );
 
     // Convert TributeDraft to MemorialTribute with extended fields
     const newTribute: MemorialTribute = {
@@ -6120,8 +6144,10 @@ export const useStore = create<StoreState>((set, get) => {
       expiresAt: draft.expiresAt,
       dateOfRemembrance: draft.dateOfRemembrance,
       // Extended fields (Phase 14)
-      editVersion: 0,
-      collegeAttribution: currentStudentId.includes('#') ? currentStudentId.split('#')[0] : undefined,
+      editVersion: draft.version,
+      collegeAttribution: draft.collegeAttribution,
+      timelineMetadata: draft.timelineMetadata,
+      moderatorNotes: draft.moderatorNotes,
     };
 
     set((state) => ({
@@ -6214,7 +6240,7 @@ export const useStore = create<StoreState>((set, get) => {
 
   // Tribute Consensus Actions (Phase 13 - Task 5A)
 
-  addTributeCosigner: async (tributeId: string, peerId: string, signature: string, publicKey: string) => {
+  addTributeCosigner: async (tributeId: string, peerId: string, signature: string, publicKey: string, metadata?: { deviceInfo?: string; networkInfo?: string }) => {
     const tribute = get().memorialTributes.find((t) => t.id === tributeId);
 
     if (!tribute) {
@@ -6227,8 +6253,13 @@ export const useStore = create<StoreState>((set, get) => {
       return false;
     }
 
-    // Add cosigner through TributeService
-    const result = await TributeService.addCosigner(tributeId, peerId, signature, publicKey);
+    // Add cosigner through TributeService with enhanced metadata
+    const result = await TributeService.addCosigner(tributeId, peerId, signature, publicKey, {
+      deviceInfo: metadata?.deviceInfo,
+      networkInfo: metadata?.networkInfo,
+      timestampISO: new Date().toISOString(),
+      purpose: 'tribute_consensus',
+    });
 
     if (!result.success) {
       toast.error(result.error || 'Failed to add cosigner');
@@ -6477,31 +6508,53 @@ export const useStore = create<StoreState>((set, get) => {
       }
     }
 
-    // Update tribute in store
+    // Use TributeService editDraft with signature invalidation
+    const editResult = TributeService.editDraft(
+      tributeId,
+      {
+        honoree: updates.personName,
+        message: updates.message,
+        timelineMetadata: updates.timelineMetadata,
+      },
+      get().studentId
+    );
+
+    if (!editResult.success) {
+      toast.error(editResult.error || 'Failed to edit tribute');
+      return false;
+    }
+
+    // Update tribute in store with results from TributeService
     const updatedTributes = get().memorialTributes.map((t) => {
       if (t.id !== tributeId) return t;
 
-      const updatedTribute = { ...t, ...updates };
-      
-      // Increment edit version and invalidate signatures if content changed
-      if (updates.message || updates.personName) {
-        updatedTribute.editVersion = (t.editVersion || 0) + 1;
-        updatedTribute.cosigners = []; // Clear existing signatures
-        
-        // Add audit trail entry
-        updatedTribute.auditTrail = [
-          ...(updatedTribute.auditTrail || []),
-          {
-            action: 'tribute_edited',
-            timestamp: Date.now(),
-            actor: get().studentId,
-            metadata: {
-              updatedFields: Object.keys(updates),
-              newEditVersion: updatedTribute.editVersion,
-            },
-          },
-        ];
+      const updatedTribute = { 
+        ...t, 
+        ...updates,
+        editVersion: editResult.newVersion || t.editVersion,
+        collegeAttribution: updates.collegeAttribution || t.collegeAttribution,
+        timelineMetadata: updates.timelineMetadata || t.timelineMetadata,
+        moderatorNotes: updates.moderatorNotes || t.moderatorNotes,
+      };
+
+      // Clear signatures if content changed (handled by TributeService)
+      if (editResult.requiresResigning) {
+        updatedTribute.cosigners = [];
       }
+
+      // Add audit entry for store tracking
+      updatedTribute.auditTrail = [
+        ...(updatedTribute.auditTrail || []),
+        {
+          action: 'tribute_edited',
+          timestamp: Date.now(),
+          actor: get().studentId,
+          metadata: {
+            requiresResigning: editResult.requiresResigning,
+            newVersion: editResult.newVersion,
+          },
+        },
+      ];
 
       return updatedTribute;
     });
@@ -6509,7 +6562,12 @@ export const useStore = create<StoreState>((set, get) => {
     set({ memorialTributes: updatedTributes });
     get().saveToLocalStorage();
 
-    toast.success('Tribute updated successfully. New signatures required.');
+    if (editResult.requiresResigning) {
+      toast.success('Tribute updated successfully. New signatures required.');
+    } else {
+      toast.success('Tribute updated successfully.');
+    }
+    
     return true;
   },
 
@@ -6645,6 +6703,36 @@ export const useStore = create<StoreState>((set, get) => {
 
     const sorted = tributes.sort(sortFunction);
     return sortOrder === 'asc' ? sorted : sorted.reverse();
+  },
+
+  getMemorialStatistics: () => {
+    return TributeService.getDraftStatistics();
+  },
+
+  getPendingReviewTributes: () => {
+    const pendingDrafts = TributeService.getPendingReviewDrafts();
+    return pendingDrafts.map(draft => {
+      return get().memorialTributes.find(t => t.id === draft.id) || {
+        id: draft.id,
+        createdBy: draft.creator,
+        createdAt: draft.createdAt,
+        personName: draft.honoree,
+        message: draft.message,
+        candles: [],
+        milestoneRewardAwarded: false,
+        status: draft.status,
+        cosigners: draft.cosigners,
+        moderatorDecision: draft.moderatorDecision,
+        auditTrail: draft.auditTrail,
+        honoreeHash: draft.honoreeHash,
+        expiresAt: draft.expiresAt,
+        dateOfRemembrance: draft.dateOfRemembrance,
+        editVersion: draft.version,
+        collegeAttribution: draft.collegeAttribution,
+        timelineMetadata: draft.timelineMetadata,
+        moderatorNotes: draft.moderatorNotes,
+      };
+    });
   },
 
   getMemorialSessionState: () => {

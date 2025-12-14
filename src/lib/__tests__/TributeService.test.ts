@@ -158,7 +158,8 @@ describe('TributeService', () => {
       const publicKeyHex = Buffer.from(publicKey).toString('hex');
 
       const verification = await verifyCosignerSignature(
-        draft.draft!,
+        draft.draft!.id,
+        'testPeer',
         signature,
         publicKeyHex
       );
@@ -179,7 +180,8 @@ describe('TributeService', () => {
       const invalidSignature = '00'.repeat(64); // Invalid signature
 
       const verification = await verifyCosignerSignature(
-        draft.draft!,
+        draft.draft!.id,
+        'testPeer',
         invalidSignature,
         publicKeyHex
       );
@@ -203,7 +205,8 @@ describe('TributeService', () => {
       const publicKeyHex = Buffer.from(publicKey2).toString('hex');
 
       const verification = await verifyCosignerSignature(
-        draft.draft!,
+        draft.draft!.id,
+        'testPeer',
         signature,
         publicKeyHex
       );

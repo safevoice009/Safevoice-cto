@@ -40,6 +40,14 @@ export interface AuditTrailEntry {
   metadata?: Record<string, unknown>;
 }
 
+export interface CosignerMetadata {
+  timestampISO?: string;
+  deviceInfo?: string;
+  networkInfo?: string;
+  purpose?: string;
+  draftVersion?: number;
+}
+
 export interface TributeDraft {
   id: string;
   creator: string;
@@ -47,12 +55,27 @@ export interface TributeDraft {
   message: string;
   dateOfRemembrance?: string; // ISO date string
   status: TributeStatus;
-  cosigners: Cosigner[];
+  cosigners: (Cosigner & { metadata?: CosignerMetadata })[];
   moderatorDecision?: ModeratorDecision;
   auditTrail: AuditTrailEntry[];
   honoreeHash: string; // SHA-256 hash of normalized {creator, honoree}
   createdAt: number;
   expiresAt?: number; // draft expiry timestamp
+  version: number; // Track edit versions for signature invalidation
+  lastModified: number; // Last modification timestamp
+  
+  // Extended fields (Phase 14)
+  collegeAttribution?: string;
+  timelineMetadata?: {
+    lifeStart?: string;
+    lifeEnd?: string;
+    significantEvents?: Array<{
+      date: string;
+      title: string;
+      description: string;
+    }>;
+  };
+  moderatorNotes?: string;
 }
 
 export interface TributeAttempt {
@@ -60,6 +83,22 @@ export interface TributeAttempt {
   creator: string;
   honoree: string;
   timestamp: number;
+  sessionId?: string;
+}
+
+export interface SessionInfo {
+  sessionId: string;
+  createdAt: number;
+  lastAccessAt: number;
+  attemptCount: number;
+  maxAttempts: number;
+}
+
+export interface DraftEditResult {
+  success: boolean;
+  error?: string;
+  requiresResigning?: boolean;
+  newVersion?: number;
 }
 
 // ==================== Constants ====================
@@ -76,6 +115,7 @@ const MIN_MESSAGE_LENGTH = 10;
 const STORAGE_KEYS = {
   DRAFTS: 'safevoice_memorial_drafts',
   ATTEMPTS: 'safevoice_memorial_attempts',
+  SESSIONS: 'safevoice_memorial_sessions',
 };
 
 // ==================== Helper Functions ====================
@@ -103,14 +143,15 @@ export function computeHonoreeHash(creator: string, honoree: string): string {
 }
 
 /**
- * Computes the message hash for signing
+ * Computes the message hash for signing (includes version for invalidation)
  */
-function computeMessageHash(draft: Pick<TributeDraft, 'id' | 'creator' | 'honoree' | 'message'>): Uint8Array {
+function computeMessageHash(draft: Pick<TributeDraft, 'id' | 'creator' | 'honoree' | 'message' | 'version'>): Uint8Array {
   const message = JSON.stringify({
     id: draft.id,
     creator: draft.creator,
     honoree: draft.honoree,
     message: draft.message,
+    version: draft.version,
   });
   return sha256(new TextEncoder().encode(message));
 }
@@ -153,6 +194,26 @@ function saveAttempts(attempts: TributeAttempt[]): void {
     localStorage.setItem(STORAGE_KEYS.ATTEMPTS, JSON.stringify(attempts));
   } catch (error) {
     console.error('Failed to save tribute attempts:', error);
+  }
+}
+
+// Session Management
+function loadSessions(): SessionInfo[] {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.SESSIONS);
+    if (!data) return [];
+    return JSON.parse(data) as SessionInfo[];
+  } catch (error) {
+    console.error('Failed to load tribute sessions:', error);
+    return [];
+  }
+}
+
+function saveSessions(sessions: SessionInfo[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
+  } catch (error) {
+    console.error('Failed to save tribute sessions:', error);
   }
 }
 
@@ -205,6 +266,79 @@ export function checkRateLimit(creator: string, honoree: string): {
 }
 
 /**
+ * Session-based rate limiting (3 attempts per session)
+ */
+export function checkRateLimitWithSession(creator: string, honoree: string, sessionId?: string): {
+  allowed: boolean;
+  reason?: string;
+} {
+  if (!sessionId) {
+    // Fallback to traditional rate limiting
+    return checkRateLimit(creator, honoree);
+  }
+
+  const sessions = loadSessions();
+  const session = sessions.find(s => s.sessionId === sessionId);
+  
+  if (session && session.attemptCount >= session.maxAttempts) {
+    return {
+      allowed: false,
+      reason: 'Session rate limit exceeded. Please start a new session.',
+    };
+  }
+
+  // Also check global rate limits
+  return checkRateLimit(creator, honoree);
+}
+
+/**
+ * Creates or gets existing session for rate limiting
+ */
+export function getOrCreateSession(sessionId?: string): SessionInfo {
+  const sessions = loadSessions();
+  const now = Date.now();
+  
+  if (sessionId) {
+    const existing = sessions.find(s => s.sessionId === sessionId);
+    if (existing) {
+      existing.lastAccessAt = now;
+      saveSessions(sessions);
+      return existing;
+    }
+  }
+
+  // Create new session
+  const newSession: SessionInfo = {
+    sessionId: sessionId || crypto.randomUUID(),
+    createdAt: now,
+    lastAccessAt: now,
+    attemptCount: 0,
+    maxAttempts: 3, // 3 attempts per session
+  };
+  
+  sessions.push(newSession);
+  saveSessions(sessions);
+  return newSession;
+}
+
+/**
+ * Records attempt for session-based tracking
+ */
+export function recordAttemptWithSession(creator: string, honoree: string, sessionId?: string): void {
+  recordAttempt(creator, honoree); // Record in global attempts
+  
+  if (sessionId) {
+    const sessions = loadSessions();
+    const session = sessions.find(s => s.sessionId === sessionId);
+    if (session) {
+      session.attemptCount += 1;
+      session.lastAccessAt = Date.now();
+      saveSessions(sessions);
+    }
+  }
+}
+
+/**
  * Checks for duplicate tributes (case-insensitive)
  * Returns false if a duplicate exists and is not archived
  */
@@ -235,10 +369,10 @@ export function checkDuplicates(creator: string, honoree: string): {
 /**
  * Records a tribute creation attempt for rate limiting
  */
-function recordAttempt(creator: string, honoree: string): void {
+function recordAttempt(creator: string, honoree: string, sessionId?: string): void {
   const honoreeHash = computeHonoreeHash(creator, honoree);
   const attempts = loadAttempts();
-  
+
   // Clean up old attempts (older than 24 hours)
   const now = Date.now();
   const recentAttempts = attempts.filter(
@@ -250,6 +384,7 @@ function recordAttempt(creator: string, honoree: string): void {
     creator,
     honoree,
     timestamp: now,
+    sessionId,
   });
 
   saveAttempts(recentAttempts);
@@ -309,7 +444,8 @@ export function createDraft(
   creator: string,
   honoree: string,
   message: string,
-  dateOfRemembrance?: string
+  dateOfRemembrance?: string,
+  sessionId?: string
 ): { success: boolean; draft?: TributeDraft; error?: string } {
   // Validate input
   const validation = validateDraftInput(creator, honoree, message);
@@ -329,7 +465,7 @@ export function createDraft(
     return { success: false, error: duplicate.reason };
   }
 
-  // Create draft
+  // Create draft with extended fields
   const now = Date.now();
   const honoreeHash = computeHonoreeHash(creator, honoree);
   const draft: TributeDraft = {
@@ -350,6 +486,9 @@ export function createDraft(
     honoreeHash,
     createdAt: now,
     expiresAt: now + DRAFT_EXPIRY_HOURS * 60 * 60 * 1000,
+    version: 0,
+    lastModified: now,
+    collegeAttribution: creator.includes('#') ? creator.split('#')[0] : undefined,
   };
 
   // Save draft
@@ -357,8 +496,8 @@ export function createDraft(
   drafts.push(draft);
   saveDrafts(drafts);
 
-  // Record attempt
-  recordAttempt(creator, honoree);
+  // Record attempt with session support
+  recordAttempt(creator, honoree, sessionId);
 
   return { success: true, draft };
 }
@@ -396,67 +535,168 @@ export function scheduleExpiry(draftId: string, hours: number): {
 // ==================== Cosigner Management ====================
 
 /**
- * Adds a cosigner signature to a draft
- * Verifies Ed25519 signature before adding
+ * Edits a draft's content, invalidating existing signatures if content changes
+ */
+export function editDraft(
+  draftId: string,
+  updates: {
+    honoree?: string;
+    message?: string;
+    dateOfRemembrance?: string;
+    timelineMetadata?: TributeDraft['timelineMetadata'];
+  },
+  editor: string
+): DraftEditResult {
+  const drafts = loadDrafts();
+  const draft = drafts.find(d => d.id === draftId);
+  
+  if (!draft) {
+    return { success: false, error: 'Draft not found' };
+  }
+  
+  if (draft.status !== 'draft') {
+    return { success: false, error: 'Can only edit draft status tributes' };
+  }
+  
+  let contentChanged = false;
+  let requiresResigning = false;
+  
+  // Apply updates
+  if (updates.honoree !== undefined && updates.honoree !== draft.honoree) {
+    draft.honoree = updates.honoree.trim();
+    draft.honoreeHash = computeHonoreeHash(draft.creator, draft.honoree);
+    contentChanged = true;
+  }
+  
+  if (updates.message !== undefined && updates.message !== draft.message) {
+    draft.message = updates.message.trim();
+    contentChanged = true;
+  }
+  
+  if (updates.dateOfRemembrance !== undefined) {
+    draft.dateOfRemembrance = updates.dateOfRemembrance;
+  }
+  
+  if (updates.timelineMetadata !== undefined) {
+    draft.timelineMetadata = updates.timelineMetadata;
+  }
+  
+  // Check if content that affects signatures has changed
+  if (contentChanged) {
+    draft.version += 1;
+    draft.lastModified = Date.now();
+    requiresResigning = true;
+    draft.cosigners = []; // Clear existing signatures
+  }
+  
+  // Add audit trail entry
+  draft.auditTrail.push({
+    action: 'tribute_edited',
+    timestamp: Date.now(),
+    actor: editor,
+    metadata: {
+      contentChanged,
+      newVersion: draft.version,
+      fieldsUpdated: Object.keys(updates),
+    },
+  });
+  
+  saveDrafts(drafts);
+  
+  return {
+    success: true,
+    requiresResigning,
+    newVersion: draft.version,
+  };
+}
+
+/**
+ * Enhanced cosigner addition with metadata support
  */
 export async function addCosigner(
   draftId: string,
   peerId: string,
   signature: string,
-  publicKey: string
+  publicKey: string,
+  metadata?: CosignerMetadata
 ): Promise<{ success: boolean; error?: string }> {
   const drafts = loadDrafts();
-  const draft = drafts.find((d) => d.id === draftId);
-
+  const draft = drafts.find(d => d.id === draftId);
+  
   if (!draft) {
     return { success: false, error: 'Draft not found' };
   }
-
+  
   if (draft.status !== 'draft') {
     return { success: false, error: 'Can only add cosigners to draft status' };
   }
-
-  // Check if peer already signed
-  if (draft.cosigners.some((c) => c.peerId === peerId)) {
-    return { success: false, error: 'Peer has already cosigned this draft' };
+  
+  // Check if cosigner already exists
+  const existingCosigner = draft.cosigners.find(c => c.peerId === peerId);
+  if (existingCosigner) {
+    return { success: false, error: 'Cosigner already added' };
   }
-
-  // Verify signature
-  const verification = await verifyCosignerSignature(draft, signature, publicKey);
-  if (!verification.valid) {
-    return { success: false, error: verification.error };
+  
+  // Verify signature with current version
+  const verifyResult = await verifyCosignerSignature(draftId, peerId, signature, publicKey);
+  if (!verifyResult.valid) {
+    return { success: false, error: verifyResult.error };
   }
-
-  // Add cosigner
-  const cosigner: Cosigner = {
+  
+  // Add cosigner with metadata
+  draft.cosigners.push({
     peerId,
     signature,
     signedAt: Date.now(),
     publicKey,
-  };
-
-  draft.cosigners.push(cosigner);
+    metadata: {
+      ...metadata,
+      timestampISO: new Date().toISOString(),
+      purpose: 'tribute_consensus',
+      draftVersion: draft.version,
+    },
+  });
+  
   draft.auditTrail.push({
     action: 'cosigner_added',
     timestamp: Date.now(),
     actor: peerId,
-    metadata: { totalCosigners: draft.cosigners.length },
+    metadata: {
+      signature,
+      publicKey,
+      metadata,
+      cosignerCount: draft.cosigners.length,
+    },
   });
-
+  
   saveDrafts(drafts);
-
   return { success: true };
 }
 
 /**
- * Verifies an Ed25519 cosigner signature
+ * Verifies an Ed25519 cosigner signature with version awareness
  */
 export async function verifyCosignerSignature(
-  draft: Pick<TributeDraft, 'id' | 'creator' | 'honoree' | 'message'>,
+  draftId: string,
+  peerId: string,
   signature: string,
   publicKey: string
 ): Promise<{ valid: boolean; error?: string }> {
+  const drafts = loadDrafts();
+  const draft = drafts.find((d) => d.id === draftId);
+  
+  if (!draft) {
+    return { valid: false, error: 'Draft not found' };
+  }
+  
+  // Check if cosigner already exists with different signature
+  const existingCosigner = draft.cosigners.find(c => c.peerId === peerId);
+  if (existingCosigner) {
+    return { valid: false, error: 'Cosigner already exists' };
+  }
+
   try {
+    // Use version-aware message hash
     const messageHash = computeMessageHash(draft);
     const signatureBytes = Uint8Array.from(Buffer.from(signature, 'hex'));
     const publicKeyBytes = Uint8Array.from(Buffer.from(publicKey, 'hex'));
@@ -684,11 +924,185 @@ export function cleanupExpiredDrafts(): number {
   return expiredCount;
 }
 
+// ==================== Moderator Queue APIs ====================
+
+/**
+ * Gets drafts by status array
+ */
+export function getDraftsByStatus(statuses: TributeStatus[]): TributeDraft[] {
+  const drafts = loadDrafts();
+  return drafts.filter(d => statuses.includes(d.status));
+}
+
+/**
+ * Gets all drafts pending moderator review
+ */
+export function getPendingReviewDrafts(): TributeDraft[] {
+  return getDraftsByStatus(['pending_review']);
+}
+
+/**
+ * Gets drafts assigned to specific moderator (for future assignment system)
+ */
+export function getDraftsForModerator(moderatorId: string): TributeDraft[] {
+  const drafts = loadDrafts();
+  return drafts.filter(d => 
+    d.moderatorDecision && 
+    d.moderatorDecision.moderatorId === moderatorId
+  );
+}
+
+/**
+ * Gets drafts by creator with filtering options
+ */
+export function getDraftsByCreator(
+  creator: string, 
+  options?: {
+    statuses?: TributeStatus[];
+    includeArchived?: boolean;
+  }
+): TributeDraft[] {
+  const drafts = loadDrafts();
+  let filtered = drafts.filter(d => d.creator === creator);
+  
+  if (options?.statuses) {
+    filtered = filtered.filter(d => options.statuses!.includes(d.status));
+  }
+  
+  if (!options?.includeArchived) {
+    filtered = filtered.filter(d => d.status !== 'archived');
+  }
+  
+  return filtered;
+}
+
+/**
+ * Gets drafts within time range
+ */
+export function getDraftsByTimeRange(
+  startDate: number,
+  endDate: number
+): TributeDraft[] {
+  const drafts = loadDrafts();
+  return drafts.filter(d => 
+    d.createdAt >= startDate && d.createdAt <= endDate
+  );
+}
+
+/**
+ * Filters drafts by cosigner count ranges
+ */
+export function getDraftsWithCosignerCount(
+  minCosigners: number = 0,
+  maxCosigners: number = Infinity
+): TributeDraft[] {
+  const drafts = loadDrafts();
+  return drafts.filter(d => {
+    const count = d.cosigners.length;
+    return count >= minCosigners && count <= maxCosigners;
+  });
+}
+
+/**
+ * Gets comprehensive draft statistics for moderator UI
+ */
+export function getDraftStatistics(): {
+  total: number;
+  byStatus: Record<TributeStatus, number>;
+  averageCosigners: number;
+  pendingReviewCount: number;
+  publishedCount: number;
+  draftCount: number;
+  rejectedCount: number;
+} {
+  const drafts = loadDrafts();
+  const stats = {
+    total: drafts.length,
+    byStatus: {
+      draft: 0,
+      pending_review: 0,
+      published: 0,
+      rejected: 0,
+      archived: 0,
+    } as Record<TributeStatus, number>,
+    averageCosigners: 0,
+    pendingReviewCount: 0,
+    publishedCount: 0,
+    draftCount: 0,
+    rejectedCount: 0,
+  };
+  
+  let totalCosigners = 0;
+  
+  drafts.forEach(draft => {
+    stats.byStatus[draft.status]++;
+    totalCosigners += draft.cosigners.length;
+    
+    switch (draft.status) {
+      case 'pending_review':
+        stats.pendingReviewCount++;
+        break;
+      case 'published':
+        stats.publishedCount++;
+        break;
+      case 'draft':
+        stats.draftCount++;
+        break;
+      case 'rejected':
+        stats.rejectedCount++;
+        break;
+    }
+  });
+  
+  stats.averageCosigners = drafts.length > 0 ? totalCosigners / drafts.length : 0;
+  
+  return stats;
+}
+
+/**
+ * Searches drafts by text content
+ */
+export function searchDrafts(
+  query: string,
+  options?: {
+    statuses?: TributeStatus[];
+    creator?: string;
+    dateRange?: { start: number; end: number };
+  }
+): TributeDraft[] {
+  const drafts = loadDrafts();
+  const lowerQuery = query.toLowerCase();
+  
+  let filtered = drafts.filter(draft => 
+    draft.honoree.toLowerCase().includes(lowerQuery) ||
+    draft.message.toLowerCase().includes(lowerQuery) ||
+    draft.creator.toLowerCase().includes(lowerQuery)
+  );
+  
+  if (options?.statuses) {
+    filtered = filtered.filter(d => options.statuses!.includes(d.status));
+  }
+  
+  if (options?.creator) {
+    filtered = filtered.filter(d => d.creator === options.creator);
+  }
+  
+  if (options?.dateRange) {
+    filtered = filtered.filter(d => 
+      d.createdAt >= options.dateRange!.start && 
+      d.createdAt <= options.dateRange!.end
+    );
+  }
+  
+  return filtered;
+}
+
 // ==================== Exports ====================
 
 export const TributeService = {
   // Draft management
   createDraft,
+  editDraft,
   scheduleExpiry,
   archiveDraft,
   getDraftById,
@@ -704,6 +1118,21 @@ export const TributeService = {
   // Moderator actions
   publishDraft,
   rejectDraft,
+
+  // Session & Rate Limiting
+  getOrCreateSession,
+  checkRateLimitWithSession,
+  recordAttemptWithSession,
+
+  // Moderator Queue APIs
+  getDraftsByStatus,
+  getPendingReviewDrafts,
+  getDraftsForModerator,
+  getDraftsByCreator,
+  getDraftsByTimeRange,
+  getDraftsWithCosignerCount,
+  getDraftStatistics,
+  searchDrafts,
 
   // Validation
   checkRateLimit,
