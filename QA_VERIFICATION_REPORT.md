@@ -1,5 +1,22 @@
 # QA Verification Report - Merged Main Branch
 
+## Regression & Docker Build Verification (2025-12-13)
+
+**Branch**: `fix-regression-docker-ci-tests`
+
+### Changes Applied
+- **Dockerfile**: removed Alpine `apk add` steps (to avoid flaky mirror/DNS failures), fixed invalid `npm ci --only=production=false` usage, and switched healthcheck to `wget` (busybox) instead of `curl`.
+- **docker-compose.yml**: updated container healthcheck to use `wget` (container no longer installs `curl`).
+- **Docs**: updated container/Kubernetes healthcheck examples from `curl` → `wget`.
+
+### Verification Steps
+- `docker build .` (should build cleanly with no Alpine package mirror dependencies during build)
+- `npm run lint`
+- `npm test` (ensure `TributeService` suite executes all **25** cases)
+- `npm run build`
+
+---
+
 **Verification Date**: 2024
 **Branch**: qa-verify-merged-main (main)
 **HEAD Commit**: `09565be288ce13acf5bdedae83154b1c9a687997`

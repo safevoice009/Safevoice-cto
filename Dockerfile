@@ -5,14 +5,12 @@ FROM node:20-alpine AS builder
 # Set working directory
 WORKDIR /app
 
-# Install dependencies for native modules
-RUN apk add --no-cache python3 make g++
-
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production=false
+# Install dependencies (including dev dependencies required for the Vite/TypeScript build)
+# `--no-audit`/`--no-fund` avoids extra network calls that can make Docker builds flaky.
+RUN npm ci --no-audit --no-fund
 
 # Copy source code
 COPY . .
@@ -33,8 +31,8 @@ RUN npm run build
 # Stage 2: Production server with nginx
 FROM nginx:alpine
 
-# Install curl for healthchecks
-RUN apk add --no-cache curl
+# Note: nginx:alpine already includes busybox (with wget), so we avoid extra package installs
+# to reduce flakiness from Alpine package mirrors during image build.
 
 # Copy custom nginx configuration
 COPY <<'EOF' /etc/nginx/conf.d/default.conf
@@ -98,7 +96,7 @@ EXPOSE 80
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost/health || exit 1
+  CMD wget -qO- http://localhost/health >/dev/null 2>&1 || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]

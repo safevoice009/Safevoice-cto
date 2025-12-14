@@ -274,7 +274,7 @@ docker run -d \
   -p 80:80 \
   --memory="256m" \
   --cpus="0.5" \
-  --health-cmd="curl -f http://localhost/health || exit 1" \
+  --health-cmd="wget -qO- http://localhost/health >/dev/null 2>&1 || exit 1" \
   --health-interval=30s \
   --health-timeout=3s \
   --health-retries=3 \
@@ -333,7 +333,7 @@ docker build --build-arg VITE_APP_ENV=production -t safevoice:latest .
 
 ```bash
 # Check network connectivity
-docker exec safevoice curl -I https://google.com
+docker exec safevoice wget -qO- https://google.com >/dev/null
 
 # Inspect network
 docker network inspect safevoice-network
@@ -360,7 +360,7 @@ docker system df
 
 ```bash
 # Test health endpoint
-docker exec safevoice curl http://localhost/health
+docker exec safevoice wget -qO- http://localhost/health
 
 # Check health status
 docker inspect --format='{{json .State.Health}}' safevoice | jq
@@ -493,7 +493,7 @@ docker inspect safevoice | jq '.[0].State.Health'
 For container-related issues:
 
 1. Check logs: `docker logs safevoice`
-2. Verify health: `docker exec safevoice curl http://localhost/health`
+2. Verify health: `docker exec safevoice wget -qO- http://localhost/health`
 3. Review configuration: `docker inspect safevoice`
 4. Consult the [Troubleshooting](#troubleshooting) section
 5. Open an issue on GitHub with logs and configuration
