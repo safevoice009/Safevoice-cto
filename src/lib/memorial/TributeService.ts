@@ -634,7 +634,7 @@ export async function addCosigner(
   // Check if cosigner already exists
   const existingCosigner = draft.cosigners.find(c => c.peerId === peerId);
   if (existingCosigner) {
-    return { success: false, error: 'Cosigner already added' };
+    return { success: false, error: 'Peer has already cosigned this draft' };
   }
   
   // Verify signature with current version
@@ -689,12 +689,6 @@ export async function verifyCosignerSignature(
     return { valid: false, error: 'Draft not found' };
   }
   
-  // Check if cosigner already exists with different signature
-  const existingCosigner = draft.cosigners.find(c => c.peerId === peerId);
-  if (existingCosigner) {
-    return { valid: false, error: 'Cosigner already exists' };
-  }
-
   try {
     // Use version-aware message hash
     const messageHash = computeMessageHash(draft);
@@ -705,6 +699,12 @@ export async function verifyCosignerSignature(
 
     if (!isValid) {
       return { valid: false, error: 'Invalid signature' };
+    }
+
+    // Check if cosigner already exists (after successful verification)
+    const existingCosigner = draft.cosigners.find(c => c.peerId === peerId);
+    if (existingCosigner) {
+      return { valid: false, error: 'Peer has already cosigned this draft' };
     }
 
     return { valid: true };

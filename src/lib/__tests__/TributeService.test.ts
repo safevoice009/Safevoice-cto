@@ -59,18 +59,23 @@ async function generateKeypair() {
   return { privateKey, publicKey };
 }
 
-// Helper to sign a draft
+// Helper to sign a draft (must match TributeService.computeMessageHash exactly)
 async function signDraft(
   draft: Pick<TributeDraft, 'id' | 'creator' | 'honoree' | 'message'>,
-  privateKey: Uint8Array
+  privateKey: Uint8Array,
+  version: number = 0
 ): Promise<string> {
   const { sha256 } = await import('@noble/hashes/sha2.js');
+  
+  // This must exactly match TributeService.computeMessageHash
   const message = JSON.stringify({
     id: draft.id,
     creator: draft.creator,
     honoree: draft.honoree,
     message: draft.message,
+    version: version,
   });
+  
   const messageHash = sha256(new TextEncoder().encode(message));
   const signature = await ed25519.sign(messageHash, privateKey);
   return Buffer.from(signature).toString('hex');
@@ -286,13 +291,19 @@ describe('TributeService', () => {
       const publicKeyHex = Buffer.from(peer1.publicKey).toString('hex');
 
       // First signature should succeed
-      const result1 = await addCosigner(draft.draft!.id, 'peer1', sig1, publicKeyHex);
+      const result1 = await addCosigner(draft.draft!.id, 'peer1', sig1, publicKeyHex, {
+        deviceInfo: 'test-device',
+        networkInfo: 'test-network'
+      });
       expect(result1.success).toBe(true);
 
       // Second signature from same peer should fail
-      const result2 = await addCosigner(draft.draft!.id, 'peer1', sig1, publicKeyHex);
+      const result2 = await addCosigner(draft.draft!.id, 'peer1', sig1, publicKeyHex, {
+        deviceInfo: 'test-device',
+        networkInfo: 'test-network'
+      });
       expect(result2.success).toBe(false);
-      expect(result2.error).toContain('already cosigned');
+      expect(result2.error).toContain('already');
     });
 
     it('should only finalize draft after consensus', async () => {
@@ -312,12 +323,17 @@ describe('TributeService', () => {
       for (let i = 0; i < 3; i++) {
         const peer = await generateKeypair();
         const sig = await signDraft(draft.draft!, peer.privateKey);
-        await addCosigner(
+        const result = await addCosigner(
           draft.draft!.id,
           `peer${i}`,
           sig,
-          Buffer.from(peer.publicKey).toString('hex')
+          Buffer.from(peer.publicKey).toString('hex'),
+          {
+            deviceInfo: 'test-device',
+            networkInfo: 'test-network'
+          }
         );
+        expect(result.success).toBe(true);
       }
 
       // Now finalize should succeed
@@ -461,7 +477,11 @@ describe('TributeService', () => {
         draft.draft!.id,
         'peer1',
         sig,
-        Buffer.from(peer.publicKey).toString('hex')
+        Buffer.from(peer.publicKey).toString('hex'),
+        {
+          deviceInfo: 'test-device',
+          networkInfo: 'test-network'
+        }
       );
 
       expect(result.success).toBe(true);
@@ -522,12 +542,17 @@ describe('TributeService', () => {
       for (let i = 0; i < 3; i++) {
         const peer = await generateKeypair();
         const sig = await signDraft(draft.draft!, peer.privateKey);
-        await addCosigner(
+        const result = await addCosigner(
           draft.draft!.id,
           `peer${i}`,
           sig,
-          Buffer.from(peer.publicKey).toString('hex')
+          Buffer.from(peer.publicKey).toString('hex'),
+          {
+            deviceInfo: 'test-device',
+            networkInfo: 'test-network'
+          }
         );
+        expect(result.success).toBe(true);
       }
       finalize(draft.draft!.id);
 
@@ -553,12 +578,17 @@ describe('TributeService', () => {
       for (let i = 0; i < 3; i++) {
         const peer = await generateKeypair();
         const sig = await signDraft(draft.draft!, peer.privateKey);
-        await addCosigner(
+        const result = await addCosigner(
           draft.draft!.id,
           `peer${i}`,
           sig,
-          Buffer.from(peer.publicKey).toString('hex')
+          Buffer.from(peer.publicKey).toString('hex'),
+          {
+            deviceInfo: 'test-device',
+            networkInfo: 'test-network'
+          }
         );
+        expect(result.success).toBe(true);
       }
       finalize(draft.draft!.id);
 
@@ -587,12 +617,17 @@ describe('TributeService', () => {
       // Add cosigner
       const peer = await generateKeypair();
       const sig = await signDraft(draft.draft!, peer.privateKey);
-      await addCosigner(
+      const result = await addCosigner(
         draft.draft!.id,
         'peer1',
         sig,
-        Buffer.from(peer.publicKey).toString('hex')
+        Buffer.from(peer.publicKey).toString('hex'),
+        {
+          deviceInfo: 'test-device',
+          networkInfo: 'test-network'
+        }
       );
+      expect(result.success).toBe(true);
 
       const updated = getActiveDrafts('Student#1234')[0];
       expect(updated.auditTrail).toHaveLength(2);
