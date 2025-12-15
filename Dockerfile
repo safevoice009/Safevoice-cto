@@ -19,11 +19,17 @@ COPY . .
 ARG VITE_WALLETCONNECT_PROJECT_ID
 ARG VITE_APP_ENV=production
 ARG PUBLIC_URL=/
+ARG VITE_COLLEGE_NAME
+ARG VITE_BRAND_ACCENT
+ARG VITE_P2P_BOOTSTRAP
 
 # Set environment variables for build
 ENV VITE_WALLETCONNECT_PROJECT_ID=${VITE_WALLETCONNECT_PROJECT_ID}
 ENV VITE_APP_ENV=${VITE_APP_ENV}
 ENV PUBLIC_URL=${PUBLIC_URL}
+ENV VITE_COLLEGE_NAME=${VITE_COLLEGE_NAME}
+ENV VITE_BRAND_ACCENT=${VITE_BRAND_ACCENT}
+ENV VITE_P2P_BOOTSTRAP=${VITE_P2P_BOOTSTRAP}
 
 # Build the application
 RUN npm run build
@@ -67,13 +73,24 @@ server {
         expires 1h;
         add_header Cache-Control "public, must-revalidate";
     }
+
+    # API Proxy to Sidecar (including health/readiness)
+    location /api/ {
+        # Trailing slash is important to strip /api/ prefix
+        proxy_pass http://p2p-bootstrap:3000/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
     
     # Single Page Application routing
     location / {
         try_files $uri $uri/ /index.html;
     }
     
-    # Health check endpoint
+    # Health check endpoint (Local Nginx Health)
     location /health {
         access_log off;
         return 200 "healthy\n";

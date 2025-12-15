@@ -387,65 +387,6 @@ export class RewardEngine {
   /**
    * Normalize snapshot to ensure all fields exist (backwards compatibility)
    */
-  private normalizeSnapshot(snapshot: WalletSnapshot): WalletSnapshot {
-    const streakData = snapshot.streakData ?? this.createEmptySnapshot().streakData;
-
-    const normalizedStreakData: StreakData = {
-      ...streakData,
-      currentStreak: streakData.currentStreak ?? 0,
-      longestStreak: streakData.longestStreak ?? streakData.currentStreak ?? 0,
-      lastLoginDate: streakData.lastLoginDate ?? null,
-      streakBroken: streakData.streakBroken ?? false,
-      lastStreakResetDate: streakData.lastStreakResetDate ?? null,
-      currentPostStreak: streakData.currentPostStreak ?? 0,
-      longestPostStreak: streakData.longestPostStreak ?? streakData.currentPostStreak ?? 0,
-      lastPostDate: streakData.lastPostDate ?? null,
-      postStreakBroken: streakData.postStreakBroken ?? false,
-      lastPostStreakResetDate: streakData.lastPostStreakResetDate ?? null,
-    };
-
-    const breakdown = snapshot.earningsBreakdown ?? this.createEmptySnapshot().earningsBreakdown;
-    const normalizedBreakdown: EarningsBreakdown = {
-      posts: breakdown.posts ?? 0,
-      reactions: breakdown.reactions ?? 0,
-      comments: breakdown.comments ?? 0,
-      helpful: breakdown.helpful ?? 0,
-      streaks: breakdown.streaks ?? 0,
-      bonuses: breakdown.bonuses ?? 0,
-      crisis: breakdown.crisis ?? 0,
-      reporting: breakdown.reporting ?? 0,
-      referrals: breakdown.referrals ?? 0,
-    };
-
-    const defaultSubscriptions = this.createDefaultSubscriptions();
-    const normalizedSubscriptions = (Object.keys(defaultSubscriptions) as PremiumFeatureType[]).reduce<SubscriptionState>(
-      (acc, feature) => {
-        const existing = snapshot.subscriptions?.[feature];
-        const defaultFeature = defaultSubscriptions[feature];
-        acc[feature] = {
-          ...defaultFeature,
-          ...existing,
-          id: defaultFeature.id,
-          name: existing?.name ?? defaultFeature.name,
-          description: existing?.description ?? defaultFeature.description,
-          monthlyCost: existing?.monthlyCost ?? defaultFeature.monthlyCost,
-          enabled: Boolean(existing?.enabled),
-          activatedAt: typeof existing?.activatedAt === 'number' ? existing.activatedAt : null,
-          nextRenewal: typeof existing?.nextRenewal === 'number' ? existing.nextRenewal : null,
-        };
-        return acc;
-      },
-      {} as SubscriptionState
-    );
-
-    return {
-      ...snapshot,
-      streakData: normalizedStreakData,
-      lastLogin: snapshot.lastLogin ?? normalizedStreakData.lastLoginDate,
-      earningsBreakdown: normalizedBreakdown,
-      subscriptions: normalizedSubscriptions,
-    };
-  }
 
   private getNumberFromStorage(key: string, fallback: number = 0): number {
     if (typeof window === 'undefined') return fallback;

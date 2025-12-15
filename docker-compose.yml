@@ -9,12 +9,20 @@ services:
         VITE_WALLETCONNECT_PROJECT_ID: ${VITE_WALLETCONNECT_PROJECT_ID:-}
         VITE_APP_ENV: ${VITE_APP_ENV:-production}
         PUBLIC_URL: ${PUBLIC_URL:-/}
+        VITE_COLLEGE_NAME: ${COLLEGE_NAME:-SafeVoice University}
+        VITE_BRAND_ACCENT: ${BRAND_ACCENT:-#3b82f6}
+        VITE_P2P_BOOTSTRAP: ${P2P_BOOTSTRAP:-}
     image: safevoice:latest
     container_name: safevoice-app
     ports:
       - "${PORT:-8080}:80"
     environment:
       - NODE_ENV=production
+    volumes:
+      - crdt-snapshots:/usr/share/nginx/html/snapshots:ro
+    depends_on:
+      p2p-bootstrap:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost/health >/dev/null 2>&1 || exit 1"]
@@ -28,7 +36,35 @@ services:
     networks:
       - safevoice-network
 
+  p2p-bootstrap:
+    image: node:20-alpine
+    container_name: p2p-bootstrap
+    working_dir: /app
+    # We mount the script and necessary files
+    volumes:
+      - ./scripts/p2p-bootstrap-server.mjs:/app/server.mjs:ro
+      - crdt-snapshots:/data/snapshots
+      - bootstrap-metadata:/data/metadata
+    # Install dependencies and run the server
+    command: sh -c "npm install ws prom-client && node server.mjs"
+    environment:
+      - PORT=3000
+      - SNAPSHOT_DIR=/data/snapshots
+      - PEER_TTL=${PEER_TTL:-45000}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - safevoice-network
+
 networks:
   safevoice-network:
     driver: bridge
     name: safevoice-network
+
+volumes:
+  crdt-snapshots:
+  bootstrap-metadata:

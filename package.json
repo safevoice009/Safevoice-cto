@@ -68,7 +68,9 @@
     "three": "^0.181.0",
     "viem": "^1.21.4",
     "wagmi": "^1.4.13",
-    "zustand": "^5.0.8"
+    "zustand": "^5.0.8",
+    "ws": "^8.18.0",
+    "prom-client": "^15.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
