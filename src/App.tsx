@@ -232,54 +232,6 @@ function AnimatedRoutes() {
     setPendingPost(null);
   };
 
-  useEffect(() => {
-    loadWalletData();
-    grantDailyLoginBonus();
-  }, [loadWalletData, grantDailyLoginBonus]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    lifecycleManagerRef.current = new PostLifecycleManager(useStore);
-    lifecycleManagerRef.current.start();
-
-    return () => {
-      lifecycleManagerRef.current?.stop();
-    };
-  }, []);
-
-  const handleCrisisAcknowledge = (action: 'call_helpline' | 'continue') => {
-    if (action === 'call_helpline') {
-      toast.success(t('crisis.thankYou'));
-    }
-
-    if (pendingPost && pendingPost.moderationData) {
-      addPost(
-        pendingPost.content,
-        pendingPost.category,
-        pendingPost.lifetime,
-        pendingPost.customLifetimeHours || undefined,
-        pendingPost.isEncrypted,
-        pendingPost.encryptionData,
-        pendingPost.moderationData,
-        pendingPost.imageUrl,
-        pendingPost.communityId
-          ? {
-              communityId: pendingPost.communityId ?? undefined,
-              channelId: pendingPost.channelId ?? undefined,
-              visibility: pendingPost.visibility,
-              isAnonymous: pendingPost.isAnonymous,
-            }
-          : undefined,
-        pendingPost.emotionAnalysis ?? null,
-        pendingPost.ipfsCid ?? undefined
-      );
-    }
-
-    setShowCrisisModal(false);
-    setPendingPost(null);
-  };
-
   return (
     <>
       <SkipLink targetId="main-content" />

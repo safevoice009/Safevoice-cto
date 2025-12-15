@@ -11,8 +11,7 @@ import { RewardEngine, type Achievement, type PremiumFeatureType, type Subscript
 import { AchievementService, type RankDefinition } from './tokens/AchievementService';
 import { addAchievementToast } from './achievementToastBus';
 import type { BridgeStatus, QueuedTransaction, DeFiYield } from './web3/types';
-import { Web3Bridge } from './web3/bridge';
-import { createWeb3Config, getDefaultChainId, isWeb3Enabled } from './web3/config';
+import { createWeb3Config, isWeb3Enabled } from './web3/config';
 import type { ChainBalance, StakingPosition, GovernanceProposal, NFTAchievement } from './wallet/types';
 import type {
   Community,
@@ -44,10 +43,6 @@ import {
   generateSalt,
   obfuscateAPIs,
   restoreAPIs,
-  serializeFingerprintSnapshot,
-  deserializeFingerprintSnapshot,
-  serializeMitigationPlan,
-  deserializeMitigationPlan,
 } from './privacy/fingerprint';
 import { localStorageService } from './storage/local/LocalStorageService';
 import { storageEncryption } from './storage/encryption/StorageEncryption';
@@ -981,12 +976,6 @@ export interface StoreState {
   toggleEventRsvp: (eventId: string) => void;
   loadCommunityEvents: () => void;
 
-  // NFT Badges
-  nftBadges: NFTBadge[];
-  purchaseNFTBadge: (tier: NFTBadgeTier, cost: number) => boolean;
-  hasNFTBadge: (tier: NFTBadgeTier) => boolean;
-  loadNFTBadges: () => void;
-
   // Utility
   saveToLocalStorage: () => void;
 
@@ -1160,6 +1149,83 @@ const STORAGE_KEYS = {
 const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
 const EMOTION_SOURCES: readonly EmotionAnalysisResult['source'][] = ['api', 'offline', 'manual'];
 
+const VIRAL_REACTION_THRESHOLD = 100;
+const VIRAL_REWARD_AMOUNT = 250;
+const HELPFUL_COMMENT_THRESHOLD = 10;
+const HELPFUL_COMMENT_REWARD_PREFIX = 'helpful-comment-reward';
+const MAX_MODERATOR_ACTIONS = 100;
+const VOLUNTEER_MOD_ACTION_COOLDOWN_MS = 60 * 60 * 1000;
+const COMMUNITY_STATE_VERSION = 2;
+
+const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = {
+  'blur_post': 'Content flagged as sensitive',
+  'hide_post': 'Post hidden for moderation',
+  'verify_advice': 'Advice verified by moderator',
+  'review_report': 'Report reviewed',
+  'restore_post': 'Post restored after review',
+  'pin_community_post': 'Post pinned in community',
+  'unpin_community_post': 'Post unpinned from community',
+  'delete_community_post': 'Post deleted from community',
+  'ban_member': 'Member banned from community',
+  'warn_member': 'Member warned',
+  'mute_channel': 'Channel muted',
+  'create_announcement': 'Announcement created',
+};
+
+export const NFT_BADGE_TIERS: NFTBadgeTier[] = ['bronze', 'silver', 'gold', 'lifetime'];
+
+export const NFT_BADGE_DEFINITIONS: Record<NFTBadgeTier, { 
+  name: string; 
+  label: string;
+  cost: number; 
+  description: string; 
+  icon: string;
+  gradientFrom: string;
+  gradientTo: string;
+  accent: string;
+}> = {
+  bronze: {
+    name: 'Bronze Badge',
+    label: 'Bronze Supporter',
+    cost: 500,
+    description: 'Show your support with a bronze badge',
+    icon: '🥉',
+    gradientFrom: '#CD7F32',
+    gradientTo: '#8B4513',
+    accent: '#CD7F32',
+  },
+  silver: {
+    name: 'Silver Badge',
+    label: 'Silver Supporter',
+    cost: 1500,
+    description: 'Stand out with a silver badge',
+    icon: '🥈',
+    gradientFrom: '#C0C0C0',
+    gradientTo: '#A8A8A8',
+    accent: '#C0C0C0',
+  },
+  gold: {
+    name: 'Gold Badge',
+    label: 'Gold Supporter',
+    cost: 5000,
+    description: 'Premium gold badge for dedicated supporters',
+    icon: '🥇',
+    gradientFrom: '#FFD700',
+    gradientTo: '#FFA500',
+    accent: '#FFD700',
+  },
+  lifetime: {
+    name: 'Lifetime Supporter',
+    label: 'Lifetime Supporter',
+    cost: 25000,
+    description: 'Ultimate lifetime supporter badge',
+    icon: '👑',
+    gradientFrom: '#9D4EDD',
+    gradientTo: '#7209B7',
+    accent: '#9D4EDD',
+  },
+};
+
 const isEmotionType = (value: unknown): value is EmotionType =>
   typeof value === 'string' && EMOTION_TYPES.includes(value as EmotionType);
 
@@ -1264,269 +1330,6 @@ const normalizePost = (post: Partial<Post>): Post | null => {
   };
 };
 
-const CRISIS_QUEUE_STORAGE_VERSION = 1;
-const MAX_CRISIS_QUEUE_ENTRIES = 50;
-
-const DEFAULT_CRISIS_BROADCAST_METRICS: CrisisBroadcastMetrics = {
-  successCount: 0,
-  failureCount: 0,
-  lastSuccessAt: null,
-  lastFailureAt: null,
-  lastSyncAt: null,
-};
-
-type SafevoiceWindow = Window & {
-  safevoice?: {
-    supabase?: {
-      broadcastCrisisUpdate?: (entry: CrisisQueueEntry) => Promise<void>;
-    };
-  };
-};
-
-const isCrisisStatus = (value: unknown): value is CrisisQueueStatus =>
-  value === 'pending' || value === 'broadcasted' || value === 'acknowledged' || value === 'resolved';
-
-const isCrisisSource = (value: unknown): value is CrisisQueueSource =>
-  value === 'automatic' || value === 'report' || value === 'manual';
-
-const sanitizeNullableString = (value: unknown): string | null =>
-  typeof value === 'string' && value.trim().length > 0 ? value : null;
-
-const normalizeCrisisQueueEntry = (raw: Partial<CrisisQueueEntry>): CrisisQueueEntry | null => {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const postId = sanitizeNullableString(raw.postId);
-  if (!postId) {
-    return null;
-  }
-
-  const id = sanitizeNullableString(raw.id) ?? crypto.randomUUID();
-  const authorId = sanitizeNullableString(raw.authorId) ?? 'unknown';
-  const detectedAt =
-    typeof raw.detectedAt === 'number' && Number.isFinite(raw.detectedAt) ? raw.detectedAt : Date.now();
-  const severity: 'high' | 'critical' = raw.severity === 'critical' ? 'critical' : 'high';
-  const status: CrisisQueueStatus = isCrisisStatus(raw.status) ? raw.status : 'pending';
-  const source: CrisisQueueSource = isCrisisSource(raw.source) ? raw.source : 'automatic';
-  const broadcastAttempts =
-    typeof raw.broadcastAttempts === 'number' && Number.isFinite(raw.broadcastAttempts) && raw.broadcastAttempts >= 0
-      ? Math.floor(raw.broadcastAttempts)
-      : 0;
-  const lastBroadcastAt =
-    typeof raw.lastBroadcastAt === 'number' && Number.isFinite(raw.lastBroadcastAt) ? raw.lastBroadcastAt : null;
-  const lastError = sanitizeNullableString(raw.lastError);
-  const message = sanitizeNullableString(raw.message);
-  const metadata = raw.metadata && typeof raw.metadata === 'object' ? (raw.metadata as Record<string, unknown>) : null;
-  const ipfsCid = sanitizeNullableString(raw.ipfsCid);
-  const communityId = sanitizeNullableString(raw.communityId);
-  const channelId = sanitizeNullableString(raw.channelId);
-  const postPreview = sanitizeNullableString(raw.postPreview);
-  const fallbackUsed = raw.fallbackUsed === true || raw.fallbackUsed === false ? raw.fallbackUsed : false;
-  const fallbackReason = sanitizeNullableString(raw.fallbackReason);
-  const acknowledgedBy = sanitizeNullableString(raw.acknowledgedBy);
-  const acknowledgedAt =
-    typeof raw.acknowledgedAt === 'number' && Number.isFinite(raw.acknowledgedAt) ? raw.acknowledgedAt : null;
-  const resolvedBy = sanitizeNullableString(raw.resolvedBy);
-  const resolvedAt =
-    typeof raw.resolvedAt === 'number' && Number.isFinite(raw.resolvedAt) ? raw.resolvedAt : null;
-  const resolutionNote = sanitizeNullableString(raw.resolutionNote);
-
-  return {
-    id,
-    postId,
-    authorId,
-    detectedAt,
-    severity,
-    status,
-    source,
-    broadcastAttempts,
-    lastBroadcastAt,
-    lastError,
-    message,
-    metadata,
-    ipfsCid,
-    communityId,
-    channelId,
-    postPreview,
-    fallbackUsed,
-    fallbackReason,
-    acknowledgedBy,
-    acknowledgedAt,
-    resolvedBy,
-    resolvedAt,
-    resolutionNote,
-  };
-};
-
-const sortAndTrimCrisisQueue = (entries: CrisisQueueEntry[]): CrisisQueueEntry[] => {
-  const sorted = [...entries].sort((a, b) => b.detectedAt - a.detectedAt);
-  if (sorted.length <= MAX_CRISIS_QUEUE_ENTRIES) {
-    return sorted;
-  }
-
-  const unresolved = sorted.filter((entry) => entry.status !== 'resolved');
-  const resolved = sorted.filter((entry) => entry.status === 'resolved');
-  const trimmedUnresolved = unresolved.slice(0, MAX_CRISIS_QUEUE_ENTRIES);
-
-  if (trimmedUnresolved.length >= MAX_CRISIS_QUEUE_ENTRIES) {
-    return trimmedUnresolved;
-  }
-
-  const remainingSlots = MAX_CRISIS_QUEUE_ENTRIES - trimmedUnresolved.length;
-  return trimmedUnresolved.concat(resolved.slice(0, remainingSlots));
-};
-
-// Helper functions for future use - currently kept for API consistency
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _readStoredCrisisQueue = (): CrisisQueueEntry[] => {
-  if (typeof window === 'undefined') {
-    return [];
-  }
-
-  const raw = localStorage.getItem(STORAGE_KEYS.CRISIS_QUEUE);
-  if (!raw) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as
-      | { version?: number; items?: Array<Partial<CrisisQueueEntry>> }
-      | Array<Partial<CrisisQueueEntry>>;
-    const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items ?? [] : [];
-    const normalized = items
-      .map((item) => normalizeCrisisQueueEntry(item ?? {}))
-      .filter((entry): entry is CrisisQueueEntry => entry !== null);
-    return sortAndTrimCrisisQueue(normalized);
-  } catch (error) {
-    console.error('Failed to parse crisis queue from storage', error);
-    return [];
-  }
-};
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _persistCrisisQueue = (entries: CrisisQueueEntry[]): void => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  const payload = {
-    version: CRISIS_QUEUE_STORAGE_VERSION,
-    items: sortAndTrimCrisisQueue(entries),
-  };
-
-  try {
-    localStorage.setItem(STORAGE_KEYS.CRISIS_QUEUE, JSON.stringify(payload));
-  } catch (error) {
-    console.error('Failed to persist crisis queue', error);
-  }
-};
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _readStoredCrisisMetrics = (): CrisisBroadcastMetrics => {
-  if (typeof window === 'undefined') {
-    return { ...DEFAULT_CRISIS_BROADCAST_METRICS };
-  }
-
-  const raw = localStorage.getItem(STORAGE_KEYS.CRISIS_QUEUE_META);
-  if (!raw) {
-    return { ...DEFAULT_CRISIS_BROADCAST_METRICS };
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<CrisisBroadcastMetrics>;
-    return {
-      successCount:
-        typeof parsed.successCount === 'number' && Number.isFinite(parsed.successCount) && parsed.successCount >= 0
-          ? Math.floor(parsed.successCount)
-          : 0,
-      failureCount:
-        typeof parsed.failureCount === 'number' && Number.isFinite(parsed.failureCount) && parsed.failureCount >= 0
-          ? Math.floor(parsed.failureCount)
-          : 0,
-      lastSuccessAt:
-        typeof parsed.lastSuccessAt === 'number' && Number.isFinite(parsed.lastSuccessAt)
-          ? parsed.lastSuccessAt
-          : null,
-      lastFailureAt:
-        typeof parsed.lastFailureAt === 'number' && Number.isFinite(parsed.lastFailureAt)
-          ? parsed.lastFailureAt
-          : null,
-      lastSyncAt:
-        typeof parsed.lastSyncAt === 'number' && Number.isFinite(parsed.lastSyncAt)
-          ? parsed.lastSyncAt
-          : null,
-    };
-  } catch (error) {
-    console.error('Failed to parse crisis broadcast metrics', error);
-    return { ...DEFAULT_CRISIS_BROADCAST_METRICS };
-  }
-};
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _persistCrisisMetrics = (metrics: CrisisBroadcastMetrics): void => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    localStorage.setItem(STORAGE_KEYS.CRISIS_QUEUE_META, JSON.stringify(metrics));
-  } catch (error) {
-    console.error('Failed to persist crisis broadcast metrics', error);
-  }
-};
-
-type CrisisBroadcastTransport = 'supabase' | 'localStorage';
-
-interface CrisisBroadcastResult {
-  success: boolean;
-  error?: string;
-  transport?: CrisisBroadcastTransport;
-  fallbackReason?: string | null;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _broadcastCrisisEntry = async (entry: CrisisQueueEntry): Promise<CrisisBroadcastResult> => {
-  if (typeof window === 'undefined') {
-    return { success: false, error: 'Broadcast unavailable in this environment' };
-  }
-
-  const globalWindow = window as SafevoiceWindow;
-  const supabaseFn = globalWindow.safevoice?.supabase?.broadcastCrisisUpdate;
-  let supabaseError: string | null = null;
-
-  if (typeof supabaseFn === 'function') {
-    try {
-      await supabaseFn(entry);
-      return { success: true, transport: 'supabase' };
-    } catch (error) {
-      supabaseError = error instanceof Error ? error.message : 'Supabase broadcast failed';
-      console.warn('Supabase crisis broadcast failed, falling back to local storage:', supabaseError);
-    }
-  }
-
-  try {
-    const payload = { entry, attemptedAt: Date.now(), supabaseError };
-    localStorage.setItem(STORAGE_KEYS.CRISIS_BROADCAST_SHADOW, JSON.stringify(payload));
-
-    if (typeof CustomEvent === 'function') {
-      try {
-        const event = new CustomEvent('safevoice:crisis-broadcast', { detail: payload });
-        globalWindow.dispatchEvent(event);
-      } catch (eventError) {
-        console.warn('Failed to dispatch crisis broadcast event', eventError);
-      }
-    }
-
-    return { success: true, transport: 'localStorage', fallbackReason: supabaseError };
-  } catch (error) {
-    const fallbackError = error instanceof Error ? error.message : 'Local fallback failed';
-    const combinedError = supabaseError ? `${supabaseError}; ${fallbackError}` : fallbackError;
-    return { success: false, error: combinedError };
-  }
-};
-
-const EMOTION_TYPES: readonly EmotionType[] = ['Sad', 'Anxious', 'Angry', 'Happy', 'Neutral'];
 const getSavedHelplinesFromStorage = (): string[] => {
   if (typeof window === 'undefined') return [];
   try {
@@ -1765,6 +1568,21 @@ const upsertReport = (collection: Map<string, Report>, raw: Partial<Report>): Re
   return merged;
 };
 
+const MODERATOR_ACTION_TYPES: ModeratorAction['actionType'][] = [
+  'blur_post',
+  'hide_post',
+  'verify_advice',
+  'review_report',
+  'restore_post',
+  'pin_community_post',
+  'unpin_community_post',
+  'delete_community_post',
+  'ban_member',
+  'warn_member',
+  'mute_channel',
+  'create_announcement',
+];
+
 const normalizeModeratorAction = (action: Partial<ModeratorAction>): ModeratorAction | null => {
   const candidateType = action.actionType;
   if (!candidateType || !MODERATOR_ACTION_TYPES.includes(candidateType as ModeratorAction['actionType'])) {
@@ -1925,6 +1743,162 @@ const clampLimit = (limit?: number, fallback = 5): number => {
   if (!limit || limit <= 0) return fallback;
   return Math.min(limit, 25);
 };
+
+const adjustCommunityChannelActiveMembers = (
+  meta: CommunityPostMeta[],
+  channels: CommunityChannel[],
+  communityId: string,
+  delta: number
+): CommunityPostMeta[] => {
+  return meta.map(m => {
+    const channel = channels.find(ch => ch.id === m.channelId && ch.communityId === communityId);
+    if (!channel) return m;
+    return { ...m, activeMembers: Math.max(0, (m.activeMembers || 0) + delta) };
+  });
+};
+
+const findDefaultChannelId = (channels: CommunityChannel[], communityId: string): string | null => {
+  const defaultChannel = channels.find(ch => ch.communityId === communityId && ch.name === 'general');
+  return defaultChannel?.id || channels.find(ch => ch.communityId === communityId)?.id || null;
+};
+
+const createNotificationSettingsForCommunity = (communityId: string, studentId: string): CommunityNotificationSettings => {
+  return {
+    communityId,
+    studentId,
+    enabled: true,
+    muteAll: false,
+    mutedChannels: [],
+    mentions: true,
+    announcements: true,
+    directMessages: true,
+  };
+};
+
+const saveFingerprintSalt = (salt: string | null): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (salt) {
+      localStorage.setItem(STORAGE_KEYS.FINGERPRINT_SALT, salt);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.FINGERPRINT_SALT);
+    }
+  } catch (error) {
+    console.error('Failed to save fingerprint salt', error);
+  }
+};
+
+const saveFingerprintSnapshot = (snapshot: FingerprintSnapshot | null): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (snapshot) {
+      localStorage.setItem(STORAGE_KEYS.FINGERPRINT_SNAPSHOT, JSON.stringify(snapshot));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.FINGERPRINT_SNAPSHOT);
+    }
+  } catch (error) {
+    console.error('Failed to save fingerprint snapshot', error);
+  }
+};
+
+const saveFingerprintMitigationPlan = (plan: FingerprintMitigationPlan | null): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (plan) {
+      localStorage.setItem(STORAGE_KEYS.MITIGATION_PLAN, JSON.stringify(plan));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.MITIGATION_PLAN);
+    }
+  } catch (error) {
+    console.error('Failed to save mitigation plan', error);
+  }
+};
+
+const saveFingerprintMitigationsActive = (active: boolean): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.MITIGATIONS_ACTIVE, JSON.stringify(active));
+  } catch (error) {
+    console.error('Failed to save mitigations active state', error);
+  }
+};
+
+const saveSaltRotation = (rotation: SaltRotation | null): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (rotation) {
+      localStorage.setItem(STORAGE_KEYS.LAST_SALT_ROTATION, JSON.stringify(rotation));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.LAST_SALT_ROTATION);
+    }
+  } catch (error) {
+    console.error('Failed to save salt rotation', error);
+  }
+};
+
+const savePrivacyOnboardingState = (state: unknown): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.PRIVACY_ONBOARDING, JSON.stringify(state));
+  } catch (error) {
+    console.error('Failed to save privacy onboarding state', error);
+  }
+};
+
+const saveAlertPreferences = (preferences: unknown, trustedContacts: unknown): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.ALERT_PREFERENCES, JSON.stringify({ preferences, trustedContacts }));
+  } catch (error) {
+    console.error('Failed to save alert preferences', error);
+  }
+};
+
+const saveNetworkSecurity = (security: unknown): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.NETWORK_SECURITY, JSON.stringify(security));
+  } catch (error) {
+    console.error('Failed to save network security', error);
+  }
+};
+
+const generateStudentId = (): string => {
+  return `student-${crypto.randomUUID()}`;
+};
+
+const persistCommunityEvents = (events: unknown[]): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.COMMUNITY_EVENTS, JSON.stringify(events));
+  } catch (error) {
+    console.error('Failed to persist community events', error);
+  }
+};
+
+const persistNFTBadges = (badges: NFTBadge[]): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.NFT_BADGES, JSON.stringify(badges));
+  } catch (error) {
+    console.error('Failed to persist NFT badges', error);
+  }
+};
+
+const readStoredCommunityEvents = (): unknown[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.COMMUNITY_EVENTS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error('Failed to read community events', error);
+    return [];
+  }
+};
+
+const rewardEngine = new RewardEngine();
 
 export const useStore = create<StoreState>((set, get) => {
   const syncRewardState = async () => {
@@ -2869,124 +2843,6 @@ export const useStore = create<StoreState>((set, get) => {
       }
     }
     set({ anonymousWalletAddress: address });
-  },
-
-  generateAnonymousWallet: async (password: string) => {
-    const wallet = Wallet.createRandom();
-    if (!wallet.privateKey) {
-      throw new Error('Failed to generate wallet');
-    }
-
-    setSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, { privateKey: wallet.privateKey }, password);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, wallet.address);
-    }
-
-    set({ anonymousWalletAddress: wallet.address });
-    toast.success('Anonymous wallet created successfully!');
-
-    return {
-      address: wallet.address,
-      mnemonic: wallet.mnemonic?.phrase ?? '',
-    };
-  },
-
-  importAnonymousWallet: async (mnemonic: string, password: string) => {
-    const wallet = Wallet.fromMnemonic(mnemonic.trim());
-    setSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, { privateKey: wallet.privateKey }, password);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, wallet.address);
-    }
-    set({ anonymousWalletAddress: wallet.address });
-    toast.success('Anonymous wallet imported');
-    return { address: wallet.address };
-  },
-
-  loadAnonymousWallet: async (password: string) => {
-    const stored = getSecureItem<{ privateKey: string }>(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY, password);
-    if (!stored?.privateKey) {
-      return null;
-    }
-    return new Wallet(stored.privateKey);
-  },
-
-  clearAnonymousWallet: () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(STORAGE_KEYS.ANON_WALLET_ADDRESS);
-    }
-    clearSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY);
-    set({ anonymousWalletAddress: null });
-  },
-
-  earnVoice: (
-    amount: number,
-    reason: string,
-    category: keyof EarningsBreakdown = 'bonuses',
-    metadata: Record<string, unknown> = {}
-  ) => {
-    const state = get();
-    rewardEngine.awardTokens(state.studentId, amount, reason, category, metadata);
-  },
-
-  spendVoice: (amount: number, reason: string, metadata: Record<string, unknown> = {}) => {
-    const state = get();
-    rewardEngine.spendTokens(state.studentId, amount, reason, metadata);
-  },
-
-  claimRewards: async () => {
-    set({ walletLoading: true, walletError: null });
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    const state = get();
-    const success = await rewardEngine.claimRewards(state.studentId, state.connectedAddress ?? undefined);
-    if (!success) {
-      set({ walletLoading: false, walletError: 'Failed to claim rewards. Please try again.' });
-      throw new Error('Failed to claim rewards. Please try again.');
-    }
-
-    syncRewardState();
-    set({ walletLoading: false, walletError: null });
-  },
-
-  loadWalletData: () => {
-    set({ walletLoading: true, walletError: null });
-    const snapshot = rewardEngine.getWalletSnapshot();
-    set({
-      voiceBalance: snapshot.balance,
-      pendingRewards: snapshot.pending,
-      totalRewardsEarned: snapshot.totalEarned,
-      claimedRewards: snapshot.claimed,
-      spentRewards: snapshot.spent,
-      availableBalance: rewardEngine.getAvailableBalance(),
-      pendingRewardBreakdown: rewardEngine.getPendingBreakdown(),
-      earningsBreakdown: snapshot.earningsBreakdown,
-      transactionHistory: snapshot.transactions,
-      anonymousWalletAddress:
-        typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ANON_WALLET_ADDRESS) : null,
-      lastLoginDate: snapshot.lastLogin,
-      loginStreak: snapshot.streakData.currentStreak,
-      lastPostDate: snapshot.streakData.lastPostDate,
-      postingStreak: snapshot.streakData.currentPostStreak,
-      premiumSubscriptions: snapshot.subscriptions,
-      walletLoading: false,
-    });
-
-    if (typeof window !== 'undefined') {
-      const state = get();
-      void rewardEngine.checkSubscriptionRenewals(state.studentId);
-    }
-  },
-
-  grantDailyLoginBonus: () => {
-    if (typeof window === 'undefined') return;
-    const state = get();
-    rewardEngine.processDailyBonus(state.studentId);
-    rewardEngine.checkSubscriptionRenewals(state.studentId);
-  },
-
-  checkSubscriptionRenewals: () => {
-    if (typeof window === 'undefined') return;
-    const state = get();
-    rewardEngine.checkSubscriptionRenewals(state.studentId);
   },
 
   activatePremium: async (feature: PremiumFeatureType, cost?: number) => {

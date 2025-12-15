@@ -230,7 +230,7 @@ export function discoverPeers(filter: DiscoveryFilter): DiscoveryResult {
   if (!peers || peers.length === 0) {
     // No peers found, return bootstrap nodes
     return {
-      peers: registry.options.bootstrapNodes.map((url, index) => ({
+      peers: registry.options.bootstrapNodes.map((_url, index) => ({
         peerId: `bootstrap-${index}`,
         topic: filter.topic,
         college: filter.college,

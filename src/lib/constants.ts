@@ -1,5 +1,8 @@
-import type { Post, TopicKey, PostLifetimeOption } from '../types/post';
+import type { Post, PostLifetime } from './store';
 import { generatePostId, generateStudentId } from './utils';
+
+type TopicKey = string;
+type PostLifetimeOption = { value: PostLifetime; label: string };
 
 export const helplines = [
   { name: 'Aasra Suicide Prevention Helpline', phone: '91-9820466726' },
