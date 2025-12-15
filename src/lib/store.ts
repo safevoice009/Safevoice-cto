@@ -11,7 +11,8 @@ import { RewardEngine, type Achievement, type PremiumFeatureType, type Subscript
 import { AchievementService, type RankDefinition } from './tokens/AchievementService';
 import { addAchievementToast } from './achievementToastBus';
 import type { BridgeStatus, QueuedTransaction, DeFiYield } from './web3/types';
-import { createWeb3Config, isWeb3Enabled } from './web3/config';
+import { createWeb3Config, isWeb3Enabled, getDefaultChainId } from './web3/config';
+import { Web3Bridge } from './web3/bridge';
 import type { ChainBalance, StakingPosition, GovernanceProposal, NFTAchievement } from './wallet/types';
 import type {
   Community,
@@ -1136,6 +1137,10 @@ const STORAGE_KEYS = {
   FINGERPRINT_SALT_ROTATION: 'safevoice_fingerprint_salt_rotation', // Last salt rotation
   FINGERPRINT_MITIGATIONS_ACTIVE: 'safevoice_fingerprint_mitigations_active', // Whether mitigations are active
   FINGERPRINT_CURRENT_SALT: 'safevoice_fingerprint_current_salt', // Current anonymization salt
+  FINGERPRINT_SALT: 'safevoice_fingerprint_salt', // Legacy fingerprint salt
+  MITIGATION_PLAN: 'safevoice_mitigation_plan', // Legacy mitigation plan
+  MITIGATIONS_ACTIVE: 'safevoice_mitigations_active', // Legacy mitigations active
+  LAST_SALT_ROTATION: 'safevoice_last_salt_rotation', // Legacy last salt rotation
   PRIVACY_ONBOARDING: 'safevoice_privacy_onboarding',        // Privacy onboarding state
   MESSAGING_THREADS: 'safevoice_messaging_threads',          // Message threads
   MESSAGING_PENDING: 'safevoice_messaging_pending',          // Pending messages when offline
@@ -1156,6 +1161,15 @@ const HELPFUL_COMMENT_REWARD_PREFIX = 'helpful-comment-reward';
 const MAX_MODERATOR_ACTIONS = 100;
 const VOLUNTEER_MOD_ACTION_COOLDOWN_MS = 60 * 60 * 1000;
 const COMMUNITY_STATE_VERSION = 2;
+
+const DEFAULT_CHAIN_ID = getDefaultChainId();
+const BoostType = {
+  highlight: 'highlight',
+  crossCampus: 'crossCampus'
+} as const;
+type BoostType = typeof BoostType[keyof typeof BoostType];
+
+const INITIAL_CHAIN_BALANCES = {};
 
 const MODERATOR_ACTION_REASONS: Record<ModeratorAction['actionType'], string> = {
   'blur_post': 'Content flagged as sensitive',
@@ -1898,7 +1912,58 @@ const readStoredCommunityEvents = (): unknown[] => {
   }
 };
 
+const createDefaultCommunityEvents = (): unknown[] => [];
+const loadFingerprintSnapshot = (): unknown => null;
+const loadFingerprintMitigationPlan = (): unknown => null;
+const loadSaltRotation = (): unknown => null;
+const loadFingerprintMitigationsActive = (): boolean => false;
+const loadFingerprintSalt = (): unknown => null;
+const loadPrivacyOnboarding = (): PrivacyOnboardingState => ({
+  currentStep: 1,
+  isCompleted: false,
+  isOpen: false,
+  snoozedUntil: null,
+  startedAt: null,
+});
+// Helper functions (kept for compatibility but not directly used)
+// const loadAlertPreferences = (): AlertPreferences => ({
+//   emailOnAlertsEnabled: true,
+//   pushNotificationsEnabled: true,
+//   smsAlertsEnabled: false,
+//   digestFrequency: 'daily',
+//   highlightCritical: true,
+//   messages: true,
+//   mentions: true,
+//   crisisAlerts: true,
+//   dailyDigest: true,
+// });
+// const loadNetworkSecurity = (): NetworkSecurityState => ({
+//   torModeEnabled: false,
+//   torModeForced: false,
+//   torModeReason: null,
+//   onionRouterInitialized: false,
+//   lastDetection: { profileId: null, confidence: 0, captivePortal: false, timestamp: 0, badgeCopy: '' },
+// });
+
+const toISODate = (date: Date): string => date.toISOString().split('T')[0];
+
 const rewardEngine = new RewardEngine();
+
+// Web3 bridge instance for on-chain operations
+const web3Config = createWeb3Config(DEFAULT_CHAIN_ID);
+const web3Bridge = new Web3Bridge(web3Config);
+
+// Helper functions for NFT badges
+const readStoredNFTBadges = (): NFTBadge[] => {
+  if (typeof window === 'undefined') return [];
+  const raw = localStorage.getItem(STORAGE_KEYS.NFT_BADGES);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as NFTBadge[];
+  } catch {
+    return [];
+  }
+};
 
 export const useStore = create<StoreState>((set, get) => {
   const syncRewardState = async () => {
@@ -2353,10 +2418,10 @@ export const useStore = create<StoreState>((set, get) => {
     systemLocked: typeof window !== 'undefined' ? isSystemLocked() : false,
 
     // Alert Preferences state
-    ...loadAlertPreferences(),
+    alertPreferences: { emailOnAlertsEnabled: true, pushNotificationsEnabled: true, smsAlertsEnabled: false, digestFrequency: 'daily', highlightCritical: true, messages: true, mentions: true, crisisAlerts: true, dailyDigest: true },
 
     // Network Security state
-    networkSecurity: loadNetworkSecurity(),
+    networkSecurity: { torModeEnabled: false, torModeForced: false, torModeReason: null, onionRouterInitialized: false, lastDetection: { profileId: null, confidence: 0 } },
 
     toggleModeratorMode: () => {
       set((state) => {
@@ -2376,13 +2441,6 @@ export const useStore = create<StoreState>((set, get) => {
     referralCode: initialReferralState.code,
     referredByCode: initialReferralState.referredByCode,
     referredFriends: initialReferralState.friends,
-
-    // Alert Preferences state
-    ...loadAlertPreferences(),
-
-    // Network Security state
-    networkSecurity: loadNetworkSecurity(),
-
 
     // Wallet & Token state initialization - now using RewardEngine
     connectedAddress: null,
@@ -3367,22 +3425,6 @@ export const useStore = create<StoreState>((set, get) => {
     if (typeof window === 'undefined') return;
     const badges = readStoredNFTBadges();
     set({ nftBadges: badges });
-  },
-
-  setConnectedAddress: (address: string | null) => {
-    set({ connectedAddress: address });
-  },
-
-  setAnonymousWallet: (address: string | null) => {
-    if (typeof window !== 'undefined') {
-      if (address) {
-        localStorage.setItem(STORAGE_KEYS.ANON_WALLET_ADDRESS, address);
-      } else {
-        localStorage.removeItem(STORAGE_KEYS.ANON_WALLET_ADDRESS);
-        clearSecureItem(STORAGE_KEYS.ANON_WALLET_ENCRYPTED_KEY);
-      }
-    }
-    set({ anonymousWalletAddress: address });
   },
 
   generateAnonymousWallet: async (password: string) => {
