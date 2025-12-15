@@ -233,7 +233,7 @@ export function createP2PStore(): SafeVoiceP2PStore | LocalStorageP2PStore {
   try {
     // Test IndexedDB availability
     if (typeof indexedDB !== 'undefined') {
-      const testDB = new Dexie('test');
+      // const testDB = new Dexie('test'); // Test database for availability check
       return new SafeVoiceP2PStore();
     }
   } catch {

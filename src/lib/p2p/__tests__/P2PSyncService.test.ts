@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { P2PSyncService } from '../P2PSyncService';
 import { SafeVoiceP2PStore, LocalStorageP2PStore } from '../SafeVoiceP2PStore';
 import { BootstrapRegistry } from '../BootstrapRegistry';
-import type { Post, MemorialTribute } from '../../store';
+import type { Post } from '../../store';
 
 // Mock Automerge
 vi.mock('automerge', async () => {
