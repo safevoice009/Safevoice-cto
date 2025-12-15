@@ -1812,7 +1812,7 @@ interface CrisisBroadcastResult {
   fallbackReason?: string | null;
 }
 
-const _broadcastCrisisEntry = async (entry: CrisisQueueEntry): Promise<CrisisBroadcastResult> => {
+const _broadcastCrisisEntry = async (_entry: CrisisQueueEntry): Promise<CrisisBroadcastResult> => {
   if (typeof window === 'undefined') {
     return { success: false, error: 'Broadcast unavailable in this environment' };
   }

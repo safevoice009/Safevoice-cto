@@ -40,10 +40,10 @@ export interface SyncMessage {
   type: 'hello' | 'doc-sync' | 'doc-diff' | 'heartbeat' | 'sync-request' | 'sync-response';
   peerId: string;
   timestamp: number;
-  payload?: any;
+  payload?: Record<string, unknown>;
 }
 
-export interface DocumentRegistration<T = any> {
+export interface DocumentRegistration<T = unknown> {
   docId: string;
   pull: () => T; // Function to get current state from store
   push: (changes: T) => void; // Function to apply changes to store
@@ -88,12 +88,14 @@ export class P2PSyncService {
     this.college = options.college;
     this.topics = options.topics || ['general'];
     
-    // Register local presence
-    this.registry.registerPresence({
+    // Register local presence using the new API
+    this.registry.publishPresence({
       peerId: this.localPeerId,
       college: this.college,
-      topics: this.topics,
-      lastSyncLag: 0
+      topic: this.topics[0] || 'general'
+    }, {
+      sync: true,
+      discovery: true
     });
 
     // Load existing documents from storage
@@ -271,17 +273,13 @@ export class P2PSyncService {
    * Discover and connect to random peers
    */
   private async discoverAndConnectPeers(): Promise<void> {
-    const request = {
+    const discovery = this.registry.discoverPeers({
       college: this.college,
-      topics: this.topics,
-      requesterId: this.localPeerId,
-      maxPeers: this.config.peerCount,
-      timestamp: Date.now()
-    };
+      topic: this.topics[0] || 'general',
+      limit: this.config.peerCount
+    });
 
-    const peers = this.registry.getRandomPeers(request);
-    
-    for (const peer of peers) {
+    for (const peer of discovery.peers) {
       if (!this.connections.has(peer.peerId) && peer.peerId !== this.localPeerId) {
         await this.connectToPeer(peer.peerId);
       }

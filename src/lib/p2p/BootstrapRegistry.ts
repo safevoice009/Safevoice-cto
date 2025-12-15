@@ -1,145 +1,351 @@
-export interface PeerInfo {
+export interface PeerDescriptor {
   peerId: string;
+  lastSeen: number;
+  publishedAt: number;
   college?: string;
-  topics?: string[];
-  lastSeenAt: number;
-  lastSyncLag: number;
-  publicKey?: string;
-  capabilities?: string[];
+  topic?: string;
+  metadata?: PresenceMetadata;
 }
 
-export interface BootstrapRequest {
+export interface DiscoveryFilter {
   college?: string;
-  topics?: string[];
-  requesterId: string;
+  topic?: string;
+  limit?: number;
+}
+
+export interface DiscoveryResult {
+  peers: PeerDescriptor[];
+  source: 'registry' | 'bootstrap';
+}
+
+export interface RegistryOptions {
+  ttl: number; // Time to live in milliseconds
+  heartbeatInterval: number;
+  pruningInterval: number;
   maxPeers: number;
-  timestamp: number;
+  useLocalStorage: boolean;
+  bootstrapNodes: string[];
 }
 
-export interface BootstrapResponse {
-  peers: PeerInfo[];
-  registryVersion: number;
-  timestamp: number;
-}
-
-export interface PeerPresenceUpdate {
-  peerId: string;
-  college?: string;
-  topics?: string[];
-  lastSyncLag: number;
-  timestamp: number;
+export interface PresenceMetadata {
+  relay?: boolean;
+  discovery?: boolean;
+  sync?: boolean;
+  [key: string]: unknown;
 }
 
 export class BootstrapRegistry {
-  private peers = new Map<string, PeerInfo>();
-  private maxPeers = 1000;
-  private peerTimeout = 5 * 60 * 1000; // 5 minutes
+  private peers = new Map<string, PeerDescriptor[]>();
+  private intervals: NodeJS.Timeout[] = [];
+  private config: RegistryOptions;
 
-  constructor() {
-    // Clean up stale peers periodically
-    setInterval(() => this.cleanupStalePeers(), 60000); // Every minute
-  }
-
-  /**
-   * Register local presence in the registry
-   */
-  registerPresence(presence: Omit<PeerPresenceUpdate, 'timestamp'>): void {
-    const peer: PeerInfo = {
-      peerId: presence.peerId,
-      college: presence.college,
-      topics: presence.topics,
-      lastSeenAt: Date.now(),
-      lastSyncLag: presence.lastSyncLag,
-      capabilities: ['p2p-sync', 'crdt-messaging']
+  constructor(options?: Partial<RegistryOptions>) {
+    this.config = {
+      ttl: 45000, // 45 seconds
+      heartbeatInterval: 30000, // 30 seconds
+      pruningInterval: 22500, // 22.5 seconds (TTL/2)
+      maxPeers: 100,
+      useLocalStorage: true,
+      bootstrapNodes: this.getDefaultBootstrapNodes(),
+      ...options
     };
 
-    this.peers.set(presence.peerId, peer);
+    this.initializePersistence();
+    this.startMaintenanceIntervals();
   }
 
   /**
-   * Update existing peer's presence information
+   * Publish peer presence with optional metadata
    */
-  updatePresence(update: PeerPresenceUpdate): void {
-    const existing = this.peers.get(update.peerId);
-    if (existing) {
-      this.peers.set(update.peerId, {
-        ...existing,
-        ...update,
-        lastSeenAt: Date.now()
-      });
+  publishPresence(peer: Omit<PeerDescriptor, 'lastSeen' | 'publishedAt'>, metadata?: PresenceMetadata): void {
+    const key = this.getPeerKey(peer);
+    const now = Date.now();
+    
+    const peerDescriptor: PeerDescriptor = {
+      ...peer,
+      lastSeen: now,
+      publishedAt: now,
+      metadata
+    };
+
+    const peers = this.peers.get(key) || [];
+    const existingIndex = peers.findIndex(p => p.peerId === peer.peerId);
+    
+    if (existingIndex >= 0) {
+      peers[existingIndex] = peerDescriptor;
+    } else {
+      peers.push(peerDescriptor);
+      // Limit peers per key
+      if (peers.length > this.config.maxPeers) {
+        peers.shift(); // Remove oldest
+      }
+    }
+
+    this.peers.set(key, peers);
+    this.saveToLocalStorage();
+  }
+
+  /**
+   * Discover peers by college/topic with limit
+   */
+  discoverPeers(filter: DiscoveryFilter): DiscoveryResult {
+    const peers = this.getAvailablePeers(filter);
+    const source: 'registry' | 'bootstrap' = peers.length > 0 ? 'registry' : 'bootstrap';
+    
+    // If no peers found in registry, return bootstrap nodes
+    if (peers.length === 0 && this.config.bootstrapNodes.length > 0) {
+      const bootstrapPeers = this.config.bootstrapNodes.map(node => ({
+        peerId: node,
+        lastSeen: Date.now(),
+        publishedAt: Date.now() - 60000, // Slightly older
+        metadata: { relay: true, discovery: true } as PresenceMetadata
+      }));
+      
+      return {
+        peers: bootstrapPeers.slice(0, filter.limit || 5),
+        source: 'bootstrap'
+      };
+    }
+
+    return {
+      peers: peers.slice(0, filter.limit || 5),
+      source
+    };
+  }
+
+  /**
+   * Get random peer sample with optional filters
+   */
+  getRandomPeers(count: number, filters?: DiscoveryFilter): PeerDescriptor[] {
+    const peers = this.getAvailablePeers(filters);
+    return this.shuffleArray([...peers]).slice(0, count);
+  }
+
+  /**
+   * Heartbeat to update lastSeen timestamps
+   */
+  refreshPresence(): void {
+    const now = Date.now();
+    const updatedKeys: string[] = [];
+
+    this.peers.forEach((peers, key) => {
+      const updatedPeers = peers.map(peer => ({
+        ...peer,
+        lastSeen: now
+      }));
+      this.peers.set(key, updatedPeers);
+      updatedKeys.push(key);
+    });
+
+    if (updatedKeys.length > 0) {
+      this.saveToLocalStorage();
     }
   }
 
   /**
-   * Get random peers for bootstrapping connections
+   * TTL-based cleanup of peers older than TTL
    */
-  getRandomPeers(request: BootstrapRequest): PeerInfo[] {
-    const availablePeers = this.getAvailablePeers(request);
-    const shuffled = this.shuffleArray([...availablePeers]);
-    return shuffled.slice(0, request.maxPeers);
-  }
-
-  /**
-   * Get available peers matching the request criteria
-   */
-  private getAvailablePeers(request: BootstrapRequest): PeerInfo[] {
-    return Array.from(this.peers.values()).filter(peer => {
-      // Filter out self
-      if (peer.peerId === request.requesterId) return false;
-
-      // Filter by college if specified
-      if (request.college && peer.college && peer.college !== request.college) {
-        return false;
-      }
-
-      // Filter by topics if specified
-      if (request.topics && request.topics.length > 0) {
-        const peerTopics = peer.topics || [];
-        const hasMatchingTopic = request.topics.some(topic => 
-          peerTopics.includes(topic) || peerTopics.includes('*')
-        );
-        if (!hasMatchingTopic) return false;
-      }
-
-      return true;
-    });
-  }
-
-  /**
-   * Remove peer from registry
-   */
-  removePeer(peerId: string): void {
-    this.peers.delete(peerId);
-  }
-
-  /**
-   * Get peer information
-   */
-  getPeer(peerId: string): PeerInfo | undefined {
-    return this.peers.get(peerId);
-  }
-
-  /**
-   * Get all registered peers
-   */
-  getAllPeers(): PeerInfo[] {
-    return Array.from(this.peers.values());
-  }
-
-  /**
-   * Clean up stale peers
-   */
-  private cleanupStalePeers(): void {
+  pruneStalePeers(): void {
     const now = Date.now();
-    const stalePeerIds: string[] = [];
+    const staleKeys: string[] = [];
 
-    this.peers.forEach((peer, peerId) => {
-      if (now - peer.lastSeenAt > this.peerTimeout) {
-        stalePeerIds.push(peerId);
+    this.peers.forEach((peers, key) => {
+      const freshPeers = peers.filter(peer => 
+        now - peer.lastSeen <= this.config.ttl
+      );
+      
+      if (freshPeers.length === 0) {
+        staleKeys.push(key);
+      } else {
+        this.peers.set(key, freshPeers);
       }
     });
 
-    stalePeerIds.forEach(peerId => this.peers.delete(peerId));
+    staleKeys.forEach(key => this.peers.delete(key));
+    this.saveToLocalStorage();
+  }
+
+  /**
+   * Start registry maintenance
+   */
+  start(): void {
+    // Start heartbeat interval
+    const heartbeatInterval = setInterval(() => {
+      this.refreshPresence();
+    }, this.config.heartbeatInterval);
+    
+    this.intervals.push(heartbeatInterval);
+
+    // Start pruning interval
+    const pruningInterval = setInterval(() => {
+      this.pruneStalePeers();
+    }, this.config.pruningInterval);
+    
+    this.intervals.push(pruningInterval);
+  }
+
+  /**
+   * Stop registry maintenance
+   */
+  stop(): void {
+    this.intervals.forEach(interval => clearInterval(interval));
+    this.intervals = [];
+  }
+
+  /**
+   * Complete registry reset
+   */
+  reset(): void {
+    this.stop();
+    this.peers.clear();
+    localStorage.removeItem('safevoice_bootstrap_registry');
+  }
+
+  /**
+   * Force reinit with localStorage reload
+   */
+  reinitialize(): void {
+    this.reset();
+    this.initializePersistence();
+    this.startMaintenanceIntervals();
+  }
+
+  /**
+   * Get all fresh peers in registry
+   */
+  getAllPeers(): PeerDescriptor[] {
+    const now = Date.now();
+    const allPeers: PeerDescriptor[] = [];
+    
+    this.peers.forEach(peers => {
+      const freshPeers = peers.filter(peer => 
+        now - peer.lastSeen <= this.config.ttl
+      );
+      allPeers.push(...freshPeers);
+    });
+    
+    return allPeers;
+  }
+
+  /**
+   * Count of active peers
+   */
+  getPeerCount(): number {
+    return this.getAllPeers().length;
+  }
+
+  /**
+   * Count for specific college/topic
+   */
+  getPeerCountByKey(college?: string, topic?: string): number {
+    const key = this.getPeerKey({ college, topic, peerId: '' });
+    const peers = this.peers.get(key) || [];
+    const now = Date.now();
+    
+    return peers.filter(peer => 
+      now - peer.lastSeen <= this.config.ttl
+    ).length;
+  }
+
+  /**
+   * Get peer key for indexing
+   */
+  private getPeerKey(peer: { college?: string; topic?: string; peerId: string }): string {
+    return `${peer.college || 'global'}:${peer.topic || 'general'}`;
+  }
+
+  /**
+   * Get available peers matching filter
+   */
+  private getAvailablePeers(filter?: DiscoveryFilter): PeerDescriptor[] {
+    const now = Date.now();
+    const freshPeers: PeerDescriptor[] = [];
+
+    this.peers.forEach((peers, key) => {
+      const [peerCollege, peerTopic] = key.split(':');
+      
+      // Apply filters
+      if (filter?.college && peerCollege !== filter.college) return;
+      if (filter?.topic && peerTopic !== filter.topic) return;
+      
+      const fresh = peers.filter(peer => 
+        now - peer.lastSeen <= this.config.ttl
+      );
+      
+      freshPeers.push(...fresh);
+    });
+
+    return freshPeers;
+  }
+
+  /**
+   * Get default bootstrap nodes
+   */
+  private getDefaultBootstrapNodes(): string[] {
+    // Environment variable for custom bootstrap nodes
+    const envBootstrap = process.env.VITE_P2P_BOOTSTRAP;
+    if (envBootstrap) {
+      return envBootstrap.split(',').map(node => node.trim());
+    }
+
+    // Hard-coded SafeVoice-operated fallback nodes
+    return [
+      'bootstrap-1.safevoice.network',
+      'bootstrap-2.safevoice.network',
+      'bootstrap-3.safevoice.network'
+    ];
+  }
+
+  /**
+   * Start maintenance intervals
+   */
+  private startMaintenanceIntervals(): void {
+    if (this.intervals.length > 0) {
+      this.stop();
+    }
+    this.start();
+  }
+
+  /**
+   * Initialize persistence
+   */
+  private initializePersistence(): void {
+    if (!this.config.useLocalStorage || typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem('safevoice_bootstrap_registry');
+      if (stored) {
+        const data = JSON.parse(stored);
+        // Restore peers from localStorage
+        Object.entries(data.peers || {}).forEach(([key, peers]) => {
+          this.peers.set(key, peers as PeerDescriptor[]);
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to load bootstrap registry from localStorage:', error);
+    }
+  }
+
+  /**
+   * Save to localStorage
+   */
+  private saveToLocalStorage(): void {
+    if (!this.config.useLocalStorage || typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const data = {
+        peers: Object.fromEntries(this.peers),
+        timestamp: Date.now(),
+        version: '1.0.0'
+      };
+      localStorage.setItem('safevoice_bootstrap_registry', JSON.stringify(data));
+    } catch (error) {
+      console.warn('Failed to save bootstrap registry to localStorage:', error);
+    }
   }
 
   /**
@@ -152,20 +358,6 @@ export class BootstrapRegistry {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
-  }
-
-  /**
-   * Get peer count
-   */
-  getPeerCount(): number {
-    return this.peers.size;
-  }
-
-  /**
-   * Clear all peers (for testing)
-   */
-  clear(): void {
-    this.peers.clear();
   }
 }
 

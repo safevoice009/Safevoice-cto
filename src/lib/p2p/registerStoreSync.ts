@@ -22,7 +22,7 @@ interface StoreSubscription {
 // Document change tracking
 interface DocumentChange {
   docId: string;
-  changes: any;
+  changes: Record<string, unknown>;
   timestamp: number;
   hash: string;
 }
