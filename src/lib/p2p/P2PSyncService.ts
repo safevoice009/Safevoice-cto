@@ -590,7 +590,7 @@ export class P2PSyncService {
   /**
    * Handle heartbeat from peer
    */
-  private handleHeartbeat(peerId: string, _message: SyncMessage): void {
+  private handleHeartbeat(peerId: string, _message: SyncMessage): void { // eslint-disable-line @typescript-eslint/no-unused-vars
     const conn = this.connections.get(peerId);
     if (conn) {
       conn.lastPing = Date.now();
