@@ -83,6 +83,7 @@ export interface CommunityNotificationSettings {
   muteAll: boolean;
   channelOverrides: Record<string, boolean>;
   updatedAt: number;
+  enabled?: boolean;
 }
 
 export interface CommunityPostMeta {
