@@ -76,15 +76,6 @@ export default function CrisisAlertModal({
 
   const zkProofState = requestId ? zkProofs[requestId] : undefined;
   const witnessData = getWitnessData();
-
-  // Generate witness data from student ID and timestamp for ZK proof
-  const getWitnessData = () => {
-    if (!requestId || !studentId) return '';
-    return `${studentId}-${requestId}-${Date.now()}`;
-  };
-
-  const zkProofState = requestId ? zkProofs[requestId] : undefined;
-  const witnessData = getWitnessData();
   const dialogTitleId = requestId ? `crisis-alert-title-${requestId}` : 'crisis-alert-title';
   const dialogDescriptionId = requestId ? `crisis-alert-description-${requestId}` : 'crisis-alert-description';
 

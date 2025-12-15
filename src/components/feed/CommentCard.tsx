@@ -70,12 +70,6 @@ export default function CommentCard({ comment, postId, depth = 0 }: CommentCardP
     setHasMarkedHelpful(true);
   };
 
-  const handleMarkHelpful = () => {
-    if (hasMarkedHelpful) return;
-    markCommentHelpful(postId, comment.id);
-    setHasMarkedHelpful(true);
-  };
-
   const handleReply = (content: string) => {
     addComment(postId, content, comment.id);
     setShowReplyInput(false);
