@@ -4,6 +4,29 @@ import client from 'prom-client';
 import fs from 'fs';
 import path from 'path';
 
+// SECURITY: Path traversal validation
+// Only allow alphanumeric, hyphen, underscore, period for snapshot IDs
+const VALID_ID_PATTERN = /^[a-zA-Z0-9._-]+$/;
+const validateSnapshotId = (id) => {
+  if (!id || typeof id !== 'string' || !VALID_ID_PATTERN.test(id)) {
+    throw new Error('Invalid snapshot ID format');
+  }
+  return id;
+};
+
+// SECURITY: Ensure resolved path stays within base directory
+const securePath = (baseDir, userInput) => {
+  const normalized = path.normalize(userInput);
+  if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
+    throw new Error('Path traversal attempt detected');
+  }
+  const full = path.resolve(baseDir, normalized);
+  if (!full.startsWith(path.resolve(baseDir) + path.sep) && full !== path.resolve(baseDir)) {
+    throw new Error('Path resolves outside base directory');
+  }
+  return full;
+};
+
 // Configuration
 const PORT = process.env.PORT || 3000;
 const SNAPSHOT_DIR = process.env.SNAPSHOT_DIR || '/data/snapshots';
@@ -172,37 +195,55 @@ const server = createServer(async (req, res) => {
 
   // Store Snapshot: POST /snapshots/:id
   if (method === 'POST' && pathname.startsWith('/snapshots/')) {
-    const id = pathname.split('/').pop();
-    const filePath = path.join(SNAPSHOT_DIR, id);
-    
-    const writeStream = fs.createWriteStream(filePath);
-    req.pipe(writeStream);
-    
-    writeStream.on('finish', () => {
-      updateSnapshotMetric();
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true }));
-    });
-    
-    writeStream.on('error', (err) => {
-      console.error('Error writing snapshot:', err);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Write failed' }));
-    });
+    try {
+      const id = pathname.split('/').pop();
+      
+      // SECURITY: Validate ID format to prevent path traversal
+      const validId = validateSnapshotId(id);
+      const filePath = securePath(SNAPSHOT_DIR, validId);
+      
+      const writeStream = fs.createWriteStream(filePath);
+      req.pipe(writeStream);
+      
+      writeStream.on('finish', () => {
+        updateSnapshotMetric();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      });
+      
+      writeStream.on('error', (err) => {
+        console.error('Error writing snapshot:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Write failed' }));
+      });
+    } catch (err) {
+      // SECURITY: Return generic error to avoid info leakage
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid request' }));
+    }
     return;
   }
 
   // Get Snapshot: GET /snapshots/:id
   if (method === 'GET' && pathname.startsWith('/snapshots/')) {
-    const id = pathname.split('/').pop();
-    const filePath = path.join(SNAPSHOT_DIR, id);
+    try {
+      const id = pathname.split('/').pop();
+      
+      // SECURITY: Validate ID format to prevent path traversal
+      const validId = validateSnapshotId(id);
+      const filePath = securePath(SNAPSHOT_DIR, validId);
 
-    if (fs.existsSync(filePath)) {
-      res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
-      fs.createReadStream(filePath).pipe(res);
-    } else {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Snapshot not found' }));
+      if (fs.existsSync(filePath)) {
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+        fs.createReadStream(filePath).pipe(res);
+      } else {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Snapshot not found' }));
+      }
+    } catch (err) {
+      // SECURITY: Return generic error
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid request' }));
     }
     return;
   }
