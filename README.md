@@ -394,6 +394,16 @@ Run security checks locally:
 ```bash
 npm run lint                # ESLint checks
 npm run test:coverage       # Tests with coverage thresholds
+# 
+# Never commit .env files to git. Always use .env.example for reference:
+# 
+# 1. Copy .env.example to .env
+# 2. Fill in your API keys and configuration
+# 3. Git will automatically ignore .env
+# 
+# Example:
+# cp .env.example .env
+# Edit .env with your actual values
 npm audit                   # Dependency vulnerability scan
 ```
 
@@ -410,16 +420,21 @@ VITE_CHAIN_ID=31337
 VITE_BRIDGE_SOURCE_CHAIN_ID=0
 VITE_POLLING_INTERVAL=5000
 
-# Optional: Custom RPC endpoints (falls back to public RPCs)
-VITE_RPC_MAINNET=https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY
-VITE_RPC_POLYGON=https://polygon-mainnet.g.alchemy.com/v2/YOUR-API-KEY
+# RPC Endpoints (get from Alchemy, Infura, or Run node locally)
+VITE_RPC_MAINNET=https://eth-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY
+VITE_RPC_POLYGON=https://polygon-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY
+VITE_RPC_BSC=https://bsc-dataseed.bnbchain.org:443
+VITE_RPC_ARBITRUM=https://arb1.arbitrum.io/rpc
+VITE_RPC_OPTIMISM=https://mainnet.optimism.io
+VITE_RPC_BASE=https://mainnet.base.org
 VITE_RPC_LOCALHOST=http://127.0.0.1:8545
 
 # Optional: Contract addresses per chain (only needed when enabling web3)
-VITE_LOCALHOST_VOICE_TOKEN=0x5FbDB2315678afecb367f032d93F642f64180aa3
-VITE_LOCALHOST_VOICE_STAKING=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-VITE_LOCALHOST_VOICE_ACHIEVEMENT_NFT=0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
-VITE_LOCALHOST_VOICE_GOVERNOR=0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+VITE_LOCALHOST_VOICE_TOKEN=0x0000000000000000000000000000000000000000
+VITE_LOCALHOST_VOICE_STAKING=0x0000000000000000000000000000000000000000
+VITE_LOCALHOST_VOICE_ACHIEVEMENT_NFT=0x0000000000000000000000000000000000000000
+VITE_LOCALHOST_VOICE_GOVERNOR=0x0000000000000000000000000000000000000000
+# Repeat for MAINNET, POLYGON, BSC, ARBITRUM, OPTIMISM, BASE prefixes
 
 # Application configuration
 VITE_APP_ENV=development
@@ -562,20 +577,24 @@ VITE_WALLETCONNECT_PROJECT_ID=your_project_id
 
 # Web3 bridge configuration (optional)
 VITE_WEB3_ENABLED=false
-VITE_CHAIN_ID=31337
-VITE_BRIDGE_SOURCE_CHAIN_ID=0
-VITE_POLLING_INTERVAL=5000
-
+# RPC Endpoints (get from Alchemy, Infura, or Run node locally)
+VITE_RPC_MAINNET=https://eth-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY
+VITE_RPC_POLYGON=https://polygon-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY
+VITE_RPC_BSC=https://bsc-dataseed.bnbchain.org:443
+VITE_RPC_ARBITRUM=https://arb1.arbitrum.io/rpc
+VITE_RPC_OPTIMISM=https://mainnet.optimism.io
+VITE_RPC_BASE=https://mainnet.base.org
+VITE_RPC_LOCALHOST=http://127.0.0.1:8545
 # Optional: Custom RPC endpoints (falls back to public RPCs)
-VITE_RPC_MAINNET=https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY
-VITE_RPC_POLYGON=https://polygon-mainnet.g.alchemy.com/v2/YOUR-API-KEY
+VITE_RPC_MAINNET=https://eth-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY
+VITE_RPC_POLYGON=https://polygon-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY
 VITE_RPC_LOCALHOST=http://127.0.0.1:8545
 
 # Optional: Contract addresses per chain (only needed when enabling web3)
-VITE_LOCALHOST_VOICE_TOKEN=0x5FbDB2315678afecb367f032d93F642f64180aa3
-VITE_LOCALHOST_VOICE_STAKING=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-VITE_LOCALHOST_VOICE_ACHIEVEMENT_NFT=0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
-VITE_LOCALHOST_VOICE_GOVERNOR=0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+VITE_LOCALHOST_VOICE_TOKEN=0x0000000000000000000000000000000000000000
+VITE_LOCALHOST_VOICE_STAKING=0x0000000000000000000000000000000000000000
+VITE_LOCALHOST_VOICE_ACHIEVEMENT_NFT=0x0000000000000000000000000000000000000000
+VITE_LOCALHOST_VOICE_GOVERNOR=0x0000000000000000000000000000000000000000
 
 # Application configuration
 VITE_APP_ENV=development
