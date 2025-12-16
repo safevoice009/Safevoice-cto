@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Reply, Pencil, Trash2, Flag, ThumbsUp, ShieldCheck, Shield } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import type { Comment } from '../../lib/store';
 import { useStore } from '../../lib/store';
 import { formatTimeAgo, getStudentIdColor, parseMarkdown } from '../../lib/utils';
@@ -9,6 +10,20 @@ import CommentInput from './CommentInput';
 import ConfirmModal from './ConfirmModal';
 import RankChip from '../wallet/RankChip';
 import { AchievementService } from '../../lib/tokens/AchievementService';
+
+/**
+ * SECURITY: Sanitizes user-generated content before rendering
+ * Prevents XSS attacks by removing malicious scripts while preserving safe HTML
+ * Uses DOMPurify with strict configuration
+ */
+const sanitizeHtml = (dirtyHtml: string): string => {
+  const config = {
+    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'code', 'pre', 'br', 'p', 'ul', 'ol', 'li'],
+    ALLOWED_ATTR: ['href', 'title', 'target'],
+    KEEP_CONTENT: true,
+  };
+  return DOMPurify.sanitize(dirtyHtml, config);
+};
 
 interface CommentCardProps {
   comment: Comment;
@@ -239,7 +254,8 @@ export default function CommentCard({ comment, postId, depth = 0 }: CommentCardP
       ) : (
         <div
           className="mt-3 text-sm text-gray-200"
-          dangerouslySetInnerHTML={{ __html: parseMarkdown(comment.content) }}
+          // SECURITY: DOMPurify sanitizes HTML to prevent XSS injection
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(parseMarkdown(comment.content)) }}
         />
       )}
 
