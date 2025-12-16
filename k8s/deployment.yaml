@@ -35,8 +35,8 @@ spec:
         fsGroup: 101
       containers:
       - name: safevoice
-        image: ghcr.io/safevoice009/safevoice:latest
-        imagePullPolicy: Always
+        image: ghcr.io/safevoice009/safevoice:1.0.0
+        imagePullPolicy: IfNotPresent
         ports:
         - name: http
           containerPort: 80
