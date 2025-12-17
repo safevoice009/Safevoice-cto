@@ -91,8 +91,8 @@ const STORAGE_KEY_HEARTBEAT = 'safevoice_p2p_registry_heartbeat';
 interface RegistryState {
   peers: Map<string, PeerDescriptor[]>;
   options: Required<RegistryOptions>;
-  heartbeatInterval?: NodeJS.Timer;
-  pruneInterval?: NodeJS.Timer;
+  heartbeatInterval?: ReturnType<typeof setInterval>;
+  pruneInterval?: ReturnType<typeof setInterval>;
   localPeers: Map<string, PresenceMetadata>; // Tracks our own published peers for heartbeat
 }
 

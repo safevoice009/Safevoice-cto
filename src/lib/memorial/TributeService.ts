@@ -382,7 +382,7 @@ export function createDraft(
     honoree: honoree.trim(),
     message: message.trim(),
     dateOfRemembrance,
-    college: college ? college.trim() : undefined,
+    college: undefined,
     status: 'draft',
     cosigners: [],
     auditTrail: [
