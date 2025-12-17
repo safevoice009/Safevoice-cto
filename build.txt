@@ -1,0 +1,94 @@
+
+added 1538 packages, and audited 1539 packages in 40s
+
+235 packages are looking for funding
+  run `npm fund` for details
+
+24 vulnerabilities (14 low, 7 moderate, 3 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues possible (including breaking changes), run:
+  npm audit fix --force
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+
+> safevoice@0.0.0 build
+> tsc -b && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 8201 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                           2.77 kB │ gzip:     1.17 kB
+dist/assets/index-zHKva9Ox.css                          189.72 kB │ gzip:    28.59 kB
+dist/assets/openpgp-l0sNRNKZ.js                           0.00 kB │ gzip:     0.02 kB
+dist/assets/Windows-R3CKAIUV-DfNT6Oej.js                  0.48 kB │ gzip:     0.37 kB
+dist/assets/base-3MIUIYGA-CzL856e2.js                     0.56 kB │ gzip:     0.43 kB
+dist/assets/zkSync-XRUC4ZHO-BbodPLR7.js                   0.70 kB │ gzip:     0.52 kB
+dist/assets/coinbaseWallet-2OUR5TUP-DWcZN83L.js           0.78 kB │ gzip:     0.52 kB
+dist/assets/injectedWallet-EUKDEAIU-CX0dv8AN.js           0.89 kB │ gzip:     0.61 kB
+dist/assets/optimism-UUP5Y7TB-CkwAWENU.js                 1.14 kB │ gzip:     0.75 kB
+dist/assets/ethereum-4FY57XJF-BhI8i5E7.js                 1.18 kB │ gzip:     0.66 kB
+dist/assets/xdc-5UHQ25DW-DEC0KCO4.js                      1.34 kB │ gzip:     0.84 kB
+dist/assets/avalanche-TFPKP544-D_4HPsrK.js                1.38 kB │ gzip:     0.88 kB
+dist/assets/cronos-DQKKIEX7-BC8OGSkQ.js                   1.42 kB │ gzip:     0.90 kB
+dist/assets/polygon-Z4QITDL7-BdYUrcfE.js                  1.43 kB │ gzip:     0.90 kB
+dist/assets/Chrome-LGF33C3S-BAtiMVmP.js                   1.52 kB │ gzip:     0.85 kB
+dist/assets/arbitrum-LYDBJZP3-BqjyWlr0.js                 1.59 kB │ gzip:     1.02 kB
+dist/assets/bsc-S2GSW6VX-CTFL85G7.js                      1.61 kB │ gzip:     0.87 kB
+dist/assets/safeWallet-DFMLSLCR-MoeFNPts.js               1.91 kB │ gzip:     1.02 kB
+dist/assets/walletConnectWallet-D6ZADJM7-8OuKJLEq.js      2.00 kB │ gzip:     1.05 kB
+dist/assets/Opera-KV54PXPA-BCqqyEOJ.js                    2.04 kB │ gzip:     1.13 kB
+dist/assets/zora-KVO7WIOK-D5bRxKPW.js                     2.39 kB │ gzip:     1.19 kB
+dist/assets/braveWallet-BTBH4MDN-x9eTNHdb.js              2.56 kB │ gzip:     1.47 kB
+dist/assets/refresh-5KGGHTJP-C8QGCTrU.js                  2.87 kB │ gzip:     1.39 kB
+dist/assets/connect-XNDTNVUH-BrWe_DLP.js                  3.48 kB │ gzip:     1.61 kB
+dist/assets/InstitutionNetworkDetector-CEQ1fgqX.js        3.82 kB │ gzip:     1.49 kB
+dist/assets/hardhat-ARRFHFKB-DXjWs0mo.js                  4.02 kB │ gzip:     1.94 kB
+dist/assets/create-PAJXJDV3-aLc4x62m.js                   4.22 kB │ gzip:     1.87 kB
+dist/assets/Brave-YATE5BIM-BT0QgSna.js                    4.39 kB │ gzip:     2.10 kB
+dist/assets/scan-HZBLXLM4-DsV3US5d.js                     4.58 kB │ gzip:     1.95 kB
+dist/assets/rainbowWallet-GGU64QEI-CyqdLGEK.js            4.63 kB │ gzip:     1.64 kB
+dist/assets/sign-FZVB2CS6-CGsRnPrd.js                     5.55 kB │ gzip:     4.23 kB
+dist/assets/Edge-K2JEGI5S-CaW1Fen3.js                     5.56 kB │ gzip:     2.39 kB
+dist/assets/Arc-QDJFTGH2-CMIt7t_M.js                      6.82 kB │ gzip:     2.58 kB
+dist/assets/metaMaskWallet-ORHUNQRP-D9jY-BK7.js           8.44 kB │ gzip:     2.14 kB
+dist/assets/Browser-HN7O5MN7-BIvPkI4Y.js                 10.89 kB │ gzip:     3.73 kB
+dist/assets/login-ZSMM5UYL-Dwac7LJ-.js                   12.31 kB │ gzip:     5.04 kB
+dist/assets/index-CkgbqC-l.js                            12.80 kB │ gzip:     4.75 kB
+dist/assets/Safari-2QIYKJ4P-CgF0kJQK.js                  14.33 kB │ gzip:     5.45 kB
+dist/assets/Firefox-NP5SYEK5-BKk6Wa02.js                 14.97 kB │ gzip:     5.06 kB
+dist/assets/hooks.module-CDpE3hRZ.js                     15.68 kB │ gzip:     6.37 kB
+dist/assets/assets-26YY4GVD-unq2KRLS.js                  23.60 kB │ gzip:     6.65 kB
+dist/assets/zh_CN-BO5MSGV2-DaXfwBos.js                   23.80 kB │ gzip:     4.41 kB
+dist/assets/index.es-_j5Q5XR4.js                         24.01 kB │ gzip:     8.65 kB
+dist/assets/ko_KR-V2HAEAHG-C7td6ED2.js                   27.45 kB │ gzip:     5.07 kB
+dist/assets/ja_JP-GYCPH6AT-B6Qig2iE.js                   27.80 kB │ gzip:     5.14 kB
+dist/assets/ar_AR-PQJDYWVZ-Bnh8Spvg.js                   32.46 kB │ gzip:     4.73 kB
+dist/assets/th_TH-UWDENI2F-6kYnvR_i.js                   35.11 kB │ gzip:     5.79 kB
+dist/assets/index-DopWUlUh.js                            36.12 kB │ gzip:    25.13 kB
+dist/assets/tr_TR-NAI3OICG-C5gR3JPu.js                   37.04 kB │ gzip:     4.38 kB
+dist/assets/id_ID-3SKVJ2RK-B6yclZD5.js                   37.56 kB │ gzip:     4.16 kB
+dist/assets/pt_BR-JDDVMLRA-C_b63_RI.js                   37.73 kB │ gzip:     3.99 kB
+dist/assets/hi_IN-RGKVTIVE-D4nNKS9g.js                   37.97 kB │ gzip:     6.18 kB
+dist/assets/es_419-GLICGTYE-NSToZPZk.js                  37.99 kB │ gzip:     4.28 kB
+dist/assets/uk_UA-H7BFRWP5-CHg7GMFG.js                   38.46 kB │ gzip:     4.76 kB
+dist/assets/ru_RU-3W6WVVOI-Bumf4F0t.js                   38.86 kB │ gzip:     5.22 kB
+dist/assets/fr_FR-UC7Z4T6O-DdQRhfkp.js                   41.50 kB │ gzip:     4.26 kB
+dist/assets/Macos-2KTZ2XLP-bkMn-PIg.js                   55.22 kB │ gzip:    39.16 kB
+dist/assets/index-CW6E1HO3.js                            82.29 kB │ gzip:    26.25 kB
+dist/assets/Linux-NS2LQPT4-9fsHcAq6.js                   96.91 kB │ gzip:    23.30 kB
+dist/assets/index-CuKqW5Tr.js                           112.28 kB │ gzip:    34.25 kB
+dist/assets/index-CzehISar.js                           182.11 kB │ gzip:    60.51 kB
+dist/assets/index.es-mzq4Y-vc.js                        282.50 kB │ gzip:    84.90 kB
+dist/assets/index-Cfvp93k_.js                           347.98 kB │ gzip:   103.38 kB
+dist/assets/index-Dd3Ew-T5.js                           475.82 kB │ gzip:    87.87 kB
+dist/assets/index-D15BG-3l.js                         1,447.32 kB │ gzip:   221.26 kB
+dist/assets/index-DiJf0vxx.js                         5,772.69 kB │ gzip: 1,491.72 kB
+✓ built in 45.99s
