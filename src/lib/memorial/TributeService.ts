@@ -339,6 +339,7 @@ export function createDraft(
   honoree: string,
   message: string,
   dateOfRemembrance?: string,
+  college?: string,
   sessionId?: string,
   useSessionRateLimit: boolean = false
 ): { success: boolean; draft?: TributeDraft; error?: string } {
