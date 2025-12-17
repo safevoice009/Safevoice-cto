@@ -2,7 +2,7 @@ import type { Post, PostLifetime } from './store';
 import { generatePostId, generateStudentId } from './utils';
 
 type TopicKey = string;
-type PostLifetimeOption = { value: PostLifetime; label: string };
+type PostLifetimeOption = { value: PostLifetime; label: string; durationMs?: number };
 
 export const helplines = [
   { name: 'Aasra Suicide Prevention Helpline', phone: '91-9820466726' },
@@ -214,13 +214,13 @@ const weightedCount = () => Math.floor(Math.pow(Math.random(), 1.4) * 500);
 export const generateSamplePosts = (): Post[] => {
   return samplePostsData.map((data) => {
     const createdAt = Date.now() - Math.floor(Math.random() * 7 * 24 * 60 * 60 * 1000);
+    const expiresAt = createdAt + thirtyDaysMs;
 
     return {
       id: generatePostId(),
       studentId: generateStudentId(),
       content: data.content,
-      college: data.college,
-      topic: data.topic,
+      category: data.topic,
       reactions: {
         heart: weightedCount(),
         fire: weightedCount(),
@@ -229,11 +229,22 @@ export const generateSamplePosts = (): Post[] => {
         angry: weightedCount(),
         laugh: weightedCount(),
       },
-      comments: [],
       commentCount: 0,
+      comments: [],
       createdAt,
-      expiresAt: createdAt + thirtyDaysMs,
+      isEdited: false,
+      editedAt: null,
+      isPinned: false,
+      reportCount: 0,
+      helpfulCount: 0,
+      expiresAt,
+      lifetime: '30d',
+      customLifetimeHours: null,
+      isEncrypted: false,
+      encryptionMeta: null,
       imageUrl: data.imageUrl ?? null,
+      mediaAttachments: [],
+      hasMedia: Boolean(data.imageUrl),
     };
   });
 };

@@ -43,7 +43,7 @@ describe('TransactionHistory component', () => {
     vi.clearAllMocks();
   });
 
-  it('renders transaction list with all transactions', () => {
+  it('renders transaction list with all transactions', async () => {
     const transactions = [
       createTransaction({ id: 'tx-1', reason: 'Post reward', balance: 250 }),
       createTransaction({ id: 'tx-2', type: 'spend', amount: -20, reason: 'Badge purchase', balance: 200 }),
