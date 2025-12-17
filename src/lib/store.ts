@@ -1926,7 +1926,13 @@ const loadFingerprintMitigationPlan = (): FingerprintMitigationPlan | null => nu
 const loadSaltRotation = (): SaltRotation | null => null;
 const loadFingerprintMitigationsActive = (): boolean => false;
 const loadFingerprintSalt = (): string => '';
-const loadPrivacyOnboarding = (): PrivacyOnboardingState | null => null;
+const loadPrivacyOnboarding = (): PrivacyOnboardingState => ({
+  currentStep: 1,
+  isCompleted: false,
+  isOpen: false,
+  snoozedUntil: null,
+  startedAt: null,
+});
 // Helper functions (kept for compatibility but not directly used)
 // const loadAlertPreferences = (): AlertPreferences => ({
 //   emailOnAlertsEnabled: true,
@@ -2424,7 +2430,7 @@ export const useStore = create<StoreState>((set, get) => {
     trustedContacts: [],
 
     // Network Security state
-    networkSecurity: { torModeEnabled: false, torModeForced: false, torModeReason: null, onionRouterInitialized: false, lastDetection: { profileId: null, confidence: 0 } },
+    networkSecurity: { torModeEnabled: false, torModeForced: false, torModeReason: null, onionRouterInitialized: false, lastDetection: { profileId: null, confidence: 0, captivePortal: false, timestamp: 0, badgeCopy: '' }, showInstitutionBadge: false },
 
     toggleModeratorMode: () => {
       set((state) => {
