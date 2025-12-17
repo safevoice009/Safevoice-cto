@@ -84,6 +84,9 @@ export interface CommunityNotificationSettings {
   channelOverrides: Record<string, boolean>;
   updatedAt: number;
   enabled?: boolean;
+  mentions?: boolean;
+  announcements?: boolean;
+  directMessages?: boolean;
 }
 
 export interface CommunityPostMeta {

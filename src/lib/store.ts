@@ -1759,16 +1759,20 @@ const clampLimit = (limit?: number, fallback = 5): number => {
 };
 
 const adjustCommunityChannelActiveMembers = (
-  meta: CommunityPostMeta[],
+  meta: Record<string, CommunityPostMeta>,
   channels: CommunityChannel[],
   communityId: string,
   delta: number
-): CommunityPostMeta[] => {
-  return meta.map(m => {
+): Record<string, CommunityPostMeta> => {
+  const updated = { ...meta };
+  Object.keys(updated).forEach(key => {
+    const m = updated[key];
     const channel = channels.find(ch => ch.id === m.channelId && ch.communityId === communityId);
-    if (!channel) return m;
-    return { ...m, activeMembers: Math.max(0, (m.activeMembers || 0) + delta) };
+    if (channel) {
+      updated[key] = { ...m, activeMembers: Math.max(0, (m.activeMembers || 0) + delta) };
+    }
   });
+  return updated;
 };
 
 const findDefaultChannelId = (channels: CommunityChannel[], communityId: string): string | null => {
@@ -1782,7 +1786,11 @@ const createNotificationSettingsForCommunity = (communityId: string, studentId: 
     studentId,
     enabled: true,
     muteAll: false,
-    mutedChannels: [],
+    notifyOnPost: true,
+    notifyOnMention: true,
+    notifyOnReply: true,
+    channelOverrides: {},
+    updatedAt: Date.now(),
     mentions: true,
     announcements: true,
     directMessages: true,
@@ -1899,7 +1907,7 @@ const persistNFTBadges = (badges: NFTBadge[]): void => {
   }
 };
 
-const readStoredCommunityEvents = (): unknown[] => {
+const readStoredCommunityEvents = (): CommunityEvent[] => {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.COMMUNITY_EVENTS);
@@ -1912,19 +1920,13 @@ const readStoredCommunityEvents = (): unknown[] => {
   }
 };
 
-const createDefaultCommunityEvents = (): unknown[] => [];
-const loadFingerprintSnapshot = (): unknown => null;
-const loadFingerprintMitigationPlan = (): unknown => null;
-const loadSaltRotation = (): unknown => null;
+const createDefaultCommunityEvents = (): CommunityEvent[] => [];
+const loadFingerprintSnapshot = (): FingerprintSnapshot | null => null;
+const loadFingerprintMitigationPlan = (): FingerprintMitigationPlan | null => null;
+const loadSaltRotation = (): SaltRotation | null => null;
 const loadFingerprintMitigationsActive = (): boolean => false;
-const loadFingerprintSalt = (): unknown => null;
-const loadPrivacyOnboarding = (): PrivacyOnboardingState => ({
-  currentStep: 1,
-  isCompleted: false,
-  isOpen: false,
-  snoozedUntil: null,
-  startedAt: null,
-});
+const loadFingerprintSalt = (): string => '';
+const loadPrivacyOnboarding = (): PrivacyOnboardingState | null => null;
 // Helper functions (kept for compatibility but not directly used)
 // const loadAlertPreferences = (): AlertPreferences => ({
 //   emailOnAlertsEnabled: true,
@@ -2419,6 +2421,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     // Alert Preferences state
     alertPreferences: { emailOnAlertsEnabled: true, pushNotificationsEnabled: true, smsAlertsEnabled: false, digestFrequency: 'daily', highlightCritical: true, messages: true, mentions: true, crisisAlerts: true, dailyDigest: true },
+    trustedContacts: [],
 
     // Network Security state
     networkSecurity: { torModeEnabled: false, torModeForced: false, torModeReason: null, onionRouterInitialized: false, lastDetection: { profileId: null, confidence: 0 } },
@@ -2437,10 +2440,6 @@ export const useStore = create<StoreState>((set, get) => {
         return { isModerator: next };
       });
     },
-
-    referralCode: initialReferralState.code,
-    referredByCode: initialReferralState.referredByCode,
-    referredFriends: initialReferralState.friends,
 
     // Wallet & Token state initialization - now using RewardEngine
     connectedAddress: null,
@@ -2517,7 +2516,7 @@ export const useStore = create<StoreState>((set, get) => {
         return false;
       }
 
-      const normalizedDate = toISODate(parsedDate);
+      const normalizedDate = toISODate(new Date(parsedDate));
       const state = get();
 
       const duplicate = state.communityEvents.some(
