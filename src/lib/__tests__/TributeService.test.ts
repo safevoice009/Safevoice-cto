@@ -650,7 +650,7 @@ describe('Enhanced Features (Phase 13 PR #192)', () => {
       expect(rateLimit.allowed).toBe(true);
 
       // Create draft with session rate limiting
-      const result = createDraft('Student#1234', 'John Doe', 'Test message', undefined, session.sessionId, true);
+      const result = createDraft('Student#1234', 'John Doe', 'Test message', undefined, undefined, session.sessionId, true);
       expect(result.success).toBe(true);
 
       // Second attempt for same honoree should be blocked
@@ -668,8 +668,8 @@ describe('Enhanced Features (Phase 13 PR #192)', () => {
       for (let i = 0; i < 3; i++) {
         const rateLimit = checkRateLimitWithSession('Student#1234', honorees[i], session.sessionId);
         expect(rateLimit.allowed).toBe(true);
-        
-        const draft = createDraft('Student#1234', honorees[i], `Test message ${i} here`, undefined, session.sessionId, true);
+
+        const draft = createDraft('Student#1234', honorees[i], `Test message ${i} here`, undefined, undefined, session.sessionId, true);
         expect(draft.success).toBe(true);
       }
 

@@ -2,7 +2,7 @@ import type { Post, PostLifetime } from './store';
 import { generatePostId, generateStudentId } from './utils';
 
 type TopicKey = string;
-type PostLifetimeOption = { value: PostLifetime; label: string };
+type PostLifetimeOption = { value: PostLifetime; label: string; durationMs?: number };
 
 export const helplines = [
   { name: 'Aasra Suicide Prevention Helpline', phone: '91-9820466726' },
@@ -234,6 +234,16 @@ export const generateSamplePosts = (): Post[] => {
       createdAt,
       expiresAt: createdAt + thirtyDaysMs,
       imageUrl: data.imageUrl ?? null,
+      isEdited: false,
+      editedAt: null,
+      isPinned: false,
+      reportCount: 0,
+      helpfulCount: 0,
+      lifetime: '24h',
+      isEncrypted: false,
+      encryptionMeta: null,
+      mediaAttachments: [],
+      hasMedia: false,
     };
   });
 };
