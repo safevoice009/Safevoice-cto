@@ -4,6 +4,7 @@ import {
   base,
   bsc,
   type Chain,
+  hardhat,
   localhost,
   mainnet,
   optimism,
@@ -11,6 +12,10 @@ import {
 } from 'viem/chains';
 import { getAccount, watchAccount } from '@wagmi/core';
 import type { ChainConfig, ContractAddresses } from './types';
+import { wagmiConfig } from '../wagmiConfig';
+
+// Ensure config is initialized
+void wagmiConfig;
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -22,6 +27,7 @@ const defaultChains: Record<number, Chain> = {
   [optimism.id]: optimism,
   [base.id]: base,
   [localhost.id]: localhost,
+  [hardhat.id]: hardhat,
 };
 
 const publicClientCache = new Map<number, PublicClient>();

@@ -126,11 +126,35 @@ vi.mock('../tokens/RewardEngine', () => {
       return { ...snapshot.streakData };
     }
 
+    getAvailableBalance() {
+      return Math.max(0, snapshot.balance - snapshot.pending);
+    }
+
+    getPendingBreakdown() {
+      return [];
+    }
+
+    getSubscriptions() {
+      return {};
+    }
+
+    getAchievements() {
+      return [];
+    }
+
     onReward(callback: RewardEventCallback) {
       rewardCallbacks.push(callback);
     }
 
     onSpend() {}
+
+    onSubscription() {
+      // No-op for mock
+    }
+
+    onAchievementUnlocked() {
+      // No-op for mock
+    }
 
     onBalanceChange(callback: BalanceChangeCallback) {
       balanceChangeCallbacks.push(callback);
