@@ -683,3 +683,11 @@ This project is licensed under the terms specified in the LICENSE file.
 ## 💙 Built with Love for Students
 
 SafeVoice empowers every student to speak out fearlessly and build safer campuses across World
+
+
+## Ecosystem and Strategic Projects
+Explore the full power of the AetherForge ecosystem:
+- [AetherClaw](https://github.com/safevoice009/AetherClaw) - The Apex AI Agent Framework.
+- - [Human-anatomy](https://github.com/safevoice009/Human-anatomy) - Comprehensive anatomy research hub.
+  - - [AetherForge-Registry](https://github.com/safevoice009/AetherForge-Registry) - Central node for strategic visibility.
+    - 
